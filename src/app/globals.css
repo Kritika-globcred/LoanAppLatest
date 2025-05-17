@@ -86,12 +86,8 @@
   }
   body {
     @apply text-foreground;
-    background-color: hsl(var(--background)); /* Solid fallback color */
-    /* The order of background layers matters: image is on top, then solid color */
-    background-image: url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Loan_App_BG.png'); /* Actual background image */
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed; /* Keeps the background fixed during scroll */
+    background-color: hsl(var(--background)); /* Solid theme background color */
+    /* Removed background-image, background-size, background-position, and background-attachment */
   }
 }
 
