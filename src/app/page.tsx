@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center">
       {/* Responsive Section acting as the main website container */}
-      <section className="w-full bg-[hsl(var(--muted)/0.20)] backdrop-blur-[25px] p-6 md:p-8 rounded-[20px] shadow-lg mx-[5%] mt-[2.5%] md:mx-[20%]">
+      <section className="w-full bg-[hsl(var(--background)/0.30)] backdrop-blur-[25px] p-6 md:p-8 rounded-[7px] mx-[5%] mt-[2.5%] md:mx-[20%] border border-[hsl(var(--background))] shadow-[inset_0_0_20px_hsl(var(--background)/0.5)]">
         {/* New Header Section (within the responsive section) */}
         <div className="flex justify-between items-center py-4 mb-6"> {/* Added mb-6 for spacing below header */}
           <Logo />
@@ -21,8 +21,8 @@ export default function Home() {
           Our New Responsive Section
         </h2>
         <p className="text-muted-foreground text-center md:text-left">
-          This section demonstrates responsive margins. On mobile devices, it has a 5% margin on the left and right edges, and a 5% margin from the top.
-          On tablet and desktop screens, it has a 20% margin from the left and right edges, and now a 5% margin from the top, providing a focused content area.
+          This section demonstrates responsive margins. On mobile devices, it has a 5% margin on the left and right edges, and a 2.5% margin from the top.
+          On tablet and desktop screens, it has a 20% margin from the left and right edges, and now a 2.5% margin from the top, providing a focused content area.
         </p>
         <div className="mt-6 flex justify-center md:justify-start">
           <Button>Discover More</Button>
