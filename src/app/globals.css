@@ -85,16 +85,9 @@
     @apply border-border;
   }
   body {
-    /* @apply bg-background text-foreground; Original line modified below */
     @apply text-foreground;
-    /* font-family removed to rely on Next.js font setup in layout.tsx and tailwind.config.ts */
-    
-    /* Set base background color using HSL variable */
     background-color: hsl(var(--background));
-    
-    /* Apply the image with a semi-transparent overlay of the theme's background color */
-    /* Ensure 'loan_app_bg.png' is in the 'public/images/' directory */
-    background-image: linear-gradient(hsla(var(--background), 0.3), hsla(var(--background), 0.3)), url('/images/loan_app_bg.png');
+    background-image: linear-gradient(hsl(var(--background) / 0.3), hsl(var(--background) / 0.3)), url('/images/loan_app_bg.png');
     background-size: cover;
     background-position: center;
     background-attachment: fixed; /* Keeps the background fixed during scroll */
