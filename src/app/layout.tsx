@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { Header } from '@/components/layout/header';
+// import { Header } from '@/components/layout/header'; // Removed Header import
 import { Toaster } from "@/components/ui/toaster";
 
 const geistSans = Geist({
@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased flex flex-col min-h-screen`}>
-        <Header />
+        {/* <Header /> */} {/* Header component removed from here */}
         <main className="flex-grow container mx-auto px-4 py-8">
           {children}
         </main>
