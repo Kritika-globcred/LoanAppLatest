@@ -2,79 +2,81 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    --background: 0 0% 100%; /* White */
+    --foreground: 220 25% 10%; /* Dark Blue-Gray for text */
+
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 220 25% 10%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    --popover-foreground: 220 25% 10%;
+
+    --primary: 220 90% 19%; /* #052659 - Deep Navy Blue (named Soft Lavender by user) */
+    --primary-foreground: 220 20% 98%; /* Very light, almost white, for text on primary */
+
+    --secondary: 220 15% 94%; /* A very light blue-gray for secondary elements */
+    --secondary-foreground: 220 90% 19%; /* Primary color for text on secondary bg */
+
+    --muted: 220 15% 96.1%; /* Lighter version for subtle text/borders */
+    --muted-foreground: 220 15% 45.1%; /* Text on muted backgrounds */
+
+    --accent: 270 80% 92%; /* Light Violet - for hover states, highlights */
+    --accent-foreground: 270 80% 25%; /* Darker Violet for text on accent bg */
+
+    --destructive: 0 84.2% 60.2%; /* Standard red for destructive actions */
+    --destructive-foreground: 0 0% 98%; /* White text on destructive */
+
+    --border: 220 15% 89.8%; /* Light gray-blue border */
+    --input: 220 15% 89.8%; /* Same as border for input fields */
+    
+    --ring: 220 90% 50%; /* A brighter version of primary for focus rings */
+
+    --radius: 0.5rem;
+
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
+    --background: 220 25% 10%; /* Dark Blue-Gray */
+    --foreground: 0 0% 98%; /* White text */
+
+    --card: 220 25% 12%; /* Slightly lighter than background for cards */
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
+
+    --popover: 220 25% 10%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+
+    --primary: 220 90% 60%; /* Lighter version of primary for dark mode */
+    --primary-foreground: 220 90% 15%; /* Dark text on lighter primary */
+
+    --secondary: 220 15% 18%; /* Dark secondary */
+    --secondary-foreground: 0 0% 98%; /* White text on dark secondary */
+
+    --muted: 220 15% 14.9%;
+    --muted-foreground: 220 15% 63.9%;
+
+    --accent: 270 80% 30%; /* Darker Violet for accent in dark mode */
+    --accent-foreground: 270 80% 95%; /* Light text on dark accent */
+
+    --destructive: 0 70% 50%; /* Darker red */
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
+
+    --border: 220 15% 20%; /* Darker border */
+    --input: 220 15% 20%;
+
+    --ring: 220 90% 70%; /* Brighter ring for dark mode */
+    
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -84,5 +86,24 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    /* font-family removed to rely on Next.js font setup in layout.tsx and tailwind.config.ts */
+  }
+}
+
+@layer components {
+  .gradient-border-button {
+    @apply relative bg-background text-primary border-2 border-transparent shadow-sm;
+    background-clip: padding-box; /* Ensures the border doesn't hide behind the background */
+  }
+
+  .gradient-border-button::before {
+    content: "";
+    @apply absolute inset-[-2px] rounded-[calc(var(--radius)-2px)]; /* Adjusts for border thickness and follows button's border radius */
+    background: linear-gradient(to right, theme('colors.red.500'), theme('colors.yellow.500'));
+    z-index: -1;
+  }
+
+  .gradient-border-button:hover::before {
+    background: linear-gradient(to right, theme('colors.red.600'), theme('colors.yellow.600'));
   }
 }
