@@ -94,7 +94,7 @@
     
     /* Apply the image with a semi-transparent overlay of the theme's background color */
     /* Ensure 'loan_app_bg.png' is in the 'public/images/' directory */
-    background-image: linear-gradient(hsla(var(--background), 0.85), hsla(var(--background), 0.85)), url('/images/loan_app_bg.png');
+    background-image: linear-gradient(hsla(var(--background), 0.3), hsla(var(--background), 0.3)), url('/images/loan_app_bg.png');
     background-size: cover;
     background-position: center;
     background-attachment: fixed; /* Keeps the background fixed during scroll */
