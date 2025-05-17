@@ -1,14 +1,22 @@
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Zap, BarChart } from "lucide-react";
-import Image from 'next/image';
+import { Logo } from "@/components/layout/logo"; // Added Logo import
 
 export default function Home() {
   return (
-    <div className="flex flex-col items-center"> {/* Removed space-y-16 for more precise margin control */}
-      {/* New Responsive Section */}
-      <section className="w-full bg-card p-6 md:p-8 rounded-lg shadow-lg mx-[5%] mt-[5%] md:mx-[20%] md:mt-[5%]">
+    <div className="flex flex-col items-center">
+      {/* Responsive Section acting as the main website container */}
+      <section className="w-full bg-muted p-6 md:p-8 rounded-[20px] shadow-lg mx-[5%] mt-[5%] md:mx-[20%] md:mt-[5%]">
+        {/* New Header Section (within the responsive section) */}
+        <div className="flex justify-between items-center py-4 mb-6"> {/* Added mb-6 for spacing below header */}
+          <Logo />
+          <div className="flex items-center space-x-4">
+            <Button variant="outline">Login</Button>
+            <Button>Get Started</Button>
+          </div>
+        </div>
+
+        {/* Existing content of the responsive section - can be replaced or removed later */}
         <h2 className="text-2xl md:text-3xl font-bold text-primary mb-4 text-center md:text-left">
           Our New Responsive Section
         </h2>
