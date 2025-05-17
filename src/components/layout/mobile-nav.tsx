@@ -1,3 +1,4 @@
+
 "use client";
 
 import type React from 'react';
@@ -11,9 +12,6 @@ interface MobileNavProps {
 
 const navLinks = [
   { href: '/', label: 'Home' },
-  { href: '/features', label: 'Features' },
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/contact', label: 'Contact' },
 ];
 
 export function MobileNav({ onLinkClick }: MobileNavProps) {

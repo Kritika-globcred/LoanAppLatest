@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -10,9 +11,6 @@ import { MobileNav } from './mobile-nav';
 
 const navLinks = [
   { href: '/', label: 'Home' },
-  { href: '/features', label: 'Features' },
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/contact', label: 'Contact' },
 ];
 
 export function Header() {
@@ -39,10 +37,6 @@ export function Header() {
               {link.label}
             </NavItem>
           ))}
-          <Button variant="outline" size="sm">Sign In</Button>
-          <Button size="sm" className="gradient-border-button">
-            Get Started
-          </Button>
         </nav>
 
         {/* Mobile Navigation Trigger */}
