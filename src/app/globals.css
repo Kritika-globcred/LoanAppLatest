@@ -87,10 +87,13 @@
   body {
     @apply text-foreground;
     background-color: hsl(var(--background)); /* Solid fallback color */
-    background-image: url('/images/loan_app_bg.png'); /* Only the image, no gradient overlay */
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed; /* Keeps the background fixed during scroll */
+    /* The order of background layers matters: overlay is on top, then image, then solid color */
+    background-image: 
+      linear-gradient(hsl(var(--background) / 0.3), hsl(var(--background) / 0.3)), /* Semi-transparent overlay */
+      url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Loan_App_BG.png'); /* Actual background image */
+    background-size: cover, cover; /* Apply cover to both layers if needed, or adjust individually */
+    background-position: center, center;
+    background-attachment: fixed, fixed; /* Keeps the background fixed during scroll */
   }
 }
 
