@@ -1,8 +1,14 @@
 
+'use client';
+
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 
 export default function Home() {
+  const [activeNavItem, setActiveNavItem] = useState('Loan');
+  const navMenuItems = ['Loan', 'Study', 'Work'];
+
   return (
     <div className="flex flex-col items-center">
       {/* Responsive Section acting as the main website container */}
@@ -20,13 +26,36 @@ export default function Home() {
           {/* New Header Section (within the responsive section) */}
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
-            <div className="flex items-center space-x-4">
-              <Button variant="default">Login</Button>
-              <Button variant="default">Get Started</Button>
+            <nav>
+              <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
+                {navMenuItems.map((item) => (
+                  <li key={item}>
+                    <button
+                      onClick={() => setActiveNavItem(item)}
+                      className="text-white hover:opacity-75 transition-opacity focus:outline-none flex items-center text-xs sm:text-sm"
+                      aria-current={activeNavItem === item ? "page" : undefined}
+                    >
+                      <span
+                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 transition-all duration-300 ease-in-out ${
+                          activeNavItem === item
+                            ? 'bg-gradient-to-r from-red-500 to-yellow-400 shadow-[0_0_3px_theme(colors.red.500),0_0_5px_theme(colors.yellow.400)] scale-110'
+                            : 'bg-gray-400/60'
+                        }`}
+                        aria-hidden="true"
+                      ></span>
+                      {item}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <div className="flex items-center space-x-2 md:space-x-4">
+              <Button variant="default" size="sm">Login</Button>
+              <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
             </div>
           </div>
 
-          {/* Existing content of the responsive section - can be replaced or removed later */}
+          {/* Existing content of the responsive section */}
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4 text-center md:text-left">
             Our New Responsive Section
           </h2>
