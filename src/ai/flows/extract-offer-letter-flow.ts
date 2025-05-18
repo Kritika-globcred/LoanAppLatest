@@ -9,9 +9,9 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit'; // Changed from 'genkit/zod' or 'zod'
+import { z } from 'genkit'; // Genkit re-exports z
 
-export const ExtractOfferLetterInputSchema = z.object({
+const ExtractOfferLetterInputSchema = z.object({
   offerLetterImageUri: z
     .string()
     .describe(
@@ -20,7 +20,7 @@ export const ExtractOfferLetterInputSchema = z.object({
 });
 export type ExtractOfferLetterInput = z.infer<typeof ExtractOfferLetterInputSchema>;
 
-export const ExtractOfferLetterOutputSchema = z.object({
+const ExtractOfferLetterOutputSchema = z.object({
   studentName: z.string().describe("The full name of the student as mentioned in the offer letter."),
   universityName: z.string().describe("The name of the university offering the admission."),
   courseName: z.string().describe("The name of the course or program of study."),
