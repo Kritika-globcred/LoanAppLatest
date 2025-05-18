@@ -30,8 +30,9 @@ export default function FinalSummaryPage() {
       setPreviousPage('/loan-application/preferences');
     } else if (hasOfferLetter === 'true') { // User chose "Yes" to offer letter, came from Lender Recommendations
       setPreviousPage('/loan-application/lender-recommendations');
-    } else { // Default or unknown, go to the step before the conditional ones
-      setPreviousPage('/loan-application/review-professional-kyc');
+    } else { // Default or unknown, should ideally not happen if status is always set
+      // Fallback to the step before conditional branching
+      setPreviousPage('/loan-application/review-professional-kyc'); 
     }
   }, []);
 
@@ -45,7 +46,7 @@ export default function FinalSummaryPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />

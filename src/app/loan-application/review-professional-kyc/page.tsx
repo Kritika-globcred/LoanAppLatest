@@ -16,14 +16,14 @@ import { Loader2, ArrowLeft, Edit3, Save } from 'lucide-react';
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
 
+// Combined data structure for review
 interface CoSignatoryData {
   coSignatoryChoice?: string | null;
   coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null;
   coSignatoryRelationship?: string | null;
-  // AI Extracted for Co-Signatory
-  idNumber?: string;
-  idType?: string;
-  nameOnId?: string;
+  idNumber?: string; // Extracted
+  idType?: string;   // Extracted
+  nameOnId?: string; // Extracted
 }
 
 interface WorkEmploymentData {
@@ -31,22 +31,22 @@ interface WorkEmploymentData {
   workExperienceYears?: string;
   workExperienceMonths?: string;
   workExperienceProofType?: 'resume' | 'linkedin' | null;
-  resumeFileName?: string | null; 
+  resumeFileName?: string | null; // For non-image resumes
   linkedInUrl?: string | null;
+  extractedYearsOfExperience?: string; // AI Extracted from profile
+  extractedGapInLast3YearsMonths?: string; // AI Extracted
+  extractedCurrentOrLastIndustry?: string; // AI Extracted
+  extractedCurrentOrLastJobRole?: string; // AI Extracted
   isCurrentlyWorking?: 'yes' | 'no' | null;
   monthlySalary?: string | null;
   salaryCurrency?: string | null;
   familyMonthlySalary?: string | null;
   familySalaryCurrency?: string | null;
-  // AI Extracted for Profile
-  extractedYearsOfExperience?: string;
-  extractedGapInLast3YearsMonths?: string;
-  extractedCurrentOrLastIndustry?: string;
-  extractedCurrentOrLastJobRole?: string;
 }
 
 type CombinedProfessionalData = CoSignatoryData & WorkEmploymentData;
 type EditableCombinedDataKey = keyof CombinedProfessionalData;
+
 
 export default function ReviewProfessionalKYCPage() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
@@ -103,6 +103,7 @@ export default function ReviewProfessionalKYCPage() {
     }
     
     const mergedData: CombinedProfessionalData = { ...loadedCoSignatoryData, ...loadedWorkEmploymentData };
+    
     if (Object.keys(mergedData).length > 0) {
       setCombinedData(mergedData);
       setAvekaMessage("Great! Here's a summary of your professional information. Please review it carefully and make any corrections if needed.");
@@ -133,13 +134,12 @@ export default function ReviewProfessionalKYCPage() {
       toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
       return;
     }
-    console.log("Professional KYC Data Confirmed:", combinedData);
-    console.log("Consent given at:", currentTime);
-    localStorage.setItem('professionalKycDataReviewed', JSON.stringify(combinedData)); // Save the reviewed data
     
-    const hasOfferLetterStatus = localStorage.getItem('hasOfferLetterStatus');
+    localStorage.setItem('professionalKycDataReviewed', JSON.stringify(combinedData));
+    
+    const hasOfferLetter = localStorage.getItem('hasOfferLetterStatus');
 
-    if (hasOfferLetterStatus === 'false') { // User said "No" to offer letter
+    if (hasOfferLetter === 'false') { // User said "No" to offer letter
       toast({ title: "Professional Details Confirmed!", description: "Proceeding to Preferences." });
       router.push('/loan-application/preferences');
     } else { // User said "Yes" to offer letter (or status unknown, default to Yes flow)
@@ -156,17 +156,17 @@ export default function ReviewProfessionalKYCPage() {
     idType: "Co-Signatory ID Type (Extracted)",
     nameOnId: "Name on Co-Signatory ID (Extracted)",
     
-    workExperienceIndustry: "Industry (Manual)",
-    workExperienceYears: "Experience (Years - Manual)",
-    workExperienceMonths: "Experience (Months - Manual)",
+    workExperienceIndustry: "Industry",
+    workExperienceYears: "Experience (Years)",
+    workExperienceMonths: "Experience (Months)",
     workExperienceProofType: "Professional Proof Type",
     resumeFileName: "Resume File Name",
     linkedInUrl: "LinkedIn URL",
     
-    extractedYearsOfExperience: "Years of Experience (Extracted)",
-    extractedGapInLast3YearsMonths: "Gap in Last 3 Years (Extracted)",
-    extractedCurrentOrLastIndustry: "Industry (Extracted)",
-    extractedCurrentOrLastJobRole: "Job Role (Extracted)",
+    extractedYearsOfExperience: "Years of Experience (Extracted from Profile)",
+    extractedGapInLast3YearsMonths: "Gap in Last 3 Years (Extracted from Profile)",
+    extractedCurrentOrLastIndustry: "Industry (Extracted from Profile)",
+    extractedCurrentOrLastJobRole: "Job Role (Extracted from Profile)",
     
     isCurrentlyWorking: "Currently Working",
     monthlySalary: "Your Monthly Salary",
@@ -211,7 +211,6 @@ export default function ReviewProfessionalKYCPage() {
       if (data.familySalaryCurrency) fields.push('familySalaryCurrency');
     }
     
-    // Filter out undefined/null/empty string values at the end
     return fields.filter(key => {
         const value = data[key as keyof CombinedProfessionalData];
         return value !== undefined && value !== null && String(value).trim() !== '';
@@ -296,7 +295,7 @@ export default function ReviewProfessionalKYCPage() {
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
