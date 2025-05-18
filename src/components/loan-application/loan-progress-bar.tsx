@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react'; // Added React import
+import React from 'react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -15,9 +15,16 @@ export function LoanProgressBar({ steps }: LoanProgressBarProps) {
   const pathname = usePathname();
   const isMobile = useIsMobile();
 
-  const currentStepIndex = steps.findIndex(step => pathname.startsWith(step.path));
+  let currentStepIndex = steps.findIndex(step => pathname.startsWith(step.path));
 
-  // Don't render if steps are not defined or current step is not found
+  if (currentStepIndex === -1) {
+    // If no direct match, check subStepPaths
+    currentStepIndex = steps.findIndex(step =>
+      step.subStepPaths?.some(subPath => pathname.startsWith(subPath))
+    );
+  }
+
+  // Don't render if steps are not defined or current step is not found (even after checking subStepPaths)
   if (!steps || steps.length === 0 || currentStepIndex === -1) {
     return null;
   }
@@ -50,22 +57,29 @@ export function LoanProgressBar({ steps }: LoanProgressBarProps) {
 
     // Current step if it's not the first and not the last
     if (currentStepIndex > 0 && currentStepIndex < steps.length - 1) {
-        mobileElements.push(renderStep(steps[currentStepIndex], currentStepIndex, true, true));
+        // Check if this step is already the first one rendered, to avoid duplication
+        if (steps[currentStepIndex].path !== steps[0].path) {
+            mobileElements.push(renderStep(steps[currentStepIndex], currentStepIndex, true, true));
+        }
     }
 
     // Ellipsis before last if current is not last, last-1 and there are more than 2 steps
     if (currentStepIndex < steps.length - 2 && steps.length > 2) {
-         mobileElements.push(<span key="ellipsis-end" className="text-gray-400 text-xs px-1 shrink-0">...</span>);
+         // Avoid double ellipsis if current step is right before the last ellipsis segment
+         if (!(currentStepIndex > 0 && currentStepIndex < steps.length -1 && currentStepIndex +1 === steps.length -2 )) {
+             mobileElements.push(<span key="ellipsis-end" className="text-gray-400 text-xs px-1 shrink-0">...</span>);
+         }
     }
     
-    // Last step, only if total steps > 1 and it's not the same as the first step already rendered
+    // Last step, only if total steps > 1
     if (steps.length > 1) {
         // Avoid re-rendering if it's the same as the first step (i.e. currentStepIndex is 0, and it's also the last step)
-        if (currentStepIndex !== steps.length -1 || steps[0].path !== steps[steps.length -1].path ) {
-             // Also avoid re-rendering if current is last and it was already rendered by the middle condition
-            if(!(currentStepIndex === steps.length -1 && currentStepIndex > 0 && currentStepIndex < steps.length -1)){
-                 mobileElements.push(renderStep(steps[steps.length - 1], steps.length - 1, currentStepIndex === steps.length - 1, true));
-            }
+        // Or if it's the same as the currently rendered middle step
+        const isLastSameAsFirst = steps[0].path === steps[steps.length - 1].path && currentStepIndex === 0;
+        const isLastSameAsCurrentMiddle = currentStepIndex > 0 && currentStepIndex < steps.length - 1 && currentStepIndex === steps.length -1;
+        
+        if (!isLastSameAsFirst && !isLastSameAsCurrentMiddle) {
+             mobileElements.push(renderStep(steps[steps.length - 1], steps.length - 1, currentStepIndex === steps.length - 1, true));
         }
     }
   }
