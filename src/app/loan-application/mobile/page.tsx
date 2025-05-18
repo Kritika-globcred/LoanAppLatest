@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Import useRouter
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ export default function MobileVerificationPage() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const { toast } = useToast();
+  const router = useRouter(); // Initialize useRouter
 
   const [countryCode, setCountryCode] = useState(defaultCountryCodes[0].value);
   const [mobileNumber, setMobileNumber] = useState('');
@@ -57,12 +59,12 @@ export default function MobileVerificationPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setAvekaMessageVisible(true);
-    }, 500); // Aveka message appears after 0.5 seconds
+    }, 500); 
     return () => clearTimeout(timer);
   }, []);
 
   const handleGetOtpClick = () => {
-    if (!mobileNumber.trim() || !/^\d{7,15}$/.test(mobileNumber.trim())) { // Basic 7-15 digit validation
+    if (!mobileNumber.trim() || !/^\d{7,15}$/.test(mobileNumber.trim())) {
       toast({
         title: "Invalid Mobile Number",
         description: "Please enter a valid mobile number (7-15 digits).",
@@ -91,13 +93,12 @@ export default function MobileVerificationPage() {
       description: "Proceeding to the next step.",
     });
     console.log("OTP Verified. Country Value:", countryCode, "Mobile:", mobileNumber);
-    // Example: router.push('/loan-application/step-2');
+    router.push('/loan-application/admission-kyc'); // Navigate to Admission KYC page
   };
 
   const handleGoBackToMobileEntry = () => {
     setOtpSent(false);
     setEnteredOtp('');
-    // Optionally, clear mobileNumber too if desired: setMobileNumber('');
   };
 
   return (
@@ -109,10 +110,9 @@ export default function MobileVerificationPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary))/0.10] rounded-2xl z-0 backdrop-blur-lg"></div>
 
         <div className="relative z-10">
-          {/* Header Section */}
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
@@ -146,7 +146,6 @@ export default function MobileVerificationPage() {
             </div>
           </div>
 
-          {/* Mobile Verification Form Card */}
           <div className="py-8">
             <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-lg mx-auto">
               <div className="flex flex-col items-center text-center">
@@ -274,4 +273,3 @@ export default function MobileVerificationPage() {
     </div>
   );
 }
-
