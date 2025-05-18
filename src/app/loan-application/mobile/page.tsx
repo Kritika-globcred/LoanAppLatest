@@ -94,6 +94,12 @@ export default function MobileVerificationPage() {
     // Example: router.push('/loan-application/step-2');
   };
 
+  const handleGoBackToMobileEntry = () => {
+    setOtpSent(false);
+    setEnteredOtp('');
+    // Optionally, clear mobileNumber too if desired: setMobileNumber('');
+  };
+
   return (
     <div className="flex flex-col items-center">
       <section
@@ -103,7 +109,7 @@ export default function MobileVerificationPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary))/0.10] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
 
         <div className="relative z-10">
           {/* Header Section */}
@@ -174,7 +180,7 @@ export default function MobileVerificationPage() {
                       <div>
                         <Label htmlFor="countryCode" className="block text-sm font-medium text-left mb-1">Code</Label>
                         <Select value={countryCode} onValueChange={setCountryCode}>
-                          <SelectTrigger id="countryCode" className="bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring">
+                          <SelectTrigger id="countryCode" className="w-auto bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring">
                             <SelectValue placeholder="Select code" />
                           </SelectTrigger>
                           <SelectContent className="bg-white text-black">
@@ -209,7 +215,7 @@ export default function MobileVerificationPage() {
                           placeholder="Enter number"
                           value={mobileNumber}
                           onChange={(e) => setMobileNumber(e.target.value)}
-                          className="w-full bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring"
+                          className="w-[70%] bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring"
                           maxLength={15} 
                         />
                       </div>
@@ -226,7 +232,7 @@ export default function MobileVerificationPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="w-full space-y-6">
+                  <div className="w-full space-y-4">
                     <div>
                       <Label htmlFor="otp" className="block text-sm font-medium text-left mb-1">Enter OTP</Label>
                       <Input
@@ -235,19 +241,27 @@ export default function MobileVerificationPage() {
                         placeholder="Enter 4-digit OTP"
                         value={enteredOtp}
                         onChange={(e) => setEnteredOtp(e.target.value)}
-                        className="w-full bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring text-center tracking-[0.5em]"
+                        className="w-1/2 mx-auto bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring text-center tracking-[0.5em]"
                         maxLength={4}
                       />
                        <p className="text-xs text-gray-300 mt-2">Default OTP is 9999 for testing.</p>
                     </div>
-                    <div className="flex justify-center">
+                    <div className="flex flex-col items-center space-y-3 sm:flex-row sm:justify-center sm:space-y-0 sm:space-x-4 mt-4">
                         <Button
-                        onClick={handleSaveAndContinue}
-                        variant="default"
-                        size="sm"
-                        className="gradient-border-button w-auto"
+                          onClick={handleGoBackToMobileEntry}
+                          variant="outline"
+                          size="sm"
+                          className="w-auto bg-white text-black hover:bg-gray-100"
                         >
-                        Save & Continue
+                          Change Number
+                        </Button>
+                        <Button
+                          onClick={handleSaveAndContinue}
+                          variant="default"
+                          size="sm"
+                          className="gradient-border-button w-auto"
+                        >
+                          Save & Continue
                         </Button>
                     </div>
                   </div>
@@ -260,3 +274,4 @@ export default function MobileVerificationPage() {
     </div>
   );
 }
+
