@@ -35,7 +35,7 @@ export default function Home() {
             On tablet and desktop screens, it has a 20% margin from the left and right edges, and now a 2.5% margin from the top, providing a focused content area.
           </p>
           <div className="mt-6 flex justify-center md:justify-start">
-            <Button variant="default">Discover More</Button>
+            <Button variant="default" className="gradient-border-button">Discover More</Button>
           </div>
         </div>
       </section>
