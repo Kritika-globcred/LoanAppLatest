@@ -12,7 +12,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-export const GenerateRecommendationsInputSchema = z.object({
+const GenerateRecommendationsInputSchema = z.object({
   preferredCountry1: z.string().describe("The user's first preferred country for studies."),
   preferredCountry2: z.string().nullable().describe("The user's second preferred country (optional)."),
   courseLevel: z.string().describe("The desired academic level (e.g., Graduation, Post-Graduation, Masters, PhD)."),
@@ -21,7 +21,7 @@ export const GenerateRecommendationsInputSchema = z.object({
 });
 export type GenerateRecommendationsInput = z.infer<typeof GenerateRecommendationsInputSchema>;
 
-export const UniversityRecommendationSchema = z.object({
+const UniversityRecommendationSchema = z.object({
   universityName: z.string().describe("The name of the recommended university."),
   universitySummary: z.string().describe("A brief summary or highlight of the university (1-2 sentences)."),
   recommendedCourseName: z.string().describe("The specific name of the course recommended at this university."),
@@ -31,7 +31,7 @@ export const UniversityRecommendationSchema = z.object({
 });
 export type UniversityRecommendation = z.infer<typeof UniversityRecommendationSchema>;
 
-export const GenerateRecommendationsOutputSchema = z.object({
+const GenerateRecommendationsOutputSchema = z.object({
   recommendations: z.array(UniversityRecommendationSchema).describe("A list of 3-5 university and course recommendations."),
 });
 export type GenerateRecommendationsOutput = z.infer<typeof GenerateRecommendationsOutputSchema>;
