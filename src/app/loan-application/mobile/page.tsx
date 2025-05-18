@@ -22,25 +22,25 @@ import { useToast } from "@/hooks/use-toast";
 
 interface CountryInfo {
   value: string; // Unique value for the select item, e.g., '+91', '+1_US'
-  label: string; // Display label, e.g., 'India IN (+91)'
+  label: string; // Display label, e.g., 'IN (+91)'
 }
 
 const defaultCountryCodes: CountryInfo[] = [
-  { value: '+91', label: 'India IN (+91)' },
-  { value: '+233', label: 'Ghana GH (+233)' },
-  { value: '+234', label: 'Nigeria NG (+234)' },
-  { value: '+263', label: 'Zimbabwe ZW (+263)' },
-  { value: '+254', label: 'Kenya KE (+254)' },
-  { value: '+256', label: 'Uganda UG (+256)' },
+  { value: '+91', label: 'IN (+91)' },
+  { value: '+233', label: 'GH (+233)' },
+  { value: '+234', label: 'NG (+234)' },
+  { value: '+263', label: 'ZW (+263)' },
+  { value: '+254', label: 'KE (+254)' },
+  { value: '+256', label: 'UG (+256)' },
 ];
 
 const globalCountryCodesSample: CountryInfo[] = [
-  { value: '+1_US', label: 'USA US (+1)' },
-  { value: '+1_CA', label: 'Canada CA (+1)' },
-  { value: '+44', label: 'UK GB (+44)' },
-  { value: '+61', label: 'Australia AU (+61)' },
-  { value: '+49', label: 'Germany DE (+49)' },
-  { value: '+33', label: 'France FR (+33)' },
+  { value: '+1_US', label: 'US (+1)' },
+  { value: '+1_CA', label: 'CA (+1)' },
+  { value: '+44', label: 'GB (+44)' },
+  { value: '+61', label: 'AU (+61)' },
+  { value: '+49', label: 'DE (+49)' },
+  { value: '+33', label: 'FR (+33)' },
 ];
 
 export default function MobileVerificationPage() {
@@ -57,12 +57,12 @@ export default function MobileVerificationPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setAvekaMessageVisible(true);
-    }, 500);
+    }, 500); // Aveka message appears after 0.5 seconds
     return () => clearTimeout(timer);
   }, []);
 
   const handleGetOtpClick = () => {
-    if (!mobileNumber.trim() || !/^\d{10}$/.test(mobileNumber.trim())) { // Note: 10-digit validation might need to be country-specific
+    if (!mobileNumber.trim() || !/^\d{10}$/.test(mobileNumber.trim())) { // Basic 10-digit validation
       toast({
         title: "Invalid Mobile Number",
         description: "Please enter a valid 10-digit mobile number.",
@@ -103,7 +103,7 @@ export default function MobileVerificationPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] backdrop-blur-lg rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary))/0.10] rounded-2xl z-0 backdrop-blur-lg"></div>
 
         <div className="relative z-10">
           {/* Header Section */}
@@ -170,38 +170,38 @@ export default function MobileVerificationPage() {
 
                 {!otpSent ? (
                   <div className="w-full space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                      <div className="md:col-span-1">
-                        <Label htmlFor="countryCode" className="block text-sm font-medium text-left mb-1">Country/Region</Label>
+                    <div className="grid grid-cols-3 gap-4 items-end">
+                      <div className="col-span-1">
+                        <Label htmlFor="countryCode" className="block text-sm font-medium text-left mb-1">Code</Label>
                         <Select value={countryCode} onValueChange={setCountryCode}>
-                          <SelectTrigger id="countryCode" className="w-full text-black">
+                          <SelectTrigger id="countryCode" className="w-full bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring">
                             <SelectValue placeholder="Select code" />
                           </SelectTrigger>
-                          <SelectContent className="bg-background text-foreground">
+                          <SelectContent className="bg-white text-black">
                             <SelectGroup>
-                              <SelectLabel>Suggested</SelectLabel>
+                              <SelectLabel className="text-gray-700">Suggested</SelectLabel>
                               {defaultCountryCodes.map((code) => (
-                                <SelectItem key={code.value} value={code.value} className="hover:bg-muted">
+                                <SelectItem key={code.value} value={code.value} className="hover:bg-gray-100 text-black">
                                   {code.label}
                                 </SelectItem>
                               ))}
                             </SelectGroup>
                             <SelectSeparator />
                             <SelectGroup>
-                              <SelectLabel>All Countries</SelectLabel>
+                              <SelectLabel className="text-gray-700">All Countries</SelectLabel>
                               {globalCountryCodesSample.map((code) => (
-                                <SelectItem key={code.value} value={code.value} className="hover:bg-muted">
+                                <SelectItem key={code.value} value={code.value} className="hover:bg-gray-100 text-black">
                                   {code.label}
                                 </SelectItem>
                               ))}
                                <SelectItem value="disabled_sample_info" disabled className="text-xs text-muted-foreground italic px-8 py-1">
-                                (This is a sample list. A full list would be available in a production app.)
+                                (This is a sample list.)
                               </SelectItem>
                             </SelectGroup>
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="md:col-span-2">
+                      <div className="col-span-2">
                         <Label htmlFor="mobileNumber" className="block text-sm font-medium text-left mb-1">Mobile Number</Label>
                         <Input
                           id="mobileNumber"
@@ -209,19 +209,21 @@ export default function MobileVerificationPage() {
                           placeholder="Enter number"
                           value={mobileNumber}
                           onChange={(e) => setMobileNumber(e.target.value)}
-                          className="w-full text-black"
-                          maxLength={15} // Increased maxLength as 10 is too restrictive globally
+                          className="w-full bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring"
+                          maxLength={15} 
                         />
                       </div>
                     </div>
-                    <Button
-                      onClick={handleGetOtpClick}
-                      variant="default"
-                      size="lg"
-                      className="w-full gradient-border-button"
-                    >
-                      Get OTP
-                    </Button>
+                    <div className="flex justify-center">
+                        <Button
+                        onClick={handleGetOtpClick}
+                        variant="default"
+                        size="md"
+                        className="gradient-border-button w-auto"
+                        >
+                        Get OTP
+                        </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="w-full space-y-6">
@@ -233,19 +235,21 @@ export default function MobileVerificationPage() {
                         placeholder="Enter 4-digit OTP"
                         value={enteredOtp}
                         onChange={(e) => setEnteredOtp(e.target.value)}
-                        className="w-full text-black text-center tracking-[0.5em]"
+                        className="w-full bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring text-center tracking-[0.5em]"
                         maxLength={4}
                       />
                        <p className="text-xs text-gray-300 mt-2">Default OTP is 9999 for testing.</p>
                     </div>
-                    <Button
-                      onClick={handleSaveAndContinue}
-                      variant="default"
-                      size="lg"
-                      className="w-full gradient-border-button"
-                    >
-                      Save & Continue
-                    </Button>
+                    <div className="flex justify-center">
+                        <Button
+                        onClick={handleSaveAndContinue}
+                        variant="default"
+                        size="md"
+                        className="gradient-border-button w-auto"
+                        >
+                        Save & Continue
+                        </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -256,3 +260,4 @@ export default function MobileVerificationPage() {
     </div>
   );
 }
+
