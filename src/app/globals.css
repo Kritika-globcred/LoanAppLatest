@@ -4,34 +4,34 @@
 
 @layer base {
   :root {
-    --background: 0 0% 12%; /* Dark Grey */
+    --background: 0 0% 30%; /* Medium Grey */
     --foreground: 0 0% 90%; /* Light Grey Text */
 
-    --card: 0 0% 15%; /* Slightly Lighter Dark Grey for cards */
+    --card: 0 0% 35%; /* Slightly Lighter Medium Grey for cards */
     --card-foreground: 0 0% 90%; /* Light Grey Text for cards */
 
-    --popover: 0 0% 12%; /* Dark Grey for popovers */
+    --popover: 0 0% 30%; /* Medium Grey for popovers */
     --popover-foreground: 0 0% 90%; /* Light Grey Text for popovers */
 
-    --primary: 220 90% 60%; /* Lighter Blue for primary actions (consistent with dark themes) */
+    --primary: 220 90% 60%; /* Lighter Blue for primary actions */
     --primary-foreground: 220 90% 15%; /* Dark text on lighter primary */
 
-    --secondary: 0 0% 22%; /* Darker Grey for secondary elements */
+    --secondary: 0 0% 40%; /* Lighter Grey for secondary elements */
     --secondary-foreground: 0 0% 90%; /* Light Grey Text for secondary elements */
 
-    --muted: 0 0% 18%; /* Darker Grey for muted backgrounds */
-    --muted-foreground: 0 0% 55%; /* Mid Grey for text on muted backgrounds */
+    --muted: 0 0% 35%; /* Slightly Lighter than background for muted backgrounds */
+    --muted-foreground: 0 0% 65%; /* Mid-Light Grey for text on muted backgrounds */
 
     --accent: 270 80% 45%; /* Adjusted Violet for accents */
     --accent-foreground: 0 0% 98%; /* Very Light Grey/White text on accent */
 
-    --destructive: 0 70% 50%; /* Standard red for destructive actions (dark theme version) */
+    --destructive: 0 70% 50%; /* Standard red for destructive actions */
     --destructive-foreground: 0 0% 98%; /* White text on destructive */
 
-    --border: 0 0% 20%; /* Dark Grey border */
-    --input: 0 0% 20%; /* Dark Grey for input fields */
+    --border: 0 0% 40%; /* Lighter Grey border */
+    --input: 0 0% 40%; /* Lighter Grey for input fields */
     
-    --ring: 220 90% 70%; /* A brighter version of primary for focus rings (dark theme version) */
+    --ring: 220 90% 70%; /* A brighter version of primary for focus rings */
 
     --radius: 0.5rem;
 
@@ -88,6 +88,10 @@
   body {
     @apply text-foreground;
     background-color: hsl(var(--background)); /* Solid background color */
+    /* background-image: url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Loan_App_BG.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed; */
   }
 }
 
