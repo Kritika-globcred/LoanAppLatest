@@ -20,6 +20,7 @@ interface CoSignatoryData {
   coSignatoryChoice?: string | null;
   coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null;
   coSignatoryRelationship?: string | null;
+  // AI Extracted for Co-Signatory
   idNumber?: string;
   idType?: string;
   nameOnId?: string;
@@ -30,13 +31,14 @@ interface WorkEmploymentData {
   workExperienceYears?: string;
   workExperienceMonths?: string;
   workExperienceProofType?: 'resume' | 'linkedin' | null;
-  resumeFileName?: string | null;
+  resumeFileName?: string | null; 
   linkedInUrl?: string | null;
   isCurrentlyWorking?: 'yes' | 'no' | null;
   monthlySalary?: string | null;
   salaryCurrency?: string | null;
   familyMonthlySalary?: string | null;
   familySalaryCurrency?: string | null;
+  // AI Extracted for Profile
   extractedYearsOfExperience?: string;
   extractedGapInLast3YearsMonths?: string;
   extractedCurrentOrLastIndustry?: string;
@@ -133,17 +135,16 @@ export default function ReviewProfessionalKYCPage() {
     }
     console.log("Professional KYC Data Confirmed:", combinedData);
     console.log("Consent given at:", currentTime);
-    localStorage.setItem('professionalKycDataReviewed', JSON.stringify(combinedData));
+    localStorage.setItem('professionalKycDataReviewed', JSON.stringify(combinedData)); // Save the reviewed data
     
     const hasOfferLetterStatus = localStorage.getItem('hasOfferLetterStatus');
 
-    if (hasOfferLetterStatus === 'false') {
+    if (hasOfferLetterStatus === 'false') { // User said "No" to offer letter
       toast({ title: "Professional Details Confirmed!", description: "Proceeding to Preferences." });
       router.push('/loan-application/preferences');
-    } else {
-      // Path for users who had an offer letter (or if status is unknown)
-      toast({ title: "Professional Details Confirmed!", description: "Proceeding to Final Summary." });
-      router.push('/loan-application/final-summary'); 
+    } else { // User said "Yes" to offer letter (or status unknown, default to Yes flow)
+      toast({ title: "Professional Details Confirmed!", description: "Proceeding to Lender Recommendations." });
+      router.push('/loan-application/lender-recommendations'); 
     }
   };
 
@@ -179,8 +180,7 @@ export default function ReviewProfessionalKYCPage() {
     
     let fields: EditableCombinedDataKey[] = [];
 
-    // Co-Signatory section
-    if (data.coSignatoryChoice !== undefined) fields.push('coSignatoryChoice');
+    if (data.coSignatoryChoice !== undefined && data.coSignatoryChoice !== null) fields.push('coSignatoryChoice');
     if (data.coSignatoryChoice === 'yes') {
       if (data.coSignatoryIdDocumentType) fields.push('coSignatoryIdDocumentType');
       if (data.coSignatoryRelationship) fields.push('coSignatoryRelationship');
@@ -189,23 +189,19 @@ export default function ReviewProfessionalKYCPage() {
       if (data.nameOnId) fields.push('nameOnId');
     }
 
-    // Work Experience (Manual)
     if (data.workExperienceIndustry) fields.push('workExperienceIndustry');
     if (data.workExperienceYears) fields.push('workExperienceYears');
     if (data.workExperienceMonths) fields.push('workExperienceMonths');
     
-    // Professional Proof
     if (data.workExperienceProofType) fields.push('workExperienceProofType');
     if (data.workExperienceProofType === 'resume' && data.resumeFileName) fields.push('resumeFileName');
     if (data.workExperienceProofType === 'linkedin' && data.linkedInUrl) fields.push('linkedInUrl');
 
-    // Professional Profile (Extracted from Resume/LinkedIn)
     if (data.extractedYearsOfExperience) fields.push('extractedYearsOfExperience');
     if (data.extractedGapInLast3YearsMonths) fields.push('extractedGapInLast3YearsMonths');
     if (data.extractedCurrentOrLastIndustry) fields.push('extractedCurrentOrLastIndustry');
     if (data.extractedCurrentOrLastJobRole) fields.push('extractedCurrentOrLastJobRole');
 
-    // Employment Status
     if (data.isCurrentlyWorking) fields.push('isCurrentlyWorking');
     if (data.isCurrentlyWorking === 'yes') {
       if (data.monthlySalary) fields.push('monthlySalary');
@@ -215,7 +211,11 @@ export default function ReviewProfessionalKYCPage() {
       if (data.familySalaryCurrency) fields.push('familySalaryCurrency');
     }
     
-    return fields.filter((value, index, self) => self.indexOf(value) === index && data[value as keyof CombinedProfessionalData] !== undefined && data[value as keyof CombinedProfessionalData] !== null && String(data[value as keyof CombinedProfessionalData]).trim() !== '');
+    // Filter out undefined/null/empty string values at the end
+    return fields.filter(key => {
+        const value = data[key as keyof CombinedProfessionalData];
+        return value !== undefined && value !== null && String(value).trim() !== '';
+    });
   };
 
   const fieldsToDisplay = getFieldsToDisplay(combinedData);

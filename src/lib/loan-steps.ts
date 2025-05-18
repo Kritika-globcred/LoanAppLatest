@@ -19,14 +19,22 @@ export const loanAppSteps: LoanStep[] = [
     subStepPaths: ['/loan-application/review-academic-kyc'] 
   },
   {
-    path: '/loan-application/professional-kyc', // This is now Co-Signatory KYC
+    path: '/loan-application/professional-kyc',
     name: 'Professional KYC',
     subStepPaths: [
       '/loan-application/work-employment-kyc',
       '/loan-application/review-professional-kyc'
     ]
   },
-  { path: '/loan-application/preferences', name: 'Preferences' },
-  { path: '/loan-application/recommendations', name: 'Recommendations' }, // New Step
+  // Conditional Steps based on Offer Letter status
+  { path: '/loan-application/preferences', name: 'Preferences' }, // For "No" Offer Letter flow
+  { path: '/loan-application/lender-recommendations', name: 'Lender Recommendations' }, // For "Yes" Offer Letter flow
   { path: '/loan-application/final-summary', name: 'Final Summary' },
 ];
+
+// Note: The progress bar will need intelligent logic to show the correct "next" step
+// if the flow branches significantly. For now, all listed steps will appear if their path is matched.
+// For a truly dynamic progress bar based on answers, the steps array itself might need to be
+// dynamically constructed or filtered in the ProgressBar component based on localStorage flags.
+// For simplicity here, Lender Recommendations and Preferences will both appear if their paths are hit,
+// though only one will be relevant per user journey.

@@ -15,22 +15,22 @@ export default function FinalSummaryPage() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const router = useRouter();
-  const [avekaMessage, setAvekaMessage] = useState("You've reached the final summary! (Placeholder)");
+  const [avekaMessage, setAvekaMessage] = useState("You've reached the final summary! Please review all your details before submission. (Content Placeholder)");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
+  const [previousPage, setPreviousPage] = useState('/loan-application/review-professional-kyc'); // Default back
 
   useEffect(() => {
     const timer = setTimeout(() => setAvekaMessageVisible(true), 500);
     return () => clearTimeout(timer);
   }, []);
   
-  // Determine previous page for back button
-  const [previousPage, setPreviousPage] = useState('/loan-application/review-professional-kyc');
-
   useEffect(() => {
-    const hasOfferLetter = localStorage.getItem('hasOfferLetterStatus') === 'false';
-    if (hasOfferLetter) {
+    const hasOfferLetter = localStorage.getItem('hasOfferLetterStatus');
+    if (hasOfferLetter === 'false') { // User chose "No" to offer letter, came from Preferences
       setPreviousPage('/loan-application/preferences');
-    } else {
+    } else if (hasOfferLetter === 'true') { // User chose "Yes" to offer letter, came from Lender Recommendations
+      setPreviousPage('/loan-application/lender-recommendations');
+    } else { // Default or unknown, go to the step before the conditional ones
       setPreviousPage('/loan-application/review-professional-kyc');
     }
   }, []);
