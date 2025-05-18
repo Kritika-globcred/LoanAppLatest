@@ -4,7 +4,7 @@
 import type React from 'react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useIsMobile } from '@/hooks/use-is-mobile';
+import { useIsMobile } from '@/hooks/use-mobile'; // Corrected import path
 import type { LoanStep } from '@/lib/loan-steps';
 
 interface LoanProgressBarProps {
