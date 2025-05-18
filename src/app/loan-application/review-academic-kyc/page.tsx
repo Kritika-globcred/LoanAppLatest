@@ -14,12 +14,11 @@ import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar
 import { loanAppSteps } from '@/lib/loan-steps';
 import { ArrowLeft } from 'lucide-react';
 
-// Define a type for the academic data for clarity
 interface AcademicData {
-  graduation?: { level?: string | null; cgpa?: string; scale?: string | null; completionDate?: string; pursuingCourse?: string; pursuingType?: string | null; expectedCompletion?: string; naReason?: string; };
-  postGraduation?: { level?: string | null; cgpa?: string; scale?: string | null; completionDate?: string; pursuingCourse?: string; pursuingType?: string | null; expectedCompletion?: string; naReason?: string; };
-  languageTest?: { given?: string | null; type?: string | null; ieltsScore?: string | null; otherName?: string; score?: string; date?: string; };
-  courseTest?: { given?: string | null; type?: string | null; otherName?: string; score?: string; date?: string; };
+  graduation?: { level?: string | null; cgpa?: string; scale?: string | null; completionDay?: string; completionMonth?: string; completionYear?: string; pursuingCourse?: string; pursuingType?: string | null; expectedDay?: string; expectedMonth?: string; expectedYear?: string; naReason?: string; };
+  postGraduation?: { level?: string | null; cgpa?: string; scale?: string | null; completionDay?: string; completionMonth?: string; completionYear?: string; pursuingCourse?: string; pursuingType?: string | null; expectedDay?: string; expectedMonth?: string; expectedYear?: string; naReason?: string; };
+  languageTest?: { given?: string | null; type?: string | null; ieltsScore?: string | null; otherName?: string; score?: string; testDay?: string; testMonth?: string; testYear?: string; };
+  courseTest?: { given?: string | null; type?: string | null; otherName?: string; score?: string; testDay?: string; testMonth?: string; testYear?: string; };
 }
 
 
@@ -74,18 +73,17 @@ export default function ReviewAcademicKYCPage() {
     console.log("Academic KYC Data Confirmed:", academicData);
     console.log("Consent given at:", currentTime);
     toast({ title: "Academic Details Confirmed!", description: "Proceeding to Professional KYC." });
-    router.push('/loan-application/professional-kyc');
+    router.push('/loan-application/professional-kyc'); // Navigate to the first step of Professional KYC
   };
 
-  const formatDateString = (dateString: string | undefined) => {
-    if (!dateString) return "Not Specified";
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return "Invalid Date";
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    } catch (e) {
-      return "Invalid Date Format";
+  const formatDateFromParts = (year?: string, month?: string, day?: string): string => {
+    if (year && month && day) {
+      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      }
     }
+    return "Not Specified";
   };
   
   const renderSection = (title: string, dataObject: Record<string, any> | undefined, fieldLabels: Record<string, string>) => {
@@ -98,12 +96,15 @@ export default function ReviewAcademicKYCPage() {
 
             let displayValue = String(value);
             if (key.toLowerCase().includes('date') || key.toLowerCase().includes('completion')) {
-                 displayValue = formatDateString(String(value));
-            }
-            if (key === 'ieltsScore') {
+                 displayValue = formatDateFromParts(dataObject[`${key}Year`], dataObject[`${key}Month`], dataObject[`${key}Day`]);
+                 if (key === 'completionDate') displayValue = formatDateFromParts(dataObject['completionYear'], dataObject['completionMonth'], dataObject['completionDay']);
+                 if (key === 'expectedCompletion') displayValue = formatDateFromParts(dataObject['expectedYear'], dataObject['expectedMonth'], dataObject['expectedDay']);
+                 if (key === 'testDate') displayValue = formatDateFromParts(dataObject['testYear'], dataObject['testMonth'], dataObject['testDay']);
+
+
+            } else if (key === 'ieltsScore') {
                 displayValue = value === 'yes' ? 'Yes (Above 6.5)' : value === 'no' ? 'No (6.5 or Below)' : String(value);
-            }
-            if (key === 'given' && (title.includes("Language Test") || title.includes("Course Test"))) {
+            } else if (key === 'given' && (title.includes("Language Test") || title.includes("Course Test"))) {
                 displayValue = String(value).charAt(0).toUpperCase() + String(value).slice(1).replace('_', ' ');
             }
 
@@ -120,7 +121,7 @@ export default function ReviewAcademicKYCPage() {
     if (detailsToRender.length === 0) return null;
 
     return (
-      <div className="p-4 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
+      <div className="p-4 border-0 rounded-lg bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl mt-4">
         <h3 className="font-semibold text-lg text-white mb-3 text-center border-b border-gray-600/20 pb-2">{title}</h3>
         {detailsToRender}
       </div>
@@ -131,10 +132,10 @@ export default function ReviewAcademicKYCPage() {
     level: "Level",
     cgpa: "CGPA/Percentage",
     scale: "CGPA Scale",
-    completionDate: "Completion Date",
+    completionDate: "Completion Date", // Placeholder, actual value from parts
     pursuingCourse: "Pursuing Course Name",
     pursuingType: "Pursuing Type",
-    expectedCompletion: "Expected Completion Date",
+    expectedCompletion: "Expected Completion Date", // Placeholder
     naReason: "Reason (N/A)"
   };
 
@@ -146,7 +147,7 @@ export default function ReviewAcademicKYCPage() {
     ieltsScore: "IELTS Score", 
     otherName: "Other Test Name",
     score: "Score",
-    date: "Test Date / Expected Date"
+    testDate: "Test Date / Expected Date" // Placeholder
   };
 
   const courseTestLabels = {
@@ -154,7 +155,7 @@ export default function ReviewAcademicKYCPage() {
     type: "Test Type",
     otherName: "Other Test Name",
     score: "Score",
-    date: "Test Date / Expected Date"
+    testDate: "Test Date / Expected Date" // Placeholder
   };
 
 
@@ -175,7 +176,7 @@ export default function ReviewAcademicKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
@@ -194,6 +195,7 @@ export default function ReviewAcademicKYCPage() {
                             ? 'progress-dot-active' 
                             : 'bg-gray-400/60'
                         }`}
+                        aria-hidden="true"
                       ></span>
                       {item}
                     </button>

@@ -16,34 +16,35 @@ import { Loader2, ArrowLeft, Edit3, Save } from 'lucide-react';
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
 
-import { extractCoSignatoryIdDetails, type ExtractCoSignatoryIdInput, type ExtractCoSignatoryIdOutput } from '@/ai/flows/extract-co-signatory-id-flow';
-import { extractProfessionalProfileDetails, type ExtractProfessionalProfileInput, type ExtractProfessionalProfileOutput } from '@/ai/flows/extract-professional-profile-flow';
-
-interface ProfessionalKycData {
-  coSignatoryChoice: string | null;
-  coSignatoryIdDocumentUri?: string | null; // This will be populated from separate localStorage item if it was an image
-  coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null;
+// Combined data structure for review
+interface CombinedProfessionalData {
+  // From CoSignatoryKYCPage
+  coSignatoryChoice?: string | null;
+  coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null; // Manually selected type
   coSignatoryRelationship?: string | null;
+  idNumber?: string; // Extracted co-signatory ID number
+  idType?: string;   // Extracted co-signatory ID type
+  nameOnId?: string; // Extracted co-signatory name
+
+  // From WorkEmploymentKYCPage
   workExperienceIndustry?: string;
   workExperienceYears?: string;
   workExperienceMonths?: string;
   workExperienceProofType?: 'resume' | 'linkedin' | null;
-  resumeFileUri?: string | null; // Can be data URI for image (from separate localStorage) or filename for PDF/DOC
+  resumeFileName?: string | null; 
   linkedInUrl?: string | null;
   isCurrentlyWorking?: 'yes' | 'no' | null;
   monthlySalary?: string | null;
   salaryCurrency?: string | null;
   familyMonthlySalary?: string | null;
   familySalaryCurrency?: string | null;
+  extractedYearsOfExperience?: string;
+  extractedGapInLast3YearsMonths?: string;
+  extractedCurrentOrLastIndustry?: string;
+  extractedCurrentOrLastJobRole?: string;
 }
 
-interface ExtractedCoSignatoryData extends ExtractCoSignatoryIdOutput {}
-interface ExtractedProfessionalProfileData extends ExtractProfessionalProfileOutput {}
-
-type CombinedDataType = ProfessionalKycData & Partial<ExtractedCoSignatoryData> & Partial<ExtractedProfessionalProfileData>;
-
-type EditableCombinedDataKey = keyof CombinedDataType;
-
+type EditableCombinedDataKey = keyof CombinedProfessionalData;
 
 export default function ReviewProfessionalKYCPage() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
@@ -51,18 +52,15 @@ export default function ReviewProfessionalKYCPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [initialData, setInitialData] = useState<ProfessionalKycData | null>(null);
-  const [combinedData, setCombinedData] = useState<CombinedDataType | null>(null);
+  const [combinedData, setCombinedData] = useState<CombinedProfessionalData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
-  const [isLoading, setIsLoading] = useState(true); 
-  const [isProcessingAi, setIsProcessingAi] = useState(false); 
-
   const [editingField, setEditingField] = useState<EditableCombinedDataKey | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [consentChecked, setConsentChecked] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>('');
   
-  const [avekaMessage, setAvekaMessage] = useState("Let's review your professional details. I'll also try to extract some information using AI if you provided documents or links.");
+  const [avekaMessage, setAvekaMessage] = useState("Let's review all your professional details. Please check everything carefully.");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
 
   useEffect(() => {
@@ -77,122 +75,41 @@ export default function ReviewProfessionalKYCPage() {
   }, []);
 
   useEffect(() => {
-    const storedDataString = localStorage.getItem('professionalKycData');
-    const coSignatoryIdUri = localStorage.getItem('coSignatoryIdDataUriForReview');
-    const resumeUri = localStorage.getItem('resumeDataUriForReview');
+    setIsLoading(true);
+    const coSignatoryDataString = localStorage.getItem('coSignatoryKycData');
+    const workEmploymentDataString = localStorage.getItem('workEmploymentKycData');
+    
+    let loadedCoSignatoryData = {};
+    let loadedWorkEmploymentData = {};
 
-    if (storedDataString) {
-      const parsedData: ProfessionalKycData = JSON.parse(storedDataString);
-      
-      // Populate URIs from separate localStorage items if they exist
-      if (coSignatoryIdUri) {
-        parsedData.coSignatoryIdDocumentUri = coSignatoryIdUri;
+    if (coSignatoryDataString) {
+      try {
+        loadedCoSignatoryData = JSON.parse(coSignatoryDataString);
+      } catch (e) {
+        console.error("Failed to parse coSignatoryKycData", e);
+        toast({ title: "Error", description: "Could not load co-signatory data.", variant: "destructive" });
       }
-      if (resumeUri && parsedData.workExperienceProofType === 'resume') {
-        // Only use resumeUri if proof type is resume and it's an image URI (which resumePreview would have set)
-        // If resumeFileUri in parsedData is a filename (for PDF/DOC), that's fine.
-        // This logic prioritizes the image Data URI if it was stored.
-         parsedData.resumeFileUri = resumeUri;
-      }
+    }
 
-      setInitialData(parsedData);
-      setCombinedData(parsedData); 
-      setIsLoading(false);
+    if (workEmploymentDataString) {
+      try {
+        loadedWorkEmploymentData = JSON.parse(workEmploymentDataString);
+      } catch (e) {
+        console.error("Failed to parse workEmploymentKycData", e);
+        toast({ title: "Error", description: "Could not load work/employment data.", variant: "destructive" });
+      }
+    }
+    
+    const mergedData = { ...loadedCoSignatoryData, ...loadedWorkEmploymentData };
+    if (Object.keys(mergedData).length > 0) {
+      setCombinedData(mergedData);
     } else {
-      toast({ title: "Error", description: "Could not load professional KYC data. Please go back.", variant: "destructive" });
-      router.push('/loan-application/professional-kyc');
-      setIsLoading(false);
+      setCombinedData(null);
+      setAvekaMessage("It seems no professional details were found. Please go back and complete the previous steps.");
     }
-  }, [router, toast]);
+    setIsLoading(false);
 
-
-  useEffect(() => {
-    const processWithAI = async () => {
-      if (!initialData || isProcessingAi) return;
-
-      setIsProcessingAi(true);
-      setAvekaMessage("Working with AI to extract details from your documents/links. This might take a moment...");
-      
-      let coSignatoryExtracted: Partial<ExtractedCoSignatoryData> = {};
-      let profileExtracted: Partial<ExtractedProfessionalProfileData> = {};
-      let aiError = false;
-
-      const promises = [];
-
-      if (initialData.coSignatoryChoice === 'yes' && initialData.coSignatoryIdDocumentUri && initialData.coSignatoryIdDocumentType) {
-        promises.push(
-          extractCoSignatoryIdDetails({
-            coSignatoryIdImageUri: initialData.coSignatoryIdDocumentUri,
-            idDocumentType: initialData.coSignatoryIdDocumentType,
-          }).then(res => { coSignatoryExtracted = res; })
-          .catch(err => {
-            console.error("Co-signatory ID extraction failed:", err);
-            toast({ title: "Co-signatory ID Extraction Failed", description: "Could not extract details. Please verify manually.", variant: "destructive" });
-            coSignatoryExtracted = { idNumber: "Error - Check Manually", idType: initialData.coSignatoryIdDocumentType || undefined, nameOnId: "Error - Check Manually"};
-            aiError = true;
-          })
-        );
-      }
-
-      if (initialData.workExperienceProofType === 'resume' && initialData.resumeFileUri) {
-        if (initialData.resumeFileUri.startsWith('data:image')) { // Check if it's a data URI (image)
-            promises.push(
-              extractProfessionalProfileDetails({
-                profileDataSource: initialData.resumeFileUri,
-                sourceType: "resumeImage",
-              }).then(res => { profileExtracted = { ...profileExtracted, ...res }; })
-              .catch(err => {
-                console.error("Resume extraction failed:", err);
-                toast({ title: "Resume Extraction Failed", description: "Could not extract resume details. Please verify manually.", variant: "destructive" });
-                profileExtracted = { ...profileExtracted, yearsOfExperience: "Error", currentOrLastIndustry: "Error", currentOrLastJobRole: "Error", gapInLast3YearsMonths: "Error"};
-                aiError = true;
-              })
-            );
-        } else {
-             // If resumeFileUri is not a data URI, it's likely a filename (e.g., PDF/DOC)
-             // The current AI flow is primarily designed for images or URLs.
-             toast({ title: "Resume AI Skipped", description: "AI processing for non-image resumes is not supported for direct extraction. Please verify details manually.", variant: "default" });
-             profileExtracted = { ...profileExtracted, yearsOfExperience: "Not Specified (Non-Image)", currentOrLastIndustry: initialData.workExperienceIndustry || "Not Specified", currentOrLastJobRole: "Not Specified", gapInLast3YearsMonths: "Not Specified"};
-        }
-      } else if (initialData.workExperienceProofType === 'linkedin' && initialData.linkedInUrl) {
-        promises.push(
-          extractProfessionalProfileDetails({
-            profileDataSource: initialData.linkedInUrl,
-            sourceType: "linkedinUrl",
-          }).then(res => { profileExtracted = { ...profileExtracted, ...res }; })
-          .catch(err => {
-            console.error("LinkedIn extraction failed:", err);
-            toast({ title: "LinkedIn Extraction Failed", description: "Could not extract LinkedIn details. Please verify manually.", variant: "destructive" });
-            profileExtracted = { ...profileExtracted, yearsOfExperience: "Error", currentOrLastIndustry: "Error", currentOrLastJobRole: "Error", gapInLast3YearsMonths: "Error"};
-            aiError = true;
-          })
-        );
-      }
-      
-      await Promise.allSettled(promises);
-
-      setCombinedData(prev => ({
-        ...(prev || initialData!), 
-        ...coSignatoryExtracted,
-        ...profileExtracted,
-      }));
-
-      setIsProcessingAi(false);
-      if (aiError) {
-        setAvekaMessage("Some AI extractions had issues. Please carefully review and correct the details below.");
-      } else if (promises.length > 0) {
-        setAvekaMessage("AI processing complete! Please review all your professional details below and make any corrections.");
-      } else {
-        setAvekaMessage("Please review your professional details below and make any corrections.");
-      }
-    };
-
-    if (initialData && !isProcessingAi && combinedData === initialData) { 
-        processWithAI();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialData]);
-
+  }, [toast]);
 
   const handleEditField = (field: EditableCombinedDataKey, currentValue: string | number | undefined | null) => {
     setEditingField(field);
@@ -216,27 +133,30 @@ export default function ReviewProfessionalKYCPage() {
     console.log("Professional KYC Data Confirmed:", combinedData);
     console.log("Consent given at:", currentTime);
     localStorage.setItem('professionalKycDataReviewed', JSON.stringify(combinedData)); 
-    toast({ title: "Step 4 Complete!", description: "Moving to the next step." });
+    toast({ title: "Professional Details Confirmed!", description: "All steps complete for now!" });
     // router.push('/loan-application/financial-details'); // TODO: Define next step
   };
 
-  const displayLabels: Record<string, string> = { // Use string for key type to match Object.keys
+  const displayLabels: Record<string, string> = {
     coSignatoryChoice: "Co-Signatory Added",
-    coSignatoryIdDocumentType: "Co-Signatory ID Type (Provided)",
-    idType: "Co-Signatory ID Type (Extracted)",
-    idNumber: "Co-Signatory ID Number",
-    nameOnId: "Name on Co-Signatory ID",
+    coSignatoryIdDocumentType: "Co-Signatory ID Type (Selected)",
     coSignatoryRelationship: "Relationship with Co-Signatory",
+    idNumber: "Co-Signatory ID Number (Extracted)",
+    idType: "Co-Signatory ID Type (Extracted)",
+    nameOnId: "Name on Co-Signatory ID (Extracted)",
+    
     workExperienceIndustry: "Industry (Manual)",
     workExperienceYears: "Experience (Years - Manual)",
     workExperienceMonths: "Experience (Months - Manual)",
     workExperienceProofType: "Professional Proof Type",
-    resumeFileUri: "Resume File/Source",
+    resumeFileName: "Resume File Name",
     linkedInUrl: "LinkedIn URL",
-    yearsOfExperience: "Years of Experience (Extracted)",
-    gapInLast3YearsMonths: "Gap in Last 3 Years (Extracted)",
-    currentOrLastIndustry: "Industry (Extracted)",
-    currentOrLastJobRole: "Job Role (Extracted)",
+    
+    extractedYearsOfExperience: "Years of Experience (Extracted)",
+    extractedGapInLast3YearsMonths: "Gap in Last 3 Years (Extracted)",
+    extractedCurrentOrLastIndustry: "Industry (Extracted)",
+    extractedCurrentOrLastJobRole: "Job Role (Extracted)",
+    
     isCurrentlyWorking: "Currently Working",
     monthlySalary: "Your Monthly Salary",
     salaryCurrency: "Your Salary Currency",
@@ -244,52 +164,55 @@ export default function ReviewProfessionalKYCPage() {
     familySalaryCurrency: "Family's Salary Currency",
   };
   
-  // Define which fields to display based on the data.
-  // This helps manage what's shown and editable.
-  const getFieldsToDisplay = (data: CombinedDataType | null): EditableCombinedDataKey[] => {
+  const getFieldsToDisplay = (data: CombinedProfessionalData | null): EditableCombinedDataKey[] => {
     if (!data) return [];
     
     let fields: EditableCombinedDataKey[] = [];
 
+    // Co-Signatory section
     fields.push('coSignatoryChoice');
     if (data.coSignatoryChoice === 'yes') {
-        fields.push('coSignatoryIdDocumentType', 'coSignatoryRelationship');
-        if(data.idNumber) fields.push('idNumber');
-        if(data.idType) fields.push('idType');
-        if(data.nameOnId) fields.push('nameOnId');
+      if (data.coSignatoryIdDocumentType) fields.push('coSignatoryIdDocumentType');
+      if (data.coSignatoryRelationship) fields.push('coSignatoryRelationship');
+      if (data.idNumber) fields.push('idNumber');
+      if (data.idType) fields.push('idType');
+      if (data.nameOnId) fields.push('nameOnId');
     }
 
-    fields.push('workExperienceIndustry', 'workExperienceYears', 'workExperienceMonths', 'workExperienceProofType');
-    if (data.workExperienceProofType === 'linkedin' && data.linkedInUrl) {
-        fields.push('linkedInUrl');
-    }
-    // Display AI extracted professional fields if they exist or if a proof type was selected
-    if (data.workExperienceProofType && (data.yearsOfExperience || data.gapInLast3YearsMonths || data.currentOrLastIndustry || data.currentOrLastJobRole)) {
-        if(data.yearsOfExperience) fields.push('yearsOfExperience');
-        if(data.gapInLast3YearsMonths) fields.push('gapInLast3YearsMonths');
-        if(data.currentOrLastIndustry) fields.push('currentOrLastIndustry');
-        if(data.currentOrLastJobRole) fields.push('currentOrLastJobRole');
-    }
-     if (data.workExperienceProofType === 'resume' && data.resumeFileUri) {
-        fields.push('resumeFileUri'); // Show filename or "Image Uploaded"
-    }
+    // Work Experience (Manual)
+    if (data.workExperienceIndustry) fields.push('workExperienceIndustry');
+    if (data.workExperienceYears) fields.push('workExperienceYears');
+    if (data.workExperienceMonths) fields.push('workExperienceMonths');
+    
+    // Professional Proof
+    if (data.workExperienceProofType) fields.push('workExperienceProofType');
+    if (data.workExperienceProofType === 'resume' && data.resumeFileName) fields.push('resumeFileName');
+    if (data.workExperienceProofType === 'linkedin' && data.linkedInUrl) fields.push('linkedInUrl');
 
+    // Professional Profile (Extracted)
+    if (data.extractedYearsOfExperience) fields.push('extractedYearsOfExperience');
+    if (data.extractedGapInLast3YearsMonths) fields.push('extractedGapInLast3YearsMonths');
+    if (data.extractedCurrentOrLastIndustry) fields.push('extractedCurrentOrLastIndustry');
+    if (data.extractedCurrentOrLastJobRole) fields.push('extractedCurrentOrLastJobRole');
 
-    fields.push('isCurrentlyWorking');
+    // Employment Status
+    if (data.isCurrentlyWorking) fields.push('isCurrentlyWorking');
     if (data.isCurrentlyWorking === 'yes') {
-        fields.push('monthlySalary', 'salaryCurrency');
+      if (data.monthlySalary) fields.push('monthlySalary');
+      if (data.salaryCurrency) fields.push('salaryCurrency');
     } else if (data.isCurrentlyWorking === 'no') {
-        fields.push('familyMonthlySalary', 'familySalaryCurrency');
+      if (data.familyMonthlySalary) fields.push('familyMonthlySalary');
+      if (data.familySalaryCurrency) fields.push('familySalaryCurrency');
     }
     
-    return fields.filter((value, index, self) => self.indexOf(value) === index); // Unique fields
+    return fields.filter((value, index, self) => self.indexOf(value) === index && data[value as keyof CombinedProfessionalData] !== undefined && data[value as keyof CombinedProfessionalData] !== null && String(data[value as keyof CombinedProfessionalData]).trim() !== '');
   };
 
   const fieldsToDisplay = getFieldsToDisplay(combinedData);
 
-
   const renderEditableTable = () => {
-    if (!combinedData) return <p className="text-center text-white">No data to review.</p>;
+    if (!combinedData) return <p className="text-center text-white">No professional details found to review.</p>;
+    if (fieldsToDisplay.length === 0) return <p className="text-center text-white">No professional details were provided or extracted.</p>;
 
     return (
       <div className="space-y-6">
@@ -303,19 +226,14 @@ export default function ReviewProfessionalKYCPage() {
           </TableHeader>
           <TableBody>
             {fieldsToDisplay.map((key) => {
-              const value = combinedData[key as keyof CombinedDataType];
+              const value = combinedData[key as keyof CombinedProfessionalData];
               const fieldLabel = displayLabels[key] || String(key).replace(/([A-Z])/g, ' $1').trim();
-              
-              // Skip rendering if value is null/undefined for non-choice fields
-               if (value === null || value === undefined || String(value).trim() === '') {
-                 if (!['coSignatoryChoice', 'workExperienceProofType', 'isCurrentlyWorking'].includes(key) && !(combinedData?.coSignatoryChoice === 'yes' && ['idNumber', 'nameOnId', 'idType'].includes(key))) {
-                    return null;
-                 }
-               }
-               let displayValue = String(value !== undefined && value !== null && String(value).trim() !== '' ? value : 'Not Specified');
-               if (key === 'resumeFileUri' && typeof value === 'string' && value.startsWith('data:image')) {
-                   displayValue = "Image Uploaded (View on Previous Page)";
-               }
+              let displayValue = String(value !== undefined && value !== null && String(value).trim() !== '' ? value : 'Not Specified');
+              if (key === 'coSignatoryChoice') {
+                displayValue = value === 'yes' ? 'Yes' : value === 'no' ? 'No' : value === 'addLater' ? 'Add Later' : 'Not Specified';
+              } else if (key === 'isCurrentlyWorking') {
+                displayValue = value === 'yes' ? 'Yes' : value === 'no' ? 'No' : 'Not Specified';
+              }
 
 
               return (
@@ -323,25 +241,14 @@ export default function ReviewProfessionalKYCPage() {
                   <TableCell className="font-medium capitalize text-gray-300">{fieldLabel}</TableCell>
                   <TableCell className="text-gray-200">
                     {editingField === key ? (
-                      <Input
-                        type="text"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="bg-white/80 text-black"
-                      />
-                    ) : (
-                      displayValue
-                    )}
+                      <Input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="bg-white/80 text-black" />
+                    ) : ( displayValue )}
                   </TableCell>
                   <TableCell className="text-right">
                     {editingField === key ? (
-                      <Button onClick={handleSaveEdit} size="sm" className="gradient-border-button">
-                        <Save className="mr-1 h-4 w-4" /> Save
-                      </Button>
+                      <Button onClick={handleSaveEdit} size="sm" className="gradient-border-button"><Save className="mr-1 h-4 w-4" /> Save</Button>
                     ) : ( 
-                      <Button onClick={() => handleEditField(key, value)} size="sm" variant="outline" className="bg-white/20 hover:bg-white/30 text-white">
-                        <Edit3 className="mr-1 h-4 w-4" /> Edit
-                      </Button>
+                      <Button onClick={() => handleEditField(key, value)} size="sm" variant="outline" className="bg-white/20 hover:bg-white/30 text-white"><Edit3 className="mr-1 h-4 w-4" /> Edit</Button>
                     )}
                   </TableCell>
                 </TableRow>
@@ -364,8 +271,8 @@ export default function ReviewProfessionalKYCPage() {
       </div>
       <p className="text-xs text-gray-400">Consent captured at: {currentTime}</p>
       <div className="flex justify-center">
-        <Button onClick={handleConfirmAndContinue} disabled={!consentChecked || isProcessingAi || isLoading} size="lg" className="gradient-border-button">
-          Confirm & Continue
+        <Button onClick={handleConfirmAndContinue} disabled={!consentChecked || isLoading} size="lg" className="gradient-border-button">
+          Confirm & Complete Professional KYC
         </Button>
       </div>
     </div>
@@ -377,11 +284,10 @@ export default function ReviewProfessionalKYCPage() {
       <section
         className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] pt-[5px] px-6 pb-6 md:px-8 md:pb-8 overflow-hidden shadow-[5px_5px_10px_hsl(0,0%,0%/0.2)] shadow-[inset_0_0_2px_hsl(var(--primary)/0.8)]"
         style={{
-          backgroundImage:
-            "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
+          backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
@@ -389,13 +295,8 @@ export default function ReviewProfessionalKYCPage() {
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
                 {navMenuItems.map((item) => (
                   <li key={item}>
-                    <button
-                      onClick={() => setActiveNavItem(item)}
-                      className="text-white hover:opacity-75 transition-opacity focus:outline-none flex items-center text-xs sm:text-sm"
-                      aria-current={activeNavItem === item ? "page" : undefined}
-                    >
-                      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${ activeNavItem === item ? 'progress-dot-active' : 'bg-gray-400/60'}`} aria-hidden="true"></span>
-                      {item}
+                    <button onClick={() => setActiveNavItem(item)} className="text-white hover:opacity-75 transition-opacity focus:outline-none flex items-center text-xs sm:text-sm" aria-current={activeNavItem === item ? "page" : undefined}>
+                      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${activeNavItem === item ? 'progress-dot-active' : 'bg-gray-400/60'}`} aria-hidden="true"></span>{item}
                     </button>
                   </li>
                 ))}
@@ -403,15 +304,13 @@ export default function ReviewProfessionalKYCPage() {
             </nav>
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
-              <Link href="/loan-application/mobile" passHref>
-                <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
-              </Link>
+              <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
           <LoanProgressBar steps={loanAppSteps} />
 
           <div className="flex items-center mb-6 mt-4"> 
-            <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/professional-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
+            <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/work-employment-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
           </div>
@@ -421,20 +320,9 @@ export default function ReviewProfessionalKYCPage() {
               <div className="flex flex-col items-center text-center mb-6">
                 <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
-                        <Image
-                        src="https://placehold.co/50x50.png"
-                        alt="Aveka, GlobCred's Smart AI"
-                        width={50}
-                        height={50}
-                        className="rounded-full border-2 border-white shadow-md"
-                        data-ai-hint="robot avatar"
-                        />
+                        <Image src="https://placehold.co/50x50.png" alt="Aveka" width={50} height={50} className="rounded-full border-2 border-white shadow-md" data-ai-hint="robot avatar" />
                     </div>
-                    <div
-                        className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow
-                                    transform transition-all duration-500 ease-out w-full
-                                    ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
-                    >
+                    <div className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow transform transition-all duration-500 ease-out w-full ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                         <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
                         <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                         <p className="text-base text-white">{avekaMessage}</p>
@@ -442,13 +330,10 @@ export default function ReviewProfessionalKYCPage() {
                 </div>
               </div>
 
-              {(isLoading || (isProcessingAi && !combinedData?.idNumber)) ? ( // Show loader if still loading initial data or processing AI for the first time for critical fields
+              {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-10">
                   <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                  <p className="mt-4 text-lg text-white">
-                    {isProcessingAi ? "AI is extracting details..." : "Loading your information..."}
-                  </p>
-                  <p className="text-sm text-gray-300">This might take a few moments.</p>
+                  <p className="mt-4 text-lg text-white">Loading your professional information...</p>
                 </div>
               ) : (
                 renderEditableTable()
