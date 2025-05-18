@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -128,7 +129,9 @@ export default function Home() {
             </nav>
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
-              <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
+              <Link href="/loan-application/mobile" passHref>
+                <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
+              </Link>
             </div>
           </div>
 
@@ -144,7 +147,7 @@ export default function Home() {
             <div className="mt-10 flex flex-col md:flex-row items-center justify-center md:items-start md:space-x-6 max-w-3xl mx-auto">
               <div className="flex-shrink-0 mb-4 md:mb-0">
                 <Image
-                  src="https://placehold.co/50x50.png" // Placeholder, replace with actual Aveka image URL
+                  src="https://placehold.co/50x50.png" 
                   alt="Aveka, GlobCred's Smart AI"
                   width={50}
                   height={50}
@@ -168,10 +171,12 @@ export default function Home() {
             </div>
 
             <div className="mt-8 flex justify-center">
-              <Button variant="default" size="lg" className="gradient-border-button">
-                <Sparkles className="mr-2 h-5 w-5" />
-                Get Started
-              </Button>
+              <Link href="/loan-application/mobile" passHref>
+                <Button variant="default" size="lg" className="gradient-border-button">
+                  <Sparkles className="mr-2 h-5 w-5" />
+                  Get Started
+                </Button>
+              </Link>
             </div>
           </div>
           {/* End Hero Section Content */}
@@ -181,7 +186,7 @@ export default function Home() {
             <h2 className="text-3xl font-bold text-center mb-10">What Our Students Say</h2>
             <div className="grid md:grid-cols-3 gap-8">
               {testimonials.map((testimonial, index) => (
-                <Card key={index} className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white border-0">
+                <Card key={index} className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white border-0 rounded-xl">
                   <CardHeader className="flex flex-row items-center space-x-4 pb-4">
                     <Image
                       src={testimonial.image}
@@ -231,20 +236,20 @@ export default function Home() {
           <section className="py-12 text-white">
             <h2 className="text-3xl font-bold text-center mb-10">Our Impact</h2>
             <div className="grid md:grid-cols-3 gap-8">
-              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0">
+              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0 rounded-xl">
                 <CardHeader>
                   <div className="flex justify-center mb-3">
                     <Landmark size={40} className="text-primary" />
                   </div>
                   <CardTitle className="text-4xl font-bold">
-                    {loanDisbursed.toLocaleString()}
+                    ${loanDisbursed.toLocaleString()}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-lg text-gray-300">Loan Amount Disbursed</p>
                 </CardContent>
               </Card>
-              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0">
+              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0 rounded-xl">
                 <CardHeader>
                    <div className="flex justify-center mb-3">
                     <Smile size={40} className="text-primary" />
@@ -257,7 +262,7 @@ export default function Home() {
                   <p className="text-lg text-gray-300">Happy Students</p>
                 </CardContent>
               </Card>
-              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0">
+              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0 rounded-xl">
                 <CardHeader>
                   <div className="flex justify-center mb-3">
                     <Signal size={40} className="text-primary" />
@@ -279,4 +284,3 @@ export default function Home() {
     </div>
   );
 }
-
