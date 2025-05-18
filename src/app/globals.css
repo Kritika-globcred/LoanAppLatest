@@ -86,11 +86,7 @@
   }
   body {
     @apply text-foreground;
-    background-color: hsl(var(--background)); /* Solid fallback color */
-    background-image: url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Loan_App_BG.png');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed; /* Keeps the background fixed during scroll */
+    background-color: hsl(var(--background)); /* Solid background color */
   }
 }
 
