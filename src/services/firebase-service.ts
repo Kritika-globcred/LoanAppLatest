@@ -1,67 +1,119 @@
 
-'use server';
+// import { initializeApp, getApps } from "firebase/app";
+// import { getFirestore, collection, doc, setDoc, getDoc, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+// import { getStorage, ref, uploadBytesResumable, getDownloadURL, uploadString } from "firebase/storage";
 
-// Import Firebase Admin SDK for server-side operations if needed,
-// or Firebase client SDK for client-side interactions.
-// For example, if these functions are called from Server Actions:
-// import { initializeApp, getApps, cert } from 'firebase-admin/app';
-// import { getFirestore } from 'firebase-admin/firestore';
-// import { getStorage } from 'firebase-admin/storage';
+// For this version, we'll use the modular SDK v9+
+import { initializeApp, getApps, FirebaseApp } from "firebase/app";
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  query, 
+  where, 
+  getDocs, 
+  serverTimestamp,
+  Timestamp
+} from "firebase/firestore";
+import { 
+  getStorage, 
+  ref as storageRef, 
+  uploadBytesResumable, 
+  getDownloadURL, 
+  uploadString 
+} from "firebase/storage";
 
-// For client-side calls (less common for direct DB writes for security):
-// import { initializeApp } from "firebase/app";
-// import { getFirestore } from "firebase/firestore";
-// import { getStorage } from "firebase/storage";
 
 // --- Firebase Configuration ---
-// These would come from environment variables (.env.local)
-// const firebaseConfig = {
-//   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-//   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-//   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-//   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-//   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-//   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-// };
+let firebaseApp: FirebaseApp | null = null;
+let db: any | null = null; // Using 'any' for Firestore to simplify for now
+let storage: any | null = null; // Using 'any' for Storage
 
-// Initialize Firebase Admin (Server-Side) - typically in a separate config file
-// if (!getApps().length) {
-//   initializeApp({
-//     credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY!)),
-//     storageBucket: firebaseConfig.storageBucket // For Firebase Admin Storage
-//   });
-// }
-// const dbAdmin = getFirestore();
-// const storageAdmin = getStorage().bucket();
-
-
-// Initialize Firebase Client (Client-Side or specific serverless functions)
-// if (!getApps().length) {
-//   initializeApp(firebaseConfig);
-// }
-// const dbClient = getFirestore();
-// const storageClient = getStorage();
-
-
-// --- Interfaces (example) ---
-export interface UserApplicationData {
-  userId: string; // Firebase Auth UID or a custom ID
-  mobileNumber?: string;
-  admissionKyc?: object;
-  personalKyc?: object;
-  academicKyc?: object;
-  professionalKyc?: object;
-  preferences?: object;
-  documents?: {
-    offerLetterUrl?: string;
-    panNationalIdUrl?: string;
-    passportUrl?: string;
-    resumeUrl?: string;
+const getFirebaseConfig = () => {
+  if (typeof window === "undefined") {
+    // Running on the server, Firebase Admin SDK should be used if needed for server-side ops
+    // For now, these client-side functions won't be called server-side without a user context
+    return null;
+  }
+  return {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   };
+};
+
+export const initializeFirebaseClientSDK = () => {
+  if (firebaseApp) return { firebaseApp, db, storage };
+
+  const config = getFirebaseConfig();
+  if (!config || !config.projectId) {
+    console.error("Firebase config not found. Ensure .env.local is set up.");
+    return { firebaseApp: null, db: null, storage: null };
+  }
+
+  if (!getApps().length) {
+    firebaseApp = initializeApp(config);
+  } else {
+    firebaseApp = getApps()[0];
+  }
+  db = getFirestore(firebaseApp);
+  storage = getStorage(firebaseApp);
+  return { firebaseApp, db, storage };
+};
+
+initializeFirebaseClientSDK(); // Initialize on load for client-side usage
+
+// --- Interfaces ---
+export interface UserApplicationData {
+  userId: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+  mobileNumber?: string;
+  countryCode?: string; // e.g., +91
+  countryShortName?: string; // e.g., IN
+  hasOfferLetter?: boolean;
+  admissionKyc?: {
+    studentName?: string;
+    universityName?: string;
+    courseName?: string;
+    admissionLevel?: string;
+    admissionFees?: string;
+    courseStartDate?: string;
+    offerLetterType?: string;
+    offerLetterUrl?: string; // Firebase Storage URL
+    consentTimestamp?: string;
+  };
+  personalKyc?: {
+    idDocumentType?: "PAN Card" | "National ID";
+    idNumber?: string;
+    idTypeFromDoc?: string;
+    passportNumber?: string;
+    mothersName?: string;
+    fathersName?: string;
+    passportExpiryDate?: string;
+    passportIssueDate?: string;
+    nameOnPassport?: string;
+    countryOfUser?: string;
+    dateOfBirth?: string;
+    ageInYears?: string | number;
+    permanentAddress?: string;
+    idDocumentUrl?: string; // Firebase Storage URL
+    passportUrl?: string; // Firebase Storage URL
+    consentTimestamp?: string;
+  };
+  academicKyc?: any; // Define more specifically later
+  professionalKyc?: any; // Define more specifically later
+  preferences?: any; // Define more specifically later
+  lenderRecommendations?: any; // Define more specifically later
   // ... other fields
 }
 
-// --- Placeholder Service Functions ---
+const CUSTOMER_COLLECTION = 'customer'; // Using your specified collection name
 
 /**
  * Saves or updates user application data in Firestore.
@@ -70,18 +122,27 @@ export interface UserApplicationData {
  * @returns Promise<{success: boolean, error?: string}>
  */
 export async function saveUserApplicationData(userId: string, data: Partial<UserApplicationData>): Promise<{success: boolean, error?: string}> {
-  console.log(`[Firebase Service] Placeholder: Saving data for user ${userId}:`, data);
-  // TODO: Implement actual Firestore write operation.
-  // Example (using Admin SDK):
-  // try {
-  //   await dbAdmin.collection('applications').doc(userId).set(data, { merge: true });
-  //   return { success: true };
-  // } catch (error) {
-  //   console.error('[Firebase Service] Error saving user data:', error);
-  //   return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  // }
-  await new Promise(resolve => setTimeout(resolve, 300));
-  return { success: true };
+  if (!db) {
+    initializeFirebaseClientSDK();
+    if (!db) return { success: false, error: "Firestore not initialized." };
+  }
+  console.log(`[Firebase Service] Saving data for user ${userId} to collection '${CUSTOMER_COLLECTION}':`, data);
+  try {
+    const userDocRef = doc(db, CUSTOMER_COLLECTION, userId);
+    const dataToSave = {
+      ...data,
+      userId, // ensure userId is part of the document data
+      updatedAt: serverTimestamp(),
+    };
+    if (!(await getDoc(userDocRef)).exists()) {
+      (dataToSave as UserApplicationData).createdAt = serverTimestamp();
+    }
+    await setDoc(userDocRef, dataToSave, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error('[Firebase Service] Error saving user data:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
 }
 
 /**
@@ -90,109 +151,143 @@ export async function saveUserApplicationData(userId: string, data: Partial<User
  * @returns Promise<{success: boolean, data?: UserApplicationData, error?: string}>
  */
 export async function getUserApplicationData(userId: string): Promise<{success: boolean, data?: UserApplicationData, error?: string}> {
-  console.log(`[Firebase Service] Placeholder: Fetching data for user ${userId}`);
-  // TODO: Implement actual Firestore read operation.
-  // Example (using Admin SDK):
-  // try {
-  //   const docRef = dbAdmin.collection('applications').doc(userId);
-  //   const docSnap = await docRef.get();
-  //   if (docSnap.exists) {
-  //     return { success: true, data: docSnap.data() as UserApplicationData };
-  //   } else {
-  //     return { success: false, error: 'No application data found.' };
-  //   }
-  // } catch (error) {
-  //   console.error('[Firebase Service] Error fetching user data:', error);
-  //   return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  // }
-  await new Promise(resolve => setTimeout(resolve, 300));
-  // Return some placeholder data for demonstration if needed
-  return { success: true, data: { userId, mobileNumber: "+1234567890" } };
+  if (!db) {
+    initializeFirebaseClientSDK();
+    if (!db) return { success: false, error: "Firestore not initialized." };
+  }
+  console.log(`[Firebase Service] Fetching data for user ${userId} from collection '${CUSTOMER_COLLECTION}'`);
+  try {
+    const docRef = doc(db, CUSTOMER_COLLECTION, userId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() as UserApplicationData };
+    } else {
+      return { success: false, error: 'No application data found.' };
+    }
+  } catch (error) {
+    console.error('[Firebase Service] Error fetching user data:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
 }
 
 /**
  * Uploads a file (from a data URI or File object) to Firebase Storage.
  * @param userId - The user's ID, for path organization.
  * @param file - The File object or a data URI string.
- * @param fileName - The desired file name in Storage.
- * @param pathPrefix - e.g., 'ids', 'resumes'
+ * @param documentPath - e.g., 'offer_letter.png', 'ids/pan_card.jpg'
  * @returns Promise<{success: boolean, downloadURL?: string, error?: string}>
  */
 export async function uploadFileToStorage(
   userId: string,
-  file: File | string, // File object or data URI
-  fileName: string,
-  pathPrefix: string = 'user_documents'
+  file: File | string,
+  documentPath: string
 ): Promise<{success: boolean, downloadURL?: string, error?: string}> {
-  console.log(`[Firebase Service] Placeholder: Uploading file "${fileName}" for user ${userId} to ${pathPrefix}.`);
-  // TODO: Implement actual Firebase Storage upload.
-  // This is more complex as it involves handling File objects or converting data URIs.
-  // Client-side SDK is often easier for direct browser uploads.
-  // If using Admin SDK (server-side), you'd need the file buffer.
-  // Example (conceptual, more involved for data URIs):
-  // try {
-  //   const filePath = `${pathPrefix}/${userId}/${fileName}`;
-  //   // If 'file' is a data URI, you'd need to convert it to a Buffer first.
-  //   // If 'file' is a File object (from client form data passed to Server Action),
-  //   // you might stream it or get its buffer.
-  //   // const fileBuffer = ... convert file to buffer ...
-  //   // await storageAdmin.file(filePath).save(fileBuffer, { resumable: false });
-  //   // const [downloadURL] = await storageAdmin.file(filePath).getSignedUrl({ action: 'read', expires: '03-09-2491' });
-  //   // return { success: true, downloadURL };
-  // } catch (error) {
-  //   console.error('[Firebase Service] Error uploading file:', error);
-  //   return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  // }
-  await new Promise(resolve => setTimeout(resolve, 300));
-  return { success: true, downloadURL: `https://firebasestorage.googleapis.com/v0/b/your-bucket/o/${pathPrefix}%2F${userId}%2F${fileName}?alt=media` };
+  if (!storage) {
+    initializeFirebaseClientSDK();
+    if (!storage) return { success: false, error: "Firebase Storage not initialized." };
+  }
+  console.log(`[Firebase Service] Uploading file "${documentPath}" for user ${userId}.`);
+  
+  const filePath = `user_documents/${userId}/${documentPath}`;
+  const fileStorageRef = storageRef(storage, filePath);
+
+  try {
+    let uploadTask;
+    if (typeof file === 'string') { // Data URI
+      const base64String = file.split(',')[1];
+      uploadTask = uploadString(fileStorageRef, base64String, 'base64', { contentType: file.split(':')[1].split(';')[0] });
+    } else { // File object
+      uploadTask = uploadBytesResumable(fileStorageRef, file);
+    }
+
+    // Using await with uploadTask (which is actually a snapshot from uploadString or UploadTask from uploadBytesResumable)
+    // uploadBytesResumable returns an UploadTask, you can await its completion or listen to state changes
+    // uploadString returns a promise that resolves with an UploadResult
+    
+    if (typeof file !== 'string') { // It's an UploadTask from uploadBytesResumable
+        await new Promise<void>((resolve, reject) => {
+            uploadTask.on(
+                'state_changed',
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    console.log('Upload is ' + progress + '% done');
+                },
+                (error) => {
+                    console.error('[Firebase Service] Upload failed:', error);
+                    reject(error);
+                },
+                () => {
+                    resolve();
+                }
+            );
+        });
+    } else { // It's a Promise<UploadResult> from uploadString
+        await uploadTask;
+    }
+
+    const downloadURL = await getDownloadURL(fileStorageRef);
+    return { success: true, downloadURL };
+
+  } catch (error) {
+    console.error('[Firebase Service] Error uploading file:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
 }
+
 
 /**
  * Checks if a user document exists in Firestore based on a mobile number.
- * This is a simplified check; usually, this ties into Firebase Authentication.
  * @param mobileNumber - The mobile number to search for.
- * @returns Promise<{exists: boolean, userId?: string, error?: string}>
+ * @returns Promise<{exists: boolean, userId?: string, data?: UserApplicationData, error?: string}>
  */
-export async function checkUserExistsByMobile(mobileNumber: string): Promise<{exists: boolean, userId?: string, error?: string}> {
-  console.log(`[Firebase Service] Placeholder: Checking if user exists with mobile ${mobileNumber}`);
-  // TODO: Implement actual Firestore query.
-  // Example (using Admin SDK):
-  // try {
-  //   const usersRef = dbAdmin.collection('applications'); // or 'users'
-  //   const snapshot = await usersRef.where('mobileNumber', '==', mobileNumber).limit(1).get();
-  //   if (!snapshot.empty) {
-  //     return { exists: true, userId: snapshot.docs[0].id };
-  //   }
-  //   return { exists: false };
-  // } catch (error) {
-  //   console.error('[Firebase Service] Error checking user by mobile:', error);
-  //   return { exists: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  // }
-  await new Promise(resolve => setTimeout(resolve, 300));
-  if (mobileNumber === "+919999999999") { // Example
-      return { exists: true, userId: "firebaseUser123" };
+export async function checkUserExistsByMobile(mobileNumber: string): Promise<{exists: boolean, userId?: string, data?: UserApplicationData, error?: string}> {
+  if (!db) {
+    initializeFirebaseClientSDK();
+    if (!db) return { exists: false, error: "Firestore not initialized." };
   }
-  return { exists: false };
+  console.log(`[Firebase Service] Checking if user exists with mobile ${mobileNumber} in collection '${CUSTOMER_COLLECTION}'`);
+  try {
+    const usersRef = collection(db, CUSTOMER_COLLECTION);
+    const q = query(usersRef, where("mobileNumber", "==", mobileNumber), where("countryCode", "==", "+91")); // Example, adjust query as needed
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const userDoc = querySnapshot.docs[0];
+      return { exists: true, userId: userDoc.id, data: userDoc.data() as UserApplicationData };
+    }
+    return { exists: false };
+  } catch (error) {
+    console.error('[Firebase Service] Error checking user by mobile:', error);
+    return { exists: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
 }
 
-// --- University/Loan List Management (Admin functions - conceptual) ---
+
+// --- University/Loan List Management (Conceptual Admin functions - for future use) ---
+// These would typically use Firebase Admin SDK if called from a secure backend environment
 
 /**
  * Adds or updates a university in Firestore. (Conceptual admin function)
  */
 export async function upsertUniversity(universityId: string, data: any): Promise<void> {
+  if (!db) {
+    initializeFirebaseClientSDK();
+    if (!db) throw new Error("Firestore not initialized for upsertUniversity.");
+  }
   console.log(`[Firebase Service] Placeholder: Upserting university ${universityId}`);
-  // TODO: await dbAdmin.collection('universities').doc(universityId).set(data, { merge: true });
+  // await setDoc(doc(db, 'universities', universityId), data, { merge: true });
 }
 
 /**
- * Fetches all universities. (Conceptual function for Genkit flow)
+ * Fetches all universities. (Conceptual function for Genkit flow if it were to use Firestore)
  */
 export async function getAllUniversities(): Promise<any[]> {
+  if (!db) {
+    initializeFirebaseClientSDK();
+    if (!db) throw new Error("Firestore not initialized for getAllUniversities.");
+  }
   console.log(`[Firebase Service] Placeholder: Fetching all universities`);
-  // TODO: const snapshot = await dbAdmin.collection('universities').get();
-  // TODO: return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  // const snapshot = await getDocs(collection(db, 'universities'));
+  // return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   return [{id: 'uni1', name: 'Placeholder University', courses: [{name: 'CS'}]}];
 }
-
-// Add similar functions for loan lists.
