@@ -10,45 +10,59 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 
+interface CountryInfo {
+  value: string; // Unique value for the select item, e.g., '+91', '+1_US'
+  label: string; // Display label, e.g., 'India IN (+91)'
+}
 
-const countryCodes = [
-  { value: '+91', label: 'India (+91)' },
-  { value: '+1', label: 'USA (+1)' },
-  { value: '+44', label: 'UK (+44)' },
-  { value: '+61', label: 'Australia (+61)' },
-  { value: '+CAD', label: 'Canada (+1)' },
+const defaultCountryCodes: CountryInfo[] = [
+  { value: '+91', label: 'India IN (+91)' },
+  { value: '+233', label: 'Ghana GH (+233)' },
+  { value: '+234', label: 'Nigeria NG (+234)' },
+  { value: '+263', label: 'Zimbabwe ZW (+263)' },
+  { value: '+254', label: 'Kenya KE (+254)' },
+  { value: '+256', label: 'Uganda UG (+256)' },
+];
+
+const globalCountryCodesSample: CountryInfo[] = [
+  { value: '+1_US', label: 'USA US (+1)' },
+  { value: '+1_CA', label: 'Canada CA (+1)' },
+  { value: '+44', label: 'UK GB (+44)' },
+  { value: '+61', label: 'Australia AU (+61)' },
+  { value: '+49', label: 'Germany DE (+49)' },
+  { value: '+33', label: 'France FR (+33)' },
 ];
 
 export default function MobileVerificationPage() {
-  const [activeNavItem, setActiveNavItem] = useState('Loan'); // Or determine based on context
+  const [activeNavItem, setActiveNavItem] = useState('Loan');
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const { toast } = useToast();
 
-  const [countryCode, setCountryCode] = useState(countryCodes[0].value);
+  const [countryCode, setCountryCode] = useState(defaultCountryCodes[0].value);
   const [mobileNumber, setMobileNumber] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [enteredOtp, setEnteredOtp] = useState('');
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
 
-
   useEffect(() => {
-    // Aveka's message pop-up
     const timer = setTimeout(() => {
       setAvekaMessageVisible(true);
-    }, 500); // Slight delay for Aveka's message on this page
+    }, 500);
     return () => clearTimeout(timer);
   }, []);
 
-
   const handleGetOtpClick = () => {
-    if (!mobileNumber.trim() || !/^\d{10}$/.test(mobileNumber.trim())) {
+    if (!mobileNumber.trim() || !/^\d{10}$/.test(mobileNumber.trim())) { // Note: 10-digit validation might need to be country-specific
       toast({
         title: "Invalid Mobile Number",
         description: "Please enter a valid 10-digit mobile number.",
@@ -56,8 +70,6 @@ export default function MobileVerificationPage() {
       });
       return;
     }
-    // In a real app, an API call to send OTP would be made here.
-    // For now, we just simulate it.
     setOtpSent(true);
     toast({
       title: "OTP Sent!",
@@ -74,12 +86,11 @@ export default function MobileVerificationPage() {
       });
       return;
     }
-    // Navigate to the next step or perform other actions
     toast({
       title: "Mobile Verified!",
       description: "Proceeding to the next step.",
     });
-    console.log("OTP Verified. Country Code:", countryCode, "Mobile:", mobileNumber);
+    console.log("OTP Verified. Country Value:", countryCode, "Mobile:", mobileNumber);
     // Example: router.push('/loan-application/step-2');
   };
 
@@ -95,7 +106,7 @@ export default function MobileVerificationPage() {
         <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] backdrop-blur-lg rounded-2xl z-0"></div>
 
         <div className="relative z-10">
-          {/* Header Section (same as homepage) */}
+          {/* Header Section */}
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
@@ -157,22 +168,36 @@ export default function MobileVerificationPage() {
                     </div>
                 </div>
 
-
                 {!otpSent ? (
                   <div className="w-full space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                       <div className="md:col-span-1">
-                        <Label htmlFor="countryCode" className="block text-sm font-medium text-left mb-1">Country Code</Label>
+                        <Label htmlFor="countryCode" className="block text-sm font-medium text-left mb-1">Country/Region</Label>
                         <Select value={countryCode} onValueChange={setCountryCode}>
                           <SelectTrigger id="countryCode" className="w-full text-black">
                             <SelectValue placeholder="Select code" />
                           </SelectTrigger>
                           <SelectContent className="bg-background text-foreground">
-                            {countryCodes.map((code) => (
-                              <SelectItem key={code.value} value={code.value} className="hover:bg-muted">
-                                {code.label}
+                            <SelectGroup>
+                              <SelectLabel>Suggested</SelectLabel>
+                              {defaultCountryCodes.map((code) => (
+                                <SelectItem key={code.value} value={code.value} className="hover:bg-muted">
+                                  {code.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                            <SelectSeparator />
+                            <SelectGroup>
+                              <SelectLabel>All Countries</SelectLabel>
+                              {globalCountryCodesSample.map((code) => (
+                                <SelectItem key={code.value} value={code.value} className="hover:bg-muted">
+                                  {code.label}
+                                </SelectItem>
+                              ))}
+                               <SelectItem value="disabled_sample_info" disabled className="text-xs text-muted-foreground italic px-8 py-1">
+                                (This is a sample list. A full list would be available in a production app.)
                               </SelectItem>
-                            ))}
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                       </div>
@@ -181,11 +206,11 @@ export default function MobileVerificationPage() {
                         <Input
                           id="mobileNumber"
                           type="tel"
-                          placeholder="Enter 10-digit number"
+                          placeholder="Enter number"
                           value={mobileNumber}
                           onChange={(e) => setMobileNumber(e.target.value)}
                           className="w-full text-black"
-                          maxLength={10}
+                          maxLength={15} // Increased maxLength as 10 is too restrictive globally
                         />
                       </div>
                     </div>
