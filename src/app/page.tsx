@@ -56,7 +56,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* New Welcome Section */}
+          {/* New Welcome Section (Hero Section) */}
           <div className="text-center text-white">
             <h1 className="text-3xl md:text-4xl font-bold mb-4">
               Welcome to GlobCred
@@ -69,10 +69,10 @@ export default function Home() {
             <div className="mt-10 flex flex-col md:flex-row items-center justify-center md:items-start md:space-x-6 max-w-3xl mx-auto">
               <div className="flex-shrink-0 mb-4 md:mb-0">
                 <Image
-                  src="https://placehold.co/100x100.png" // Placeholder for Aveka's image
+                  src="https://placehold.co/40x40.png" // Placeholder for Aveka's image, size reduced
                   alt="Aveka, GlobCred's Smart AI"
-                  width={100}
-                  height={100}
+                  width={40} // Reduced size
+                  height={40} // Reduced size
                   className="rounded-full border-2 border-white shadow-lg"
                   data-ai-hint="robot avatar"
                 />
@@ -83,10 +83,17 @@ export default function Home() {
                 <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                 <p className="text-base">
                   Hello there! I'm Aveka, your financial and admission counsellor for your Study Abroad Journey.
-                  <br /> {/* Added a line break for better readability */}
+                  <br />
                   Ready to start your loan journey? Let's begin!
                 </p>
               </div>
+            </div>
+
+            {/* New "Get Started" Button below Aveka's message */}
+            <div className="mt-8 flex justify-center">
+              <Button variant="default" size="lg" className="gradient-border-button">
+                Get Started
+              </Button>
             </div>
           </div>
         </div>
