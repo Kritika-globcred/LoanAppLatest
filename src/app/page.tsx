@@ -7,13 +7,16 @@ export default function Home() {
     <div className="flex flex-col items-center">
       {/* Responsive Section acting as the main website container */}
       <section
-        className="w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] p-6 md:p-8"
+        className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] p-6 md:p-8 overflow-hidden"
         style={{
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Loan_App_BG.png')"
         }}
       >
-        {/* Content is wrapped in a div that was previously used for z-indexing if an overlay was present */}
-        <div>
+        {/* Overlay for background image opacity */}
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.90)] rounded-2xl z-0"></div>
+
+        {/* Content Wrapper - needs to be on top of the overlay */}
+        <div className="relative z-10">
           {/* New Header Section (within the responsive section) */}
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
