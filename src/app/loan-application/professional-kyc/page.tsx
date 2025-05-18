@@ -61,7 +61,7 @@ export default function ProfessionalKYCPage() {
   const [familySalaryCurrency, setFamilySalaryCurrency] = useState<string | undefined>();
 
   // Section Visibility & Progression
-  const [showCoSignatoryIdUpload, setShowCoSignatoryIdUpload] = useState(false);
+  const [showCoSignatorySection, setShowCoSignatorySection] = useState(true);
   const [showWorkExperience, setShowWorkExperience] = useState(false);
   const [showEmploymentStatus, setShowEmploymentStatus] = useState(false);
 
@@ -80,35 +80,48 @@ export default function ProfessionalKYCPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    if (coSignatoryChoice === 'yes' && !showCoSignatoryIdUpload) {
-        setShowCoSignatoryIdUpload(true);
-        setAvekaMessage(`Great! Please provide the ${coSignatoryIdDocumentType} of your co-signatory.`);
-    } else if (coSignatoryChoice === 'no' || coSignatoryChoice === 'addLater') {
-        setShowCoSignatoryIdUpload(false);
-        setCoSignatoryIdFile(null);
-        setCoSignatoryIdPreview(null);
-        setCoSignatoryRelationship(null);
-        setShowWorkExperience(true);
-        setAvekaMessage("Understood. Now, let's talk about your work experience.");
+  const isCoSignatorySectionComplete = () => {
+    if (!coSignatoryChoice) return false;
+    if (coSignatoryChoice === 'yes') {
+      return coSignatoryIdPreview && coSignatoryRelationship;
     }
-  }, [coSignatoryChoice, coSignatoryIdDocumentType, showCoSignatoryIdUpload]);
+    return true; // 'no' or 'addLater'
+  };
+
+  const isWorkExperienceCoreComplete = () => {
+    return workExperienceIndustry && workExperienceYears && workExperienceMonths;
+  };
+
+  const isEmploymentStatusComplete = () => {
+    if (!isCurrentlyWorking) return false;
+    if (isCurrentlyWorking === 'yes') {
+      return monthlySalary && salaryCurrency;
+    }
+    if (isCurrentlyWorking === 'no') {
+      return familyMonthlySalary && familySalaryCurrency;
+    }
+    return false;
+  };
 
   useEffect(() => {
-    if (showCoSignatoryIdUpload && coSignatoryIdPreview && coSignatoryRelationship && !showWorkExperience) {
-        setShowWorkExperience(true);
-        setAvekaMessage("Co-signatory details noted. Now, let's discuss your work experience.");
+    if (isCoSignatorySectionComplete() && !showWorkExperience) {
+      setShowWorkExperience(true);
+      setAvekaMessage("Co-signatory details noted (or understood). Now, let's discuss your work experience. Please provide your industry and years of experience. Sharing your resume or LinkedIn is optional but can help us process your application faster.");
     }
-  }, [coSignatoryIdPreview, coSignatoryRelationship, showCoSignatoryIdUpload, showWorkExperience]);
+  }, [coSignatoryChoice, coSignatoryIdPreview, coSignatoryRelationship, showWorkExperience]);
   
   useEffect(() => {
-    const workExpProvided = workExperienceIndustry && workExperienceYears && workExperienceMonths;
-    const proofProvided = (workExperienceProofType === 'resume' && resumeFile) || (workExperienceProofType === 'linkedin' && linkedInUrl);
-    if (showWorkExperience && workExpProvided && proofProvided && !showEmploymentStatus) {
+    if (showWorkExperience && isWorkExperienceCoreComplete() && !showEmploymentStatus) {
         setShowEmploymentStatus(true);
         setAvekaMessage("Work experience details look good. Finally, let's confirm your current employment status.");
     }
-  }, [workExperienceIndustry, workExperienceYears, workExperienceMonths, workExperienceProofType, resumeFile, linkedInUrl, showWorkExperience, showEmploymentStatus]);
+  }, [workExperienceIndustry, workExperienceYears, workExperienceMonths, showWorkExperience, showEmploymentStatus]);
+
+  useEffect(() => {
+    if (showEmploymentStatus && isEmploymentStatusComplete() && isFormComplete()) {
+        setAvekaMessage("Excellent! All professional details are complete. Please click 'Save & Continue' to review.");
+    }
+  }, [isCurrentlyWorking, monthlySalary, salaryCurrency, familyMonthlySalary, familySalaryCurrency, showEmploymentStatus]);
 
 
   // Camera Logic
@@ -211,14 +224,14 @@ export default function ProfessionalKYCPage() {
   const handleSaveAndContinue = () => {
     const professionalData = {
       coSignatoryChoice,
-      coSignatoryIdDocumentUri: coSignatoryIdPreview, // Will be null if no file/capture
+      coSignatoryIdDocumentUri: coSignatoryIdPreview, 
       coSignatoryIdDocumentType: coSignatoryChoice === 'yes' ? coSignatoryIdDocumentType : null,
-      coSignatoryRelationship,
+      coSignatoryRelationship: coSignatoryChoice === 'yes' ? coSignatoryRelationship : null,
       workExperienceIndustry,
       workExperienceYears,
       workExperienceMonths,
       workExperienceProofType,
-      resumeFileUri: workExperienceProofType === 'resume' ? (resumePreview || resumeFile?.name) : null, // Store data URI for image, name for non-image
+      resumeFileUri: workExperienceProofType === 'resume' && resumeFile ? (resumePreview || resumeFile.name) : null, 
       linkedInUrl: workExperienceProofType === 'linkedin' ? linkedInUrl : null,
       isCurrentlyWorking,
       monthlySalary: isCurrentlyWorking === 'yes' ? monthlySalary : null,
@@ -233,69 +246,70 @@ export default function ProfessionalKYCPage() {
   };
   
   const isFormComplete = () => {
-    const coSignatorySectionComplete = 
+    const coSignatoryOk = 
       coSignatoryChoice === 'no' || 
       coSignatoryChoice === 'addLater' || 
-      (coSignatoryChoice === 'yes' && coSignatoryIdPreview && coSignatoryRelationship);
+      (coSignatoryChoice === 'yes' && !!coSignatoryIdPreview && !!coSignatoryRelationship);
 
-    const workExperienceSectionComplete = 
-      workExperienceIndustry && 
-      workExperienceYears && 
-      workExperienceMonths &&
-      ((workExperienceProofType === 'resume' && resumeFile) || (workExperienceProofType === 'linkedin' && linkedInUrl));
+    const workExperienceOk = 
+      !!workExperienceIndustry && 
+      workExperienceYears !== undefined && 
+      workExperienceMonths !== undefined;
       
-    const employmentStatusComplete = 
-      isCurrentlyWorking &&
-      (isCurrentlyWorking === 'yes' ? (monthlySalary && salaryCurrency) : (familyMonthlySalary && familySalaryCurrency));
+    const employmentStatusOk = 
+      !!isCurrentlyWorking &&
+      (isCurrentlyWorking === 'yes' ? (!!monthlySalary && !!salaryCurrency) : (!!familyMonthlySalary && !!familySalaryCurrency));
 
-    return coSignatorySectionComplete && workExperienceSectionComplete && employmentStatusComplete;
+    return coSignatoryOk && workExperienceOk && employmentStatusOk;
   };
 
 
   const renderCoSignatorySection = () => (
-    <div className="space-y-6 p-4 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
-      <h3 className="font-semibold text-lg text-center text-white">Co-Signatory Details</h3>
-      <Label className="text-white">Do you want to add a co-signatory? (This can increase approval chances)</Label>
-      <RadioGroup value={coSignatoryChoice || ''} onValueChange={setCoSignatoryChoice} className="flex flex-wrap gap-x-4 gap-y-2 text-white">
-        {["yes", "no", "addLater"].map(opt => (
-          <div key={`cosign-${opt}`} className="flex items-center space-x-2">
-            <RadioGroupItem value={opt} id={`cosign-${opt}`} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/>
-            <Label htmlFor={`cosign-${opt}`}>{opt.charAt(0).toUpperCase() + opt.slice(1).replace('addLater', 'Add Later')}</Label>
-          </div>
-        ))}
-      </RadioGroup>
-
-      {showCoSignatoryIdUpload && coSignatoryChoice === 'yes' && (
-        <div className="space-y-4 mt-4 border-t border-gray-600/20 pt-4">
-          <Label className="text-white">{`Upload Co-signatory's ${coSignatoryIdDocumentType}`}</Label>
-          <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-            <Button onClick={() => coSignatoryIdFileInputRef.current?.click()} className="gradient-border-button w-auto">
-              <UploadCloud className="mr-2 h-5 w-5" /> Upload {coSignatoryIdDocumentType}
-            </Button>
-            <input type="file" ref={coSignatoryIdFileInputRef} onChange={(e) => handleFileChange(e, 'coSignatoryId')} className="hidden" accept="image/*,.pdf" />
-            <Button onClick={() => setShowCameraForCoSignatory(true)} className="gradient-border-button w-auto">
-              <Camera className="mr-2 h-5 w-5" /> Take Picture
-            </Button>
-          </div>
-          {coSignatoryIdPreview && (
-            <div className="text-center mt-2">
-              <Image src={coSignatoryIdPreview} alt={`${coSignatoryIdDocumentType} Preview`} width={150} height={90} className="rounded-md mx-auto object-contain max-h-32" data-ai-hint="ID document"/>
+    showCoSignatorySection && (
+        <div className="space-y-6 p-4 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
+        <h3 className="font-semibold text-lg text-center text-white">Co-Signatory Details</h3>
+        <Label className="text-white">Do you want to add a co-signatory? (This can increase approval chances)</Label>
+        <RadioGroup value={coSignatoryChoice || ''} onValueChange={setCoSignatoryChoice} className="flex flex-wrap gap-x-4 gap-y-2 text-white">
+            {["yes", "no", "addLater"].map(opt => (
+            <div key={`cosign-${opt}`} className="flex items-center space-x-2">
+                <RadioGroupItem value={opt} id={`cosign-${opt}`} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/>
+                <Label htmlFor={`cosign-${opt}`}>{opt.charAt(0).toUpperCase() + opt.slice(1).replace('addLater', 'Add Later')}</Label>
             </div>
-          )}
-          <div>
-            <Label htmlFor="coSignatoryRelationship" className="text-white">Relationship with Co-signatory</Label>
-            <Select value={coSignatoryRelationship || ''} onValueChange={setCoSignatoryRelationship}>
-              <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Select relationship" /></SelectTrigger>
-              <SelectContent className="bg-white text-black">
-                {["Parent", "Sibling", "Spouse", "Family Member", "Friend"].map(rel => (
-                  <SelectItem key={rel} value={rel.toLowerCase()} className="hover:bg-gray-100">{rel}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            ))}
+        </RadioGroup>
+
+        {coSignatoryChoice === 'yes' && (
+            <div className="space-y-4 mt-4 border-t border-gray-600/20 pt-4">
+            <Label className="text-white">{`Upload Co-signatory's ${coSignatoryIdDocumentType}`}</Label>
+            <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                <Button onClick={() => coSignatoryIdFileInputRef.current?.click()} className="gradient-border-button w-auto">
+                <UploadCloud className="mr-2 h-5 w-5" /> Upload {coSignatoryIdDocumentType}
+                </Button>
+                <input type="file" ref={coSignatoryIdFileInputRef} onChange={(e) => handleFileChange(e, 'coSignatoryId')} className="hidden" accept="image/*,.pdf" />
+                <Button onClick={() => setShowCameraForCoSignatory(true)} className="gradient-border-button w-auto">
+                <Camera className="mr-2 h-5 w-5" /> Take Picture
+                </Button>
+            </div>
+            {coSignatoryIdPreview && (
+                <div className="text-center mt-2">
+                <Image src={coSignatoryIdPreview} alt={`${coSignatoryIdDocumentType} Preview`} width={150} height={90} className="rounded-md mx-auto object-contain max-h-32" data-ai-hint="ID document"/>
+                </div>
+            )}
+            <div>
+                <Label htmlFor="coSignatoryRelationship" className="text-white">Relationship with Co-signatory</Label>
+                <Select value={coSignatoryRelationship || ''} onValueChange={setCoSignatoryRelationship}>
+                <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Select relationship" /></SelectTrigger>
+                <SelectContent className="bg-white text-black">
+                    {["Parent", "Sibling", "Spouse", "Family Member", "Friend"].map(rel => (
+                    <SelectItem key={rel} value={rel.toLowerCase()} className="hover:bg-gray-100">{rel}</SelectItem>
+                    ))}
+                </SelectContent>
+                </Select>
+            </div>
+            </div>
+        )}
         </div>
-      )}
-    </div>
+    )
   );
 
   const renderWorkExperienceSection = () => (
@@ -303,12 +317,12 @@ export default function ProfessionalKYCPage() {
       <div className="space-y-6 p-4 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
         <h3 className="font-semibold text-lg text-center text-white">Work Experience</h3>
         <div>
-          <Label htmlFor="workExperienceIndustry" className="text-white">Industry you are working in</Label>
+          <Label htmlFor="workExperienceIndustry" className="text-white">Industry you are working in <span className="text-red-400">*</span></Label>
           <Input id="workExperienceIndustry" value={workExperienceIndustry} onChange={(e) => setWorkExperienceIndustry(e.target.value)} className="bg-white/80 text-black" placeholder="E.g., Information Technology, Finance"/>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label className="text-white">Experience in Years</Label>
+            <Label className="text-white">Experience in Years <span className="text-red-400">*</span></Label>
             <Select value={workExperienceYears} onValueChange={setWorkExperienceYears}>
               <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Years" /></SelectTrigger>
               <SelectContent className="bg-white text-black">
@@ -317,7 +331,7 @@ export default function ProfessionalKYCPage() {
             </Select>
           </div>
           <div>
-            <Label className="text-white">Experience in Months</Label>
+            <Label className="text-white">Experience in Months <span className="text-red-400">*</span></Label>
             <Select value={workExperienceMonths} onValueChange={setWorkExperienceMonths}>
               <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Months" /></SelectTrigger>
               <SelectContent className="bg-white text-black">
@@ -327,7 +341,7 @@ export default function ProfessionalKYCPage() {
           </div>
         </div>
         <div>
-          <Label className="text-white">Provide professional proof:</Label>
+          <Label className="text-white">Provide professional proof (Optional):</Label>
           <RadioGroup value={workExperienceProofType || ''} onValueChange={setWorkExperienceProofType} className="flex space-x-4 text-white mt-1">
             <div className="flex items-center space-x-2"><RadioGroupItem value="resume" id="proof-resume" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/><Label htmlFor="proof-resume">Upload Resume</Label></div>
             <div className="flex items-center space-x-2"><RadioGroupItem value="linkedin" id="proof-linkedin" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/><Label htmlFor="proof-linkedin">Share LinkedIn Link</Label></div>
@@ -370,7 +384,7 @@ export default function ProfessionalKYCPage() {
     showEmploymentStatus && (
       <div className="space-y-6 p-4 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
         <h3 className="font-semibold text-lg text-center text-white">Current Employment Status</h3>
-        <Label className="text-white">Are you currently working?</Label>
+        <Label className="text-white">Are you currently working? <span className="text-red-400">*</span></Label>
         <RadioGroup value={isCurrentlyWorking || ''} onValueChange={setIsCurrentlyWorking} className="flex space-x-4 text-white">
           <div className="flex items-center space-x-2"><RadioGroupItem value="yes" id="working-yes" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/><Label htmlFor="working-yes">Yes</Label></div>
           <div className="flex items-center space-x-2"><RadioGroupItem value="no" id="working-no" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/><Label htmlFor="working-no">No</Label></div>
@@ -379,11 +393,11 @@ export default function ProfessionalKYCPage() {
         {isCurrentlyWorking === 'yes' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 border-t border-gray-600/20 pt-4">
             <div>
-              <Label htmlFor="monthlySalary" className="text-white">Your Monthly Salary</Label>
+              <Label htmlFor="monthlySalary" className="text-white">Your Monthly Salary <span className="text-red-400">*</span></Label>
               <Input id="monthlySalary" type="number" value={monthlySalary} onChange={(e) => setMonthlySalary(e.target.value)} className="bg-white/80 text-black" placeholder="E.g., 5000"/>
             </div>
             <div>
-              <Label htmlFor="salaryCurrency" className="text-white">Salary Currency</Label>
+              <Label htmlFor="salaryCurrency" className="text-white">Salary Currency <span className="text-red-400">*</span></Label>
               <Select value={salaryCurrency} onValueChange={setSalaryCurrency}>
                 <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Currency" /></SelectTrigger>
                 <SelectContent className="bg-white text-black">
@@ -396,11 +410,11 @@ export default function ProfessionalKYCPage() {
         {isCurrentlyWorking === 'no' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 border-t border-gray-600/20 pt-4">
             <div>
-              <Label htmlFor="familyMonthlySalary" className="text-white">Estimated Family's Monthly Salary</Label>
+              <Label htmlFor="familyMonthlySalary" className="text-white">Estimated Family's Monthly Salary <span className="text-red-400">*</span></Label>
               <Input id="familyMonthlySalary" type="number" value={familyMonthlySalary} onChange={(e) => setFamilyMonthlySalary(e.target.value)} className="bg-white/80 text-black" placeholder="E.g., 8000"/>
             </div>
             <div>
-              <Label htmlFor="familySalaryCurrency" className="text-white">Salary Currency</Label>
+              <Label htmlFor="familySalaryCurrency" className="text-white">Salary Currency <span className="text-red-400">*</span></Label>
               <Select value={familySalaryCurrency} onValueChange={setFamilySalaryCurrency}>
                 <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Currency" /></SelectTrigger>
                 <SelectContent className="bg-white text-black">
@@ -523,3 +537,5 @@ export default function ProfessionalKYCPage() {
     </div>
   );
 }
+
+    
