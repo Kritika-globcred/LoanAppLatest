@@ -24,8 +24,8 @@ import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar
 import { loanAppSteps } from '@/lib/loan-steps';
 
 interface CountryInfo {
-  value: string; 
-  label: string; 
+  value: string;
+  label: string;
 }
 
 const defaultCountryCodes: CountryInfo[] = [
@@ -50,7 +50,7 @@ export default function MobileVerificationPage() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const { toast } = useToast();
-  const router = useRouter(); 
+  const router = useRouter();
 
   const [countryCode, setCountryCode] = useState(defaultCountryCodes[0].value);
   const [mobileNumber, setMobileNumber] = useState('');
@@ -61,7 +61,7 @@ export default function MobileVerificationPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setAvekaMessageVisible(true);
-    }, 500); 
+    }, 500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -99,7 +99,7 @@ export default function MobileVerificationPage() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('selectedCountryValue', countryCode);
     }
-    router.push('/loan-application/admission-kyc'); 
+    router.push('/loan-application/admission-kyc');
   };
 
   const handleGoBackToMobileEntry = () => {
@@ -119,7 +119,6 @@ export default function MobileVerificationPage() {
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
-          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
@@ -152,6 +151,7 @@ export default function MobileVerificationPage() {
               </Link>
             </div>
           </div>
+          <LoanProgressBar steps={loanAppSteps} />
 
           <div className="py-8">
             <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-lg mx-auto">
@@ -159,7 +159,7 @@ export default function MobileVerificationPage() {
                 <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://placehold.co/50x50.png" 
+                        src="https://placehold.co/50x50.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}
@@ -222,7 +222,7 @@ export default function MobileVerificationPage() {
                           value={mobileNumber}
                           onChange={(e) => setMobileNumber(e.target.value)}
                           className="w-[70%] bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring"
-                          maxLength={15} 
+                          maxLength={15}
                         />
                       </div>
                     </div>

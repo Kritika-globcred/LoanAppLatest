@@ -33,7 +33,7 @@ export default function AdmissionKYCPage() {
   const [hasOfferLetter, setHasOfferLetter] = useState<boolean | null>(null);
   const [offerLetterFile, setOfferLetterFile] = useState<File | null>(null);
   const [offerLetterPreview, setOfferLetterPreview] = useState<string | null>(null);
-  
+
   const [isProcessingLetter, setIsProcessingLetter] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractOfferLetterOutput | null>(null);
   const [editingField, setEditingField] = useState<keyof ExtractOfferLetterOutput | null>(null);
@@ -81,8 +81,8 @@ export default function AdmissionKYCPage() {
         }
       };
       getCameraPermission();
-      
-      return () => { 
+
+      return () => {
         if (videoRef.current && videoRef.current.srcObject) {
           const stream = videoRef.current.srcObject as MediaStream;
           stream.getTracks().forEach(track => track.stop());
@@ -117,7 +117,7 @@ export default function AdmissionKYCPage() {
         fetch(dataUrl).then(res => res.blob()).then(blob => {
           setOfferLetterFile(new File([blob], "camera_capture.png", { type: "image/png" }));
         });
-        setShowCamera(false); 
+        setShowCamera(false);
       }
     }
   };
@@ -148,12 +148,12 @@ export default function AdmissionKYCPage() {
   };
 
   useEffect(() => {
-    if (offerLetterPreview && !extractedData && !isProcessingLetter) { 
+    if (offerLetterPreview && !extractedData && !isProcessingLetter) {
       processOfferLetter();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offerLetterPreview]); 
-  
+  }, [offerLetterPreview]);
+
   const handleEditField = (field: keyof ExtractOfferLetterOutput, currentValue: string) => {
     setEditingField(field);
     setEditValue(currentValue);
@@ -179,9 +179,9 @@ export default function AdmissionKYCPage() {
     console.log("Admission KYC Data:", extractedData);
     console.log("Consent given at:", currentTime);
     toast({ title: "Step 1 Complete!", description: "Moving to Personal KYC." });
-    router.push('/loan-application/personal-kyc'); 
+    router.push('/loan-application/personal-kyc');
   };
-  
+
   const handleNoOfferLetter = () => {
     setHasOfferLetter(false);
     toast({ title: "Okay", description: "Proceeding to Personal KYC." });
@@ -229,12 +229,12 @@ export default function AdmissionKYCPage() {
             <h3 className="font-semibold mb-2 text-center text-white">Camera View</h3>
             <video ref={videoRef} className="w-full aspect-video rounded-md" autoPlay muted />
             <canvas ref={canvasRef} className="hidden"></canvas>
-            { !(hasCameraPermission === false) && ( 
+            { !(hasCameraPermission === false) && (
                  <div className="mt-4 flex justify-center">
                     <Button onClick={handleCaptureImage} size="md" className="gradient-border-button">Capture Image</Button>
                 </div>
             )}
-            { hasCameraPermission === false && ( 
+            { hasCameraPermission === false && (
                 <Alert variant="destructive" className="mt-4">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Camera Access Denied</AlertTitle>
@@ -247,7 +247,7 @@ export default function AdmissionKYCPage() {
       )}
     </div>
   );
-  
+
   const renderExtractedDataTable = () => {
     if (!extractedData) return null;
     const dataEntries = Object.entries(extractedData) as [keyof ExtractOfferLetterOutput, string | number | boolean | undefined][];
@@ -268,9 +268,9 @@ export default function AdmissionKYCPage() {
                 <TableCell className="font-medium capitalize text-gray-300">{key.replace(/([A-Z])/g, ' $1').trim()}</TableCell>
                 <TableCell className="text-gray-200">
                   {editingField === key ? (
-                    <Input 
-                      type="text" 
-                      value={editValue} 
+                    <Input
+                      type="text"
+                      value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       className="bg-white/80 text-black"
                     />
@@ -327,7 +327,6 @@ export default function AdmissionKYCPage() {
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
-          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
@@ -360,8 +359,9 @@ export default function AdmissionKYCPage() {
               </Link>
             </div>
           </div>
-          
-          <div className="flex items-center mb-6">
+          <LoanProgressBar steps={loanAppSteps} />
+
+          <div className="flex items-center mb-6 mt-4"> {/* Added mt-4 for spacing below progress bar */}
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/mobile')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
@@ -390,7 +390,7 @@ export default function AdmissionKYCPage() {
                         <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                         {hasOfferLetter === null && !extractedData && (
                            <p className="text-base text-white">
-                             {studentFirstName ? `Hi ${studentFirstName}! ` : "Hi there! "}
+                             {(studentFirstName && typeof studentFirstName === 'string' && studentFirstName.trim() !== '') ? `Hi ${studentFirstName}! ` : "Hi there! "}
                              Let's start with your admission details. Do you have your academic offer letter handy?
                            </p>
                         )}
@@ -406,7 +406,7 @@ export default function AdmissionKYCPage() {
                         )}
                          {extractedData && (
                             <p className="text-base text-white">
-                                Thanks, {studentFirstName || "there"}! I've extracted the following details from your offer letter. Please review them carefully.
+                                Thanks, {(studentFirstName && typeof studentFirstName === 'string' && studentFirstName.trim() !== '') ? studentFirstName : "there"}! I've extracted the following details from your offer letter. Please review them carefully.
                             </p>
                         )}
                     </div>

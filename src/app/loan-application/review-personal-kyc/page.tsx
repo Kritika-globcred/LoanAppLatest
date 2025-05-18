@@ -27,7 +27,7 @@ export default function ReviewPersonalKYCPage() {
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // Renamed from isProcessing to avoid conflict if used elsewhere
   const [extractedData, setExtractedData] = useState<EditableKycOutput | null>(null);
   const [editingField, setEditingField] = useState<keyof EditableKycOutput | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -109,9 +109,9 @@ export default function ReviewPersonalKYCPage() {
         });
         setAvekaMessage("I encountered an issue while extracting details. You might need to re-upload clearer images, or you can try filling the details manually if this persists.");
          // Optionally, allow manual entry or show an empty editable table
-        setExtractedData({ 
+        setExtractedData({
             idNumber: "Not Specified", idType: idDocType, passportNumber: "Not Specified",
-            mothersName: "Not Specified", fathersName: "Not Specified", 
+            mothersName: "Not Specified", fathersName: "Not Specified",
             passportExpiryDate: "Not Specified", passportIssueDate: "Not Specified",
             nameOnPassport: "Not Specified", countryOfUser: "Not Specified",
             dateOfBirth: "Not Specified", permanentAddress: "Not Specified", ageInYears: "Not Specified"
@@ -157,7 +157,7 @@ export default function ReviewPersonalKYCPage() {
     toast({ title: "Step 2 Complete!", description: "Your Personal KYC details are saved." });
     router.push('/'); // Placeholder for next step
   };
-  
+
   const renderEditableTable = () => {
     if (!extractedData) return null;
     const dataEntries = Object.entries(extractedData) as [keyof EditableKycOutput, string | number | undefined][];
@@ -181,9 +181,9 @@ export default function ReviewPersonalKYCPage() {
                   <TableCell className="font-medium capitalize text-gray-300">{fieldLabel}</TableCell>
                   <TableCell className="text-gray-200">
                     {editingField === key && !isAgeField ? (
-                      <Input 
-                        type="text" 
-                        value={editValue} 
+                      <Input
+                        type="text"
+                        value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         className="bg-white/80 text-black"
                       />
@@ -240,7 +240,6 @@ export default function ReviewPersonalKYCPage() {
       >
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
         <div className="relative z-10">
-          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
              <nav>
@@ -273,8 +272,9 @@ export default function ReviewPersonalKYCPage() {
               </Link>
             </div>
           </div>
+          <LoanProgressBar steps={loanAppSteps} />
 
-          <div className="flex items-center mb-6">
+          <div className="flex items-center mb-6 mt-4"> {/* Added mt-4 for spacing */}
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/personal-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
@@ -305,7 +305,7 @@ export default function ReviewPersonalKYCPage() {
                     </div>
                 </div>
               </div>
-              
+
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-10">
                   <Loader2 className="h-12 w-12 animate-spin text-primary" />

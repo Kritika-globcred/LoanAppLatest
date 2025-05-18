@@ -34,7 +34,7 @@ export default function PersonalKYCPage() {
 
   const idFileInputRef = useRef<HTMLInputElement>(null);
   const passportFileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showCameraFor, setShowCameraFor] = useState<'id' | 'passport' | null>(null);
@@ -98,7 +98,7 @@ export default function PersonalKYCPage() {
         if (type === 'id') {
           setIdDocumentFile(file);
           setIdDocumentPreview(reader.result as string);
-          setShowPassportSection(true); 
+          setShowPassportSection(true);
           toast({ title: `${idDocumentType} Uploaded`, description: `Great! The Passport section is now visible below. Please upload your Passport.` });
         } else {
           setPassportFile(file);
@@ -109,7 +109,7 @@ export default function PersonalKYCPage() {
       reader.readAsDataURL(file);
     }
   };
-  
+
   const handleCaptureImage = () => {
     if (videoRef.current && canvasRef.current && showCameraFor) {
       const video = videoRef.current;
@@ -156,7 +156,7 @@ export default function PersonalKYCPage() {
       toast({ title: "Documents Missing", description: "Please upload both required documents.", variant: "destructive" });
       return;
     }
-    
+
     if (typeof window !== 'undefined') {
         localStorage.setItem('idDocumentDataUri', idDocumentPreview);
         localStorage.setItem('passportDataUri', passportPreview);
@@ -170,16 +170,16 @@ export default function PersonalKYCPage() {
   const renderPrimaryAvekaMessage = () => {
     let message = "";
     if (!idDocumentFile) {
-      message = isIndia === null 
-        ? "Let's verify your identity. Please wait while I check your details..." 
+      message = isIndia === null
+        ? "Let's verify your identity. Please wait while I check your details..."
         : `Next, I need your ${idDocumentType}. Please upload a clear image or take a picture. For best results, ensure the image is in JPG or PNG format.`;
     } else if (idDocumentFile && passportFile) {
        message = "Excellent! You've uploaded both documents. Ready to review them and let AI extract the details?";
-    } else {
-      // This case should ideally be handled by the secondary Aveka prompt for passport
-      // but as a fallback if passport prompt isn't visible yet.
-      message = `Great job with the ${idDocumentType}! Now, I just need your Passport.`;
+    } else if (idDocumentFile && !passportFile && !avekaPassportPromptVisible) {
+      // This covers the brief period before the passport prompt animates in
+      message = `Thanks for the ${idDocumentType}! Now, just your Passport, please.`;
     }
+
 
     return (
       <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4">
@@ -231,7 +231,7 @@ export default function PersonalKYCPage() {
       </div>
     </div>
   );
-  
+
   const renderDocumentUploadSection = (
     docType: 'id' | 'passport',
     title: string,
@@ -245,10 +245,10 @@ export default function PersonalKYCPage() {
       {preview ? (
         <div className="text-center">
           <Image src={preview} alt={`${title} Preview`} width={200} height={120} className="rounded-md mx-auto object-contain max-h-40" />
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => docType === 'id' ? (setIdDocumentFile(null), setIdDocumentPreview(null), setShowPassportSection(false), setAvekaPassportPromptVisible(false)) : (setPassportFile(null), setPassportPreview(null))} 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => docType === 'id' ? (setIdDocumentFile(null), setIdDocumentPreview(null), setShowPassportSection(false), setAvekaPassportPromptVisible(false)) : (setPassportFile(null), setPassportPreview(null))}
             className="mt-2 bg-white/20 hover:bg-white/30 text-white"
           >
             Remove {file?.type.startsWith("image/") ? title : file?.name}
@@ -289,7 +289,6 @@ export default function PersonalKYCPage() {
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
-          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
@@ -322,8 +321,9 @@ export default function PersonalKYCPage() {
               </Link>
             </div>
           </div>
-          
-          <div className="flex items-center mb-6">
+          <LoanProgressBar steps={loanAppSteps} />
+
+          <div className="flex items-center mb-6 mt-4"> {/* Added mt-4 for spacing */}
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/admission-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
@@ -335,14 +335,14 @@ export default function PersonalKYCPage() {
                 {(!idDocumentFile || (idDocumentFile && passportFile)) && renderPrimaryAvekaMessage()}
 
                 {renderDocumentUploadSection(
-                  'id', 
-                  idDocumentType, 
-                  idDocumentFile, 
-                  idDocumentPreview, 
+                  'id',
+                  idDocumentType,
+                  idDocumentFile,
+                  idDocumentPreview,
                   idFileInputRef
                 )}
 
-                {showPassportSection && !passportFile && (
+                {showPassportSection && !passportFile && idDocumentFile && (
                   <div className="mt-6 w-full">
                      <AvekaPassportPrompt />
                   </div>
@@ -351,11 +351,12 @@ export default function PersonalKYCPage() {
                 {showPassportSection && (
                   <div className="mt-6 w-full">
                     {renderDocumentUploadSection(
-                      'passport', 
-                      'Passport', 
-                      passportFile, 
-                      passportPreview, 
-                      passportFileInputRef
+                      'passport',
+                      'Passport',
+                      passportFile,
+                      passportPreview,
+                      passportFileInputRef,
+                      !idDocumentFile // Disable passport upload if ID is not yet uploaded
                     )}
                   </div>
                 )}
@@ -385,9 +386,9 @@ export default function PersonalKYCPage() {
 
                 {(idDocumentFile && passportFile) && (
                   <div className="mt-8 flex justify-center">
-                    <Button 
-                      onClick={handleProceedToReview} 
-                      size="lg" 
+                    <Button
+                      onClick={handleProceedToReview}
+                      size="lg"
                       className="gradient-border-button"
                       disabled={!idDocumentFile || !passportFile}
                     >
