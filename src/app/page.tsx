@@ -19,6 +19,14 @@ export default function Home() {
   const [loanDisbursed, setLoanDisbursed] = useState(initialLoanDisbursed);
   const [happyStudents, setHappyStudents] = useState(initialHappyStudents);
   const [liveVisitors, setLiveVisitors] = useState(initialLiveVisitors);
+  const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAvekaMessageVisible(true);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const loanInterval = setInterval(() => {
@@ -144,7 +152,11 @@ export default function Home() {
                   data-ai-hint="robot avatar"
                 />
               </div>
-              <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm p-4 rounded-xl shadow-md text-left md:flex-grow">
+              <div
+                className={`bg-[hsl(var(--card)/0.25)] backdrop-blur-sm p-4 rounded-xl shadow-md text-left md:flex-grow
+                            transform transition-all duration-500 ease-out
+                            ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+              >
                 <p className="font-semibold text-xl mb-1">Aveka</p>
                 <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                 <p className="text-base">
