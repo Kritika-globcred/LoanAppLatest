@@ -132,8 +132,10 @@ export default function AdmissionKYCPage() {
       const input: ExtractOfferLetterInput = { offerLetterImageUri: offerLetterPreview };
       const result = await extractOfferLetterDetails(input);
       setExtractedData(result);
-      if (result.studentName) {
+      if (result && typeof result.studentName === 'string' && result.studentName.trim() !== '') {
         setStudentFirstName(result.studentName.split(' ')[0]);
+      } else {
+        setStudentFirstName(null); // Fallback if name is not a usable string
       }
       toast({ title: "Information Extracted", description: "Please review the details below." });
     } catch (error) {
@@ -171,7 +173,7 @@ export default function AdmissionKYCPage() {
 
   const renderInitialQuestion = () => (
     <div className="text-center">
-      <p className="text-base mb-6">
+      <p className="text-base mb-6 text-white">
         {studentFirstName ? `Hi ${studentFirstName}! ` : "Hi there! "}
         Let's start with your admission details. Do you have your academic offer letter handy?
       </p>
@@ -184,7 +186,7 @@ export default function AdmissionKYCPage() {
 
   const renderFileUpload = () => (
     <div className="space-y-6">
-      <p className="text-base">
+      <p className="text-base text-white">
         Excellent! Please upload your offer letter or take a picture of it. For best results with AI extraction, please provide a clear image (JPG, PNG).
       </p>
       <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
@@ -198,11 +200,11 @@ export default function AdmissionKYCPage() {
       </div>
       {offerLetterPreview && (
         <div className="mt-6 p-4 border border-gray-300 rounded-lg bg-gray-500/10 max-w-md mx-auto">
-          <h3 className="font-semibold mb-2 text-center">Preview:</h3>
+          <h3 className="font-semibold mb-2 text-center text-white">Preview:</h3>
           {offerLetterFile?.type.startsWith('image/') ? (
             <Image src={offerLetterPreview} alt="Offer Letter Preview" width={400} height={500} className="rounded-md mx-auto max-h-[500px] object-contain" />
           ) : (
-            <p className="text-center text-sm">Preview for {offerLetterFile?.name} (Non-image file)</p>
+            <p className="text-center text-sm text-white">Preview for {offerLetterFile?.name} (Non-image file)</p>
           )}
           <div className="mt-4 flex justify-center">
             <Button onClick={processOfferLetter} disabled={isProcessingLetter} size="lg" className="gradient-border-button">
@@ -214,7 +216,7 @@ export default function AdmissionKYCPage() {
       )}
        {showCamera && (
         <div className="mt-6 p-4 border border-gray-300 rounded-lg bg-gray-500/10 max-w-md mx-auto">
-            <h3 className="font-semibold mb-2 text-center">Camera View</h3>
+            <h3 className="font-semibold mb-2 text-center text-white">Camera View</h3>
             <video ref={videoRef} className="w-full aspect-video rounded-md" autoPlay muted />
             <canvas ref={canvasRef} className="hidden"></canvas>
             { !(hasCameraPermission === false) && ( // Show button if permission is not explicitly denied
@@ -242,7 +244,7 @@ export default function AdmissionKYCPage() {
 
     return (
       <div className="space-y-6">
-        <p className="text-base">
+        <p className="text-base text-white">
           Thanks, {studentFirstName || "there"}! I've extracted the following details. Please review and edit if needed.
         </p>
         <Table className="bg-white/10 rounded-md">
@@ -308,7 +310,7 @@ export default function AdmissionKYCPage() {
   
   const renderNoOfferLetter = () => (
       <div className="text-center">
-          <p className="text-base mb-6">
+          <p className="text-base mb-6 text-white">
               No problem! We'll guide you through entering your details manually in the next steps.
           </p>
           <Button onClick={() => {/* Placeholder for next step in "No" path */ router.push('/') }} size="lg" className="gradient-border-button">
@@ -383,25 +385,26 @@ export default function AdmissionKYCPage() {
                                     transform transition-all duration-500 ease-out
                                     ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
                     >
-                        <p className="font-semibold text-lg mb-1">Aveka</p>
+                        <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
                         <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                         {hasOfferLetter === null && !extractedData && (
-                           <p className="text-base">
-                             Great! Let's start with your admission details. Do you have your academic offer letter handy?
+                           <p className="text-base text-white">
+                             {studentFirstName ? `Hi ${studentFirstName}! ` : "Hi there! "}
+                             Let's start with your admission details. Do you have your academic offer letter handy?
                            </p>
                         )}
                         {hasOfferLetter && !extractedData && (
-                            <p className="text-base">
+                            <p className="text-base text-white">
                                 Excellent! Please upload your offer letter or take a picture of it. For best results with AI extraction, please provide a clear image (JPG, PNG).
                             </p>
                         )}
                          {extractedData && (
-                            <p className="text-base">
+                            <p className="text-base text-white">
                                 Thanks, {studentFirstName || "there"}! I've extracted the following details from your offer letter. Please review them carefully.
                             </p>
                         )}
                          {hasOfferLetter === false && (
-                            <p className="text-base">
+                            <p className="text-base text-white">
                                 No worries! We can proceed with manual entry for now.
                             </p>
                         )}
@@ -421,3 +424,4 @@ export default function AdmissionKYCPage() {
     </div>
   );
 }
+
