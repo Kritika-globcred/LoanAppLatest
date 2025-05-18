@@ -27,7 +27,7 @@ export default function ReviewPersonalKYCPage() {
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false); // Renamed from isProcessing to avoid conflict if used elsewhere
+  const [isProcessing, setIsProcessing] = useState(false); 
   const [extractedData, setExtractedData] = useState<EditableKycOutput | null>(null);
   const [editingField, setEditingField] = useState<keyof EditableKycOutput | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -108,7 +108,6 @@ export default function ReviewPersonalKYCPage() {
           variant: "destructive",
         });
         setAvekaMessage("I encountered an issue while extracting details. You might need to re-upload clearer images, or you can try filling the details manually if this persists.");
-         // Optionally, allow manual entry or show an empty editable table
         setExtractedData({
             idNumber: "Not Specified", idType: idDocType, passportNumber: "Not Specified",
             mothersName: "Not Specified", fathersName: "Not Specified",
@@ -135,7 +134,7 @@ export default function ReviewPersonalKYCPage() {
   const handleSaveEdit = () => {
     if (extractedData && editingField) {
       let currentData = { ...extractedData };
-      currentData[editingField] = editValue as any; // Type assertion
+      currentData[editingField] = editValue as any; 
 
       if (editingField === 'dateOfBirth') {
         currentData.ageInYears = calculateAge(editValue);
@@ -153,9 +152,9 @@ export default function ReviewPersonalKYCPage() {
     }
     console.log("Personal KYC Data Confirmed:", extractedData);
     console.log("Consent given at:", currentTime);
-    // Navigate to the next step (e.g., financial details or application summary)
-    toast({ title: "Step 2 Complete!", description: "Your Personal KYC details are saved." });
-    router.push('/'); // Placeholder for next step
+    // Store data if needed or pass via state management
+    toast({ title: "Step 2 Complete!", description: "Moving to Academic KYC." });
+    router.push('/loan-application/academic-kyc'); 
   };
 
   const renderEditableTable = () => {
@@ -238,7 +237,7 @@ export default function ReviewPersonalKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
@@ -274,7 +273,7 @@ export default function ReviewPersonalKYCPage() {
           </div>
           <LoanProgressBar steps={loanAppSteps} />
 
-          <div className="flex items-center mb-6 mt-4"> {/* Added mt-4 for spacing */}
+          <div className="flex items-center mb-6 mt-4"> 
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/personal-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
