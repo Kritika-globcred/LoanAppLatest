@@ -4,3 +4,4 @@ import './flows/extract-offer-letter-flow';
 import './flows/extract-personal-kyc-flow';
 import './flows/extract-co-signatory-id-flow';
 import './flows/extract-professional-profile-flow';
+import './flows/generate-recommendations-flow';

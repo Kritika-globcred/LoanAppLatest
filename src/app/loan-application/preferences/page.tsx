@@ -133,8 +133,8 @@ export default function PreferencesPage() {
       courseName,
     };
     localStorage.setItem('preferencesData', JSON.stringify(preferencesData));
-    toast({ title: "Preferences Saved!", description: "Proceeding to the final summary." });
-    router.push('/loan-application/final-summary');
+    toast({ title: "Preferences Saved!", description: "Proceeding to Recommendations." });
+    router.push('/loan-application/recommendations'); // Updated navigation
   };
 
   return (
@@ -145,7 +145,7 @@ export default function PreferencesPage() {
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary))/0.10] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
         
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
@@ -329,4 +329,3 @@ export default function PreferencesPage() {
   );
 }
 
-    
