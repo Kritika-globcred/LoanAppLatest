@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center">
       {/* Responsive Section acting as the main website container */}
-      <section className="w-full bg-[hsl(var(--background)/0.10)] backdrop-blur-[25px] p-6 md:p-8 rounded-[7px] mx-[5%] mt-[2.5%] md:mx-[20%] border border-[hsl(var(--background))] shadow-[inset_0_0_20px_hsl(var(--background)/0.5)]">
+      <section className="w-full bg-[hsl(var(--background)/0.10)] backdrop-blur-[25px] p-6 md:p-8 rounded-[7px] mx-[5%] mt-[2.5%] md:mx-[20%] shadow-[inset_0_0_20px_hsl(var(--background)/0.5)]">
         {/* New Header Section (within the responsive section) */}
         <div className="flex justify-between items-center py-4 mb-6"> {/* Added mb-6 for spacing below header */}
           <Logo />
