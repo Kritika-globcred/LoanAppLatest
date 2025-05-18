@@ -55,12 +55,11 @@ export default function Home() {
   }, []);
 
   const lenders = [
-    { name: "Lender A", logo: "https://placehold.co/150x60.png?text=Lender+A", hint: "bank logo" },
-    { name: "Lender B", logo: "https://placehold.co/150x60.png?text=Lender+B", hint: "finance company" },
-    { name: "Lender C", logo: "https://placehold.co/150x60.png?text=Lender+C", hint: "credit union" },
-    { name: "Lender D", logo: "https://placehold.co/150x60.png?text=Lender+D", hint: "investment firm" },
-    { name: "Lender E", logo: "https://placehold.co/150x60.png?text=Lender+E", hint: "financial services" },
-    { name: "Lender F", logo: "https://placehold.co/150x60.png?text=Lender+F", hint: "loan provider" },
+    { name: "Avanse", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/avanse_lender.jpeg", hint: "Avanse logo" },
+    { name: "HDFC Credila", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/hdfc_lender.jpeg", hint: "HDFC logo" },
+    { name: "ICICI Bank", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/icici_lender.jpeg", hint: "ICICI logo" },
+    { name: "MPOWER Financing", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/mpower_lender.jpeg", hint: "MPOWER logo" },
+    { name: "State Bank of India", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/SBI_lender.jpeg", hint: "SBI logo" },
   ];
   const duplicatedLenders = [...lenders, ...lenders]; // For seamless marquee
 
@@ -91,15 +90,18 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center">
+      {/* Main responsive section */}
       <section
-        className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] pt-[5px] px-6 pb-6 md:px-8 md:pb-8 overflow-hidden shadow-[5px_5px_10px_hsl(0,0%,0%/0.2)] shadow-[inset_0_0_2px_hsl(var(--primary)/0.8)]"
+        className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] pt-[5px] px-6 pb-6 md:px-8 md:pb-8 overflow-hidden shadow-[5px_5px_10px_hsl(0,0%,0%/0.2)]"
         style={{
           backgroundImage:
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] backdrop-blur-lg rounded-2xl z-0"></div>
+        {/* Overlay for translucency */}
+        <div className="absolute inset-0 bg-[hsl(var(--primary))/0.50] rounded-2xl z-0 backdrop-blur-lg shadow-[inset_0_0_2px_hsl(var(--primary)/0.8)]"></div>
 
+        {/* Content Wrapper */}
         <div className="relative z-10">
           {/* Header Section */}
           <div className="flex justify-between items-center py-4 mb-6">
@@ -114,9 +116,9 @@ export default function Home() {
                       aria-current={activeNavItem === item ? "page" : undefined}
                     >
                       <span
-                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 transition-all duration-300 ease-in-out ${
+                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
                           activeNavItem === item
-                            ? 'bg-gradient-to-r from-red-500 to-yellow-400 shadow-[0_0_3px_theme(colors.red.500),0_0_5px_theme(colors.yellow.400)] scale-110'
+                            ? 'progress-dot-active' 
                             : 'bg-gray-400/60'
                         }`}
                         aria-hidden="true"
@@ -216,13 +218,13 @@ export default function Home() {
             <div className="relative w-full overflow-hidden">
               <div className="flex animate-marquee whitespace-nowrap">
                 {duplicatedLenders.map((lender, index) => (
-                  <div key={index} className="mx-4 flex-shrink-0">
+                  <div key={`${lender.name}-${index}`} className="mx-4 flex-shrink-0 flex items-center justify-center h-20"> {/* Added h-20 and flex centering */}
                     <Image 
                       src={lender.logo} 
                       alt={lender.name} 
                       width={150} 
                       height={60} 
-                      className="h-auto"
+                      className="h-auto max-h-full w-auto max-w-full object-contain" // Added object-contain and max sizes
                       data-ai-hint={lender.hint}
                     />
                   </div>
