@@ -89,9 +89,9 @@ export default function ProfessionalKYCPage() {
   };
 
   const isWorkExperienceCoreComplete = () => {
-    return workExperienceIndustry && workExperienceYears && workExperienceMonths;
+    return workExperienceIndustry && workExperienceYears !== undefined && workExperienceMonths !== undefined;
   };
-
+  
   const isEmploymentStatusComplete = () => {
     if (!isCurrentlyWorking) return false;
     if (isCurrentlyWorking === 'yes') {
@@ -121,7 +121,7 @@ export default function ProfessionalKYCPage() {
     if (showEmploymentStatus && isEmploymentStatusComplete() && isFormComplete()) {
         setAvekaMessage("Excellent! All professional details are complete. Please click 'Save & Continue' to review.");
     }
-  }, [isCurrentlyWorking, monthlySalary, salaryCurrency, familyMonthlySalary, familySalaryCurrency, showEmploymentStatus]);
+  }, [isCurrentlyWorking, monthlySalary, salaryCurrency, familyMonthlySalary, familySalaryCurrency, showEmploymentStatus, isCoSignatorySectionComplete, isWorkExperienceCoreComplete]);
 
 
   // Camera Logic
@@ -222,17 +222,33 @@ export default function ProfessionalKYCPage() {
   };
 
   const handleSaveAndContinue = () => {
+    // Data URIs are saved separately to avoid localStorage quota issues
+    if (coSignatoryIdPreview) {
+      localStorage.setItem('coSignatoryIdDataUriForReview', coSignatoryIdPreview);
+    } else {
+      localStorage.removeItem('coSignatoryIdDataUriForReview');
+    }
+
+    if (resumePreview) { // resumePreview means it's an image data URI
+      localStorage.setItem('resumeDataUriForReview', resumePreview);
+    } else {
+      localStorage.removeItem('resumeDataUriForReview');
+    }
+    
     const professionalData = {
       coSignatoryChoice,
-      coSignatoryIdDocumentUri: coSignatoryIdPreview, 
+      // coSignatoryIdDocumentUri is handled by separate localStorage item if it's a preview
       coSignatoryIdDocumentType: coSignatoryChoice === 'yes' ? coSignatoryIdDocumentType : null,
       coSignatoryRelationship: coSignatoryChoice === 'yes' ? coSignatoryRelationship : null,
+      
       workExperienceIndustry,
       workExperienceYears,
       workExperienceMonths,
       workExperienceProofType,
-      resumeFileUri: workExperienceProofType === 'resume' && resumeFile ? (resumePreview || resumeFile.name) : null, 
+      // resumeFileUri will store filename for non-image resumes, or be null if image URI is stored separately
+      resumeFileUri: workExperienceProofType === 'resume' && resumeFile && !resumePreview ? resumeFile.name : null,
       linkedInUrl: workExperienceProofType === 'linkedin' ? linkedInUrl : null,
+      
       isCurrentlyWorking,
       monthlySalary: isCurrentlyWorking === 'yes' ? monthlySalary : null,
       salaryCurrency: isCurrentlyWorking === 'yes' ? salaryCurrency : null,
@@ -280,7 +296,7 @@ export default function ProfessionalKYCPage() {
 
         {coSignatoryChoice === 'yes' && (
             <div className="space-y-4 mt-4 border-t border-gray-600/20 pt-4">
-            <Label className="text-white">{`Upload Co-signatory's ${coSignatoryIdDocumentType}`}</Label>
+            <Label className="text-white">{`Upload Co-signatory's ${coSignatoryIdDocumentType}`} <span className="text-red-400">*</span></Label>
             <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
                 <Button onClick={() => coSignatoryIdFileInputRef.current?.click()} className="gradient-border-button w-auto">
                 <UploadCloud className="mr-2 h-5 w-5" /> Upload {coSignatoryIdDocumentType}
@@ -296,7 +312,7 @@ export default function ProfessionalKYCPage() {
                 </div>
             )}
             <div>
-                <Label htmlFor="coSignatoryRelationship" className="text-white">Relationship with Co-signatory</Label>
+                <Label htmlFor="coSignatoryRelationship" className="text-white">Relationship with Co-signatory <span className="text-red-400">*</span></Label>
                 <Select value={coSignatoryRelationship || ''} onValueChange={setCoSignatoryRelationship}>
                 <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Select relationship" /></SelectTrigger>
                 <SelectContent className="bg-white text-black">
@@ -537,5 +553,4 @@ export default function ProfessionalKYCPage() {
     </div>
   );
 }
-
     
