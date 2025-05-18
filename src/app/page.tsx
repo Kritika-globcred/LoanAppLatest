@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 
@@ -23,7 +24,7 @@ export default function Home() {
 
         {/* Content Wrapper - needs to be on top of the overlay */}
         <div className="relative z-10">
-          {/* New Header Section (within the responsive section) */}
+          {/* Header Section (within the responsive section) */}
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
@@ -55,16 +56,35 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Existing content of the responsive section */}
-          <h2 className="text-2xl md:text-3xl font-bold text-white mb-4 text-center md:text-left">
-            Our New Responsive Section
-          </h2>
-          <p className="text-white text-center md:text-left">
-            This section demonstrates responsive margins. On mobile devices, it has a 5% margin on the left and right edges, and a 2.5% margin from the top.
-            On tablet and desktop screens, it has a 20% margin from the left and right edges, and now a 2.5% margin from the top, providing a focused content area.
-          </p>
-          <div className="mt-6 flex justify-center md:justify-start">
-            <Button variant="default" className="gradient-border-button">Discover More</Button>
+          {/* New Welcome Section */}
+          <div className="text-center text-white">
+            <h1 className="text-3xl md:text-4xl font-bold mb-4">
+              Welcome to GlobCred
+            </h1>
+            <p className="text-lg md:text-xl mb-8 max-w-2xl mx-auto">
+              We are on a mission to remove the financial constraints between you and your study or work abroad journey.
+            </p>
+
+            {/* Aveka Introduction Section */}
+            <div className="mt-10 flex flex-col md:flex-row items-center justify-center md:items-start md:space-x-6 bg-[hsl(var(--card)/0.15)] backdrop-blur-sm p-6 rounded-xl shadow-md max-w-3xl mx-auto">
+              <div className="flex-shrink-0 mb-4 md:mb-0">
+                <Image
+                  src="https://placehold.co/100x100.png" // Placeholder for Aveka's image
+                  alt="Aveka, GlobCred's Smart AI"
+                  width={100}
+                  height={100}
+                  className="rounded-full border-2 border-white shadow-lg"
+                  data-ai-hint="robot avatar"
+                />
+              </div>
+              <div className="bg-[hsl(var(--foreground)/0.05)] p-4 rounded-lg text-left md:flex-grow">
+                <p className="font-semibold text-xl mb-1">Aveka</p>
+                <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
+                <p className="text-base">
+                  Hello! I'm Aveka. I'm here to guide you. How can I help you explore your study or work abroad options today?
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
