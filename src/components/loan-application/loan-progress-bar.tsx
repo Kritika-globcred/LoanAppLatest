@@ -1,10 +1,10 @@
 
 'use client';
 
-import type React from 'react';
+import React from 'react'; // Added React import
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useIsMobile } from '@/hooks/use-mobile'; // Corrected import path
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { LoanStep } from '@/lib/loan-steps';
 
 interface LoanProgressBarProps {
