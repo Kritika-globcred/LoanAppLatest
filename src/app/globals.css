@@ -4,34 +4,34 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%; /* White */
-    --foreground: 220 25% 10%; /* Dark Blue-Gray for text */
+    --background: 0 0% 12%; /* Dark Grey */
+    --foreground: 0 0% 90%; /* Light Grey Text */
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 25% 10%;
+    --card: 0 0% 15%; /* Slightly Lighter Dark Grey for cards */
+    --card-foreground: 0 0% 90%; /* Light Grey Text for cards */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 25% 10%;
+    --popover: 0 0% 12%; /* Dark Grey for popovers */
+    --popover-foreground: 0 0% 90%; /* Light Grey Text for popovers */
 
-    --primary: 220 90% 19%; /* #052659 - Deep Navy Blue (named Soft Lavender by user) */
-    --primary-foreground: 220 20% 98%; /* Very light, almost white, for text on primary */
+    --primary: 220 90% 60%; /* Lighter Blue for primary actions (consistent with dark themes) */
+    --primary-foreground: 220 90% 15%; /* Dark text on lighter primary */
 
-    --secondary: 220 15% 94%; /* A very light blue-gray for secondary elements */
-    --secondary-foreground: 220 90% 19%; /* Primary color for text on secondary bg */
+    --secondary: 0 0% 22%; /* Darker Grey for secondary elements */
+    --secondary-foreground: 0 0% 90%; /* Light Grey Text for secondary elements */
 
-    --muted: 220 15% 96.1%; /* Lighter version for subtle text/borders */
-    --muted-foreground: 220 15% 45.1%; /* Text on muted backgrounds */
+    --muted: 0 0% 18%; /* Darker Grey for muted backgrounds */
+    --muted-foreground: 0 0% 55%; /* Mid Grey for text on muted backgrounds */
 
-    --accent: 270 80% 92%; /* Light Violet - for hover states, highlights */
-    --accent-foreground: 270 80% 25%; /* Darker Violet for text on accent bg */
+    --accent: 270 80% 45%; /* Adjusted Violet for accents */
+    --accent-foreground: 0 0% 98%; /* Very Light Grey/White text on accent */
 
-    --destructive: 0 84.2% 60.2%; /* Standard red for destructive actions */
+    --destructive: 0 70% 50%; /* Standard red for destructive actions (dark theme version) */
     --destructive-foreground: 0 0% 98%; /* White text on destructive */
 
-    --border: 220 15% 89.8%; /* Light gray-blue border */
-    --input: 220 15% 89.8%; /* Same as border for input fields */
+    --border: 0 0% 20%; /* Dark Grey border */
+    --input: 0 0% 20%; /* Dark Grey for input fields */
     
-    --ring: 220 90% 50%; /* A brighter version of primary for focus rings */
+    --ring: 220 90% 70%; /* A brighter version of primary for focus rings (dark theme version) */
 
     --radius: 0.5rem;
 
@@ -43,6 +43,7 @@
   }
 
   .dark {
+    /* This is the existing blue-ish dark theme */
     --background: 220 25% 10%; /* Dark Blue-Gray */
     --foreground: 0 0% 98%; /* White text */
 
