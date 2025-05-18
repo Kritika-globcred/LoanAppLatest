@@ -65,8 +65,8 @@ export default function Home() {
               We are on a mission to remove the financial constraints between you and your study or work abroad journey.
             </p>
 
-            {/* Aveka Introduction Section */}
-            <div className="mt-10 flex flex-col md:flex-row items-center justify-center md:items-start md:space-x-6 bg-[hsl(var(--card)/0.15)] backdrop-blur-sm p-6 rounded-xl shadow-md max-w-3xl mx-auto">
+            {/* Aveka Introduction Section - Outer container for layout */}
+            <div className="mt-10 flex flex-col md:flex-row items-center justify-center md:items-start md:space-x-6 max-w-3xl mx-auto">
               <div className="flex-shrink-0 mb-4 md:mb-0">
                 <Image
                   src="https://placehold.co/100x100.png" // Placeholder for Aveka's image
@@ -77,11 +77,14 @@ export default function Home() {
                   data-ai-hint="robot avatar"
                 />
               </div>
-              <div className="bg-[hsl(var(--foreground)/0.05)] p-4 rounded-lg text-left md:flex-grow">
+              {/* Aveka's Message Box - Styled like a dialogue box */}
+              <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm p-4 rounded-xl shadow-md text-left md:flex-grow">
                 <p className="font-semibold text-xl mb-1">Aveka</p>
                 <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                 <p className="text-base">
-                  Hello! I'm Aveka. I'm here to guide you. How can I help you explore your study or work abroad options today?
+                  Hello there! I'm Aveka, your financial and admission counsellor for your Study Abroad Journey.
+                  <br /> {/* Added a line break for better readability */}
+                  Ready to start your loan journey? Let's begin!
                 </p>
               </div>
             </div>
