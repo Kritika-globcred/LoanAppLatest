@@ -16,22 +16,21 @@ import { Loader2, ArrowLeft, Edit3, Save } from 'lucide-react';
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
 
-// Combined data structure for review
-interface CombinedProfessionalData {
-  // From CoSignatoryKYCPage
+interface CoSignatoryData {
   coSignatoryChoice?: string | null;
-  coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null; // Manually selected type
+  coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null;
   coSignatoryRelationship?: string | null;
-  idNumber?: string; // Extracted co-signatory ID number
-  idType?: string;   // Extracted co-signatory ID type
-  nameOnId?: string; // Extracted co-signatory name
+  idNumber?: string;
+  idType?: string;
+  nameOnId?: string;
+}
 
-  // From WorkEmploymentKYCPage
+interface WorkEmploymentData {
   workExperienceIndustry?: string;
   workExperienceYears?: string;
   workExperienceMonths?: string;
   workExperienceProofType?: 'resume' | 'linkedin' | null;
-  resumeFileName?: string | null; 
+  resumeFileName?: string | null;
   linkedInUrl?: string | null;
   isCurrentlyWorking?: 'yes' | 'no' | null;
   monthlySalary?: string | null;
@@ -44,6 +43,7 @@ interface CombinedProfessionalData {
   extractedCurrentOrLastJobRole?: string;
 }
 
+type CombinedProfessionalData = CoSignatoryData & WorkEmploymentData;
 type EditableCombinedDataKey = keyof CombinedProfessionalData;
 
 export default function ReviewProfessionalKYCPage() {
@@ -79,8 +79,8 @@ export default function ReviewProfessionalKYCPage() {
     const coSignatoryDataString = localStorage.getItem('coSignatoryKycData');
     const workEmploymentDataString = localStorage.getItem('workEmploymentKycData');
     
-    let loadedCoSignatoryData = {};
-    let loadedWorkEmploymentData = {};
+    let loadedCoSignatoryData: Partial<CoSignatoryData> = {};
+    let loadedWorkEmploymentData: Partial<WorkEmploymentData> = {};
 
     if (coSignatoryDataString) {
       try {
@@ -100,9 +100,10 @@ export default function ReviewProfessionalKYCPage() {
       }
     }
     
-    const mergedData = { ...loadedCoSignatoryData, ...loadedWorkEmploymentData };
+    const mergedData: CombinedProfessionalData = { ...loadedCoSignatoryData, ...loadedWorkEmploymentData };
     if (Object.keys(mergedData).length > 0) {
       setCombinedData(mergedData);
+      setAvekaMessage("Great! Here's a summary of your professional information. Please review it carefully and make any corrections if needed.");
     } else {
       setCombinedData(null);
       setAvekaMessage("It seems no professional details were found. Please go back and complete the previous steps.");
@@ -132,9 +133,18 @@ export default function ReviewProfessionalKYCPage() {
     }
     console.log("Professional KYC Data Confirmed:", combinedData);
     console.log("Consent given at:", currentTime);
-    localStorage.setItem('professionalKycDataReviewed', JSON.stringify(combinedData)); 
-    toast({ title: "Professional Details Confirmed!", description: "All steps complete for now!" });
-    // router.push('/loan-application/financial-details'); // TODO: Define next step
+    localStorage.setItem('professionalKycDataReviewed', JSON.stringify(combinedData));
+    
+    const hasOfferLetterStatus = localStorage.getItem('hasOfferLetterStatus');
+
+    if (hasOfferLetterStatus === 'false') {
+      toast({ title: "Professional Details Confirmed!", description: "Proceeding to Preferences." });
+      router.push('/loan-application/preferences');
+    } else {
+      // Path for users who had an offer letter (or if status is unknown)
+      toast({ title: "Professional Details Confirmed!", description: "Proceeding to Final Summary." });
+      router.push('/loan-application/final-summary'); 
+    }
   };
 
   const displayLabels: Record<string, string> = {
@@ -170,7 +180,7 @@ export default function ReviewProfessionalKYCPage() {
     let fields: EditableCombinedDataKey[] = [];
 
     // Co-Signatory section
-    fields.push('coSignatoryChoice');
+    if (data.coSignatoryChoice !== undefined) fields.push('coSignatoryChoice');
     if (data.coSignatoryChoice === 'yes') {
       if (data.coSignatoryIdDocumentType) fields.push('coSignatoryIdDocumentType');
       if (data.coSignatoryRelationship) fields.push('coSignatoryRelationship');
@@ -189,7 +199,7 @@ export default function ReviewProfessionalKYCPage() {
     if (data.workExperienceProofType === 'resume' && data.resumeFileName) fields.push('resumeFileName');
     if (data.workExperienceProofType === 'linkedin' && data.linkedInUrl) fields.push('linkedInUrl');
 
-    // Professional Profile (Extracted)
+    // Professional Profile (Extracted from Resume/LinkedIn)
     if (data.extractedYearsOfExperience) fields.push('extractedYearsOfExperience');
     if (data.extractedGapInLast3YearsMonths) fields.push('extractedGapInLast3YearsMonths');
     if (data.extractedCurrentOrLastIndustry) fields.push('extractedCurrentOrLastIndustry');
@@ -235,7 +245,6 @@ export default function ReviewProfessionalKYCPage() {
                 displayValue = value === 'yes' ? 'Yes' : value === 'no' ? 'No' : 'Not Specified';
               }
 
-
               return (
                 <TableRow key={key}>
                   <TableCell className="font-medium capitalize text-gray-300">{fieldLabel}</TableCell>
@@ -272,7 +281,7 @@ export default function ReviewProfessionalKYCPage() {
       <p className="text-xs text-gray-400">Consent captured at: {currentTime}</p>
       <div className="flex justify-center">
         <Button onClick={handleConfirmAndContinue} disabled={!consentChecked || isLoading} size="lg" className="gradient-border-button">
-          Confirm & Complete Professional KYC
+          Confirm & Continue
         </Button>
       </div>
     </div>
@@ -287,7 +296,7 @@ export default function ReviewProfessionalKYCPage() {
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />

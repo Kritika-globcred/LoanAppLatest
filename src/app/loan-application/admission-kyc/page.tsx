@@ -176,14 +176,19 @@ export default function AdmissionKYCPage() {
       toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
       return;
     }
-    console.log("Admission KYC Data:", extractedData);
-    console.log("Consent given at:", currentTime);
-    toast({ title: "Step 1 Complete!", description: "Moving to Personal KYC." });
+    // Save extracted data to localStorage
+    localStorage.setItem('admissionKycData', JSON.stringify(extractedData));
+    localStorage.setItem('hasOfferLetterStatus', 'true');
+
+    toast({ title: "Admission Details Saved!", description: "Moving to Personal KYC." });
     router.push('/loan-application/personal-kyc');
   };
 
   const handleNoOfferLetter = () => {
     setHasOfferLetter(false);
+    localStorage.setItem('hasOfferLetterStatus', 'false');
+    // Clear any potentially stored admission KYC data if they say no
+    localStorage.removeItem('admissionKycData');
     toast({ title: "Okay", description: "Proceeding to Personal KYC." });
     router.push('/loan-application/personal-kyc');
   };
@@ -324,10 +329,10 @@ export default function AdmissionKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -339,9 +344,9 @@ export default function AdmissionKYCPage() {
                       aria-current={activeNavItem === item ? "page" : undefined}
                     >
                       <span
-                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 transition-all duration-300 ease-in-out ${
+                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
                           activeNavItem === item
-                            ? 'bg-gradient-to-r from-red-500 to-yellow-400 shadow-[0_0_3px_theme(colors.red.500),0_0_5px_theme(colors.yellow.400)] scale-110'
+                            ? 'progress-dot-active'
                             : 'bg-gray-400/60'
                         }`}
                         aria-hidden="true"
@@ -361,7 +366,7 @@ export default function AdmissionKYCPage() {
           </div>
           <LoanProgressBar steps={loanAppSteps} />
 
-          <div className="flex items-center mb-6 mt-4"> {/* Added mt-4 for spacing below progress bar */}
+          <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/mobile')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
@@ -370,7 +375,7 @@ export default function AdmissionKYCPage() {
           <div className="py-8">
             <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-2xl mx-auto">
               <div className="flex flex-col items-center text-center">
-                <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4">
+                <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
                         src="https://placehold.co/50x50.png"
@@ -383,7 +388,7 @@ export default function AdmissionKYCPage() {
                     </div>
                     <div
                         className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow
-                                    transform transition-all duration-500 ease-out
+                                    transform transition-all duration-500 ease-out w-full
                                     ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
                     >
                         <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
