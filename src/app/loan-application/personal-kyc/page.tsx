@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, UploadCloud, Camera, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Loader2, UploadCloud, Camera, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export default function PersonalKYCPage() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
@@ -87,11 +87,11 @@ export default function PersonalKYCPage() {
           setIdDocumentFile(file);
           setIdDocumentPreview(reader.result as string);
           setShowPassportSection(true); 
-          toast({ title: `${idDocumentType} Uploaded`, description: "Please proceed to upload your Passport." });
+          toast({ title: `${idDocumentType} Uploaded`, description: `Great! Now please upload your Passport. The Passport section is now visible below.` });
         } else {
           setPassportFile(file);
           setPassportPreview(reader.result as string);
-          toast({ title: "Passport Uploaded", description: "You can now proceed to review." });
+          toast({ title: "Passport Uploaded", description: "Excellent! You can now proceed to review your documents." });
         }
       };
       reader.readAsDataURL(file);
@@ -114,11 +114,11 @@ export default function PersonalKYCPage() {
           setIdDocumentFile(capturedFile);
           setIdDocumentPreview(dataUrl);
           setShowPassportSection(true);
-          toast({ title: `${idDocumentType} Captured`, description: "Please proceed to upload your Passport." });
+          toast({ title: `${idDocumentType} Captured`, description: "Great! Now please upload your Passport. The Passport section is now visible below." });
         } else if (showCameraFor === 'passport') {
           setPassportFile(capturedFile);
           setPassportPreview(dataUrl);
-           toast({ title: "Passport Captured", description: "You can now proceed to review." });
+           toast({ title: "Passport Captured", description: "Excellent! You can now proceed to review your documents." });
         }
         setShowCameraFor(null);
       }
@@ -140,19 +140,15 @@ export default function PersonalKYCPage() {
   }
 
   const handleProceedToReview = () => {
-    if (!idDocumentFile || !passportFile) {
+    if (!idDocumentPreview || !passportPreview) {
       toast({ title: "Documents Missing", description: "Please upload both required documents.", variant: "destructive" });
       return;
     }
     
-    // In a real app, you'd convert files to data URIs here to pass to the AI flow on the next page
-    // For now, just navigate. The review page will handle fetching/passing data.
     if (typeof window !== 'undefined') {
+        localStorage.setItem('idDocumentDataUri', idDocumentPreview);
+        localStorage.setItem('passportDataUri', passportPreview);
         localStorage.setItem('idDocumentType', idDocumentType);
-        // For simplicity in this step, we'll assume the review page can handle file objects
-        // or we'd convert them to data URIs and store in localStorage/pass via router state
-        // Example: localStorage.setItem('idDocumentDataUri', idDocumentPreview || '');
-        // localStorage.setItem('passportDataUri', passportPreview || '');
     }
 
     toast({ title: "Proceeding to Review", description: "Let's review your personal details." });
@@ -164,11 +160,11 @@ export default function PersonalKYCPage() {
     if (!idDocumentFile) {
       message = isIndia === null 
         ? "Let's verify your identity. Please wait while I check your details..." 
-        : `Next, I need your ${idDocumentType}. Please upload a clear image or take a picture.`;
+        : `Next, I need your ${idDocumentType}. Please upload a clear image or take a picture. For best results, ensure the image is in JPG or PNG format.`;
     } else if (!passportFile) {
-      message = "Great! Now, please upload or take a picture of your Passport.";
+      message = "Great! Now, please upload or take a picture of your Passport. Clear JPG or PNG images work best!";
     } else {
-      message = "Excellent! You've uploaded both documents. Ready to review them?";
+      message = "Excellent! You've uploaded both documents. Ready to review them and let AI extract the details?";
     }
 
     return (
@@ -209,17 +205,22 @@ export default function PersonalKYCPage() {
       {preview ? (
         <div className="text-center">
           <Image src={preview} alt={`${title} Preview`} width={200} height={120} className="rounded-md mx-auto object-contain max-h-40" />
-          <Button variant="outline" size="sm" onClick={() => docType === 'id' ? (setIdDocumentFile(null), setIdDocumentPreview(null), setShowPassportSection(false)) : (setPassportFile(null), setPassportPreview(null))} className="mt-2 bg-white/20 hover:bg-white/30 text-white">
-            Remove {title}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => docType === 'id' ? (setIdDocumentFile(null), setIdDocumentPreview(null), setShowPassportSection(false)) : (setPassportFile(null), setPassportPreview(null))} 
+            className="mt-2 bg-white/20 hover:bg-white/30 text-white"
+          >
+            Remove {file?.type.startsWith("image/") ? title : file?.name}
           </Button>
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-          <Button onClick={() => !disabled && fileInputRef.current?.click()} size="md" className="gradient-border-button w-full sm:w-auto" disabled={disabled}>
+          <Button onClick={() => !disabled && fileInputRef.current?.click()} className="gradient-border-button w-auto" disabled={disabled}>
             <UploadCloud className="mr-2 h-5 w-5" /> Upload {title}
           </Button>
           <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(e, docType)} className="hidden" accept="image/*,.pdf" disabled={disabled} />
-          <Button onClick={() => !disabled && setShowCameraFor(docType)} size="md" className="gradient-border-button w-full sm:w-auto" disabled={disabled}>
+          <Button onClick={() => !disabled && setShowCameraFor(docType)} className="gradient-border-button w-auto" disabled={disabled}>
             <Camera className="mr-2 h-5 w-5" /> Take Picture
           </Button>
         </div>
@@ -229,7 +230,7 @@ export default function PersonalKYCPage() {
 
   if (isIndia === null) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[hsl(var(--background))]">
         <Loader2 className="h-12 w-12 animate-spin text-white" />
         <p className="text-white mt-4">Loading personal details setup...</p>
       </div>
@@ -245,7 +246,7 @@ export default function PersonalKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4 mb-6">
@@ -327,7 +328,7 @@ export default function PersonalKYCPage() {
                       ) : (
                         <div className="mt-4 flex justify-around">
                            <Button onClick={() => setShowCameraFor(null)} variant="outline" className="bg-gray-600 text-white">Cancel</Button>
-                           <Button onClick={handleCaptureImage} size="md" className="gradient-border-button">Capture Image</Button>
+                           <Button onClick={handleCaptureImage} className="gradient-border-button">Capture Image</Button>
                         </div>
                       )}
                     </div>
@@ -354,3 +355,5 @@ export default function PersonalKYCPage() {
     </div>
   );
 }
+
+    
