@@ -98,11 +98,11 @@ export default function Home() {
         }}
       >
         <div
-          className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"
+          className="absolute inset-0 bg-[hsl(var(--primary))/0.10] rounded-2xl z-0 backdrop-blur-lg"
         />
 
-        {/* Header Section */}
         <div className="relative z-10">
+          {/* Header Section */}
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
@@ -148,7 +148,7 @@ export default function Home() {
             <div className="mt-10 flex flex-col md:flex-row items-center justify-center md:items-start md:space-x-6 max-w-3xl mx-auto">
               <div className="flex-shrink-0 mb-4 md:mb-0">
                 <Image
-                  src="https://placehold.co/50x50.png" 
+                  src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png" 
                   alt="Aveka, GlobCred's Smart AI"
                   width={50}
                   height={50}

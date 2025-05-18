@@ -22,28 +22,33 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
+import { saveUserApplicationData } from '@/services/firebase-service';
+import { getOrGenerateUserId } from '@/lib/user-utils';
+
 
 interface CountryInfo {
   value: string;
   label: string;
+  countryShortName: string;
+  dialCode: string;
 }
 
 const defaultCountryCodes: CountryInfo[] = [
-  { value: '+91_IN', label: 'IN (+91)' },
-  { value: '+233_GH', label: 'GH (+233)' },
-  { value: '+234_NG', label: 'NG (+234)' },
-  { value: '+263_ZW', label: 'ZW (+263)' },
-  { value: '+254_KE', label: 'KE (+254)' },
-  { value: '+256_UG', label: 'UG (+256)' },
+  { value: '+91_IN', label: 'IN (+91)', countryShortName: 'IN', dialCode: '+91' },
+  { value: '+233_GH', label: 'GH (+233)', countryShortName: 'GH', dialCode: '+233' },
+  { value: '+234_NG', label: 'NG (+234)', countryShortName: 'NG', dialCode: '+234' },
+  { value: '+263_ZW', label: 'ZW (+263)', countryShortName: 'ZW', dialCode: '+263' },
+  { value: '+254_KE', label: 'KE (+254)', countryShortName: 'KE', dialCode: '+254' },
+  { value: '+256_UG', label: 'UG (+256)', countryShortName: 'UG', dialCode: '+256' },
 ];
 
 const globalCountryCodesSample: CountryInfo[] = [
-  { value: '+1_US', label: 'US (+1)' },
-  { value: '+1_CA', label: 'CA (+1)' },
-  { value: '+44_GB', label: 'GB (+44)' },
-  { value: '+61_AU', label: 'AU (+61)' },
-  { value: '+49_DE', label: 'DE (+49)' },
-  { value: '+33_FR', label: 'FR (+33)' },
+  { value: '+1_US', label: 'US (+1)', countryShortName: 'US', dialCode: '+1' },
+  { value: '+1_CA', label: 'CA (+1)', countryShortName: 'CA', dialCode: '+1' },
+  { value: '+44_GB', label: 'GB (+44)', countryShortName: 'GB', dialCode: '+44' },
+  { value: '+61_AU', label: 'AU (+61)', countryShortName: 'AU', dialCode: '+61' },
+  { value: '+49_DE', label: 'DE (+49)', countryShortName: 'DE', dialCode: '+49' },
+  { value: '+33_FR', label: 'FR (+33)', countryShortName: 'FR', dialCode: '+33' },
 ];
 
 export default function MobileVerificationPage() {
@@ -57,8 +62,11 @@ export default function MobileVerificationPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [enteredOtp, setEnteredOtp] = useState('');
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    setUserId(getOrGenerateUserId());
     const timer = setTimeout(() => {
       setAvekaMessageVisible(true);
     }, 500);
@@ -81,7 +89,7 @@ export default function MobileVerificationPage() {
     });
   };
 
-  const handleSaveAndContinue = () => {
+  const handleSaveAndContinue = async () => {
     if (enteredOtp !== '9999') {
       toast({
         title: "Invalid OTP",
@@ -90,16 +98,41 @@ export default function MobileVerificationPage() {
       });
       return;
     }
-    toast({
-      title: "Mobile Verified!",
-      description: "Proceeding to the next step.",
-    });
-    console.log("OTP Verified. Country Value:", countryCode, "Mobile:", mobileNumber);
-    // Store selected country code for use in later steps
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('selectedCountryValue', countryCode);
+
+    if (!userId) {
+        toast({ title: "Error", description: "User ID not found. Please refresh.", variant: "destructive" });
+        return;
     }
-    router.push('/loan-application/admission-kyc');
+    setIsSaving(true);
+
+    const selectedCountry = [...defaultCountryCodes, ...globalCountryCodesSample].find(c => c.value === countryCode);
+
+    const initialData = {
+      userId: userId,
+      mobileNumber: mobileNumber,
+      countryCode: selectedCountry?.dialCode,
+      countryShortName: selectedCountry?.countryShortName,
+    };
+
+    const result = await saveUserApplicationData(userId, initialData);
+
+    if (result.success) {
+        toast({
+            title: "Mobile Verified!",
+            description: "Proceeding to the next step.",
+        });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('selectedCountryValue', countryCode); // Used by Personal KYC
+        }
+        router.push('/loan-application/admission-kyc');
+    } else {
+        toast({
+            title: "Save Failed",
+            description: result.error || "Could not save mobile verification details.",
+            variant: "destructive",
+        });
+    }
+    setIsSaving(false);
   };
 
   const handleGoBackToMobileEntry = () => {
@@ -116,10 +149,10 @@ export default function MobileVerificationPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
 
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -131,9 +164,9 @@ export default function MobileVerificationPage() {
                       aria-current={activeNavItem === item ? "page" : undefined}
                     >
                       <span
-                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 transition-all duration-300 ease-in-out ${
+                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
                           activeNavItem === item
-                            ? 'bg-gradient-to-r from-red-500 to-yellow-400 shadow-[0_0_3px_theme(colors.red.500),0_0_5px_theme(colors.yellow.400)] scale-110'
+                            ? 'progress-dot-active'
                             : 'bg-gray-400/60'
                         }`}
                         aria-hidden="true"
@@ -151,15 +184,16 @@ export default function MobileVerificationPage() {
               </Link>
             </div>
           </div>
+
           <LoanProgressBar steps={loanAppSteps} />
 
           <div className="py-8">
             <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-lg mx-auto">
               <div className="flex flex-col items-center text-center">
-                <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4">
+                <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://placehold.co/50x50.png"
+                        src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}
@@ -169,7 +203,7 @@ export default function MobileVerificationPage() {
                     </div>
                     <div
                         className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow
-                                    transform transition-all duration-500 ease-out
+                                    transform transition-all duration-500 ease-out w-full
                                     ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
                     >
                         <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
@@ -232,6 +266,7 @@ export default function MobileVerificationPage() {
                         variant="default"
                         size="sm"
                         className="gradient-border-button w-auto"
+                        disabled={isSaving}
                         >
                         Get OTP
                         </Button>
@@ -258,6 +293,7 @@ export default function MobileVerificationPage() {
                           variant="outline"
                           size="sm"
                           className="w-auto bg-white text-black hover:bg-gray-100"
+                          disabled={isSaving}
                         >
                           Change Number
                         </Button>
@@ -266,8 +302,9 @@ export default function MobileVerificationPage() {
                           variant="default"
                           size="sm"
                           className="gradient-border-button w-auto"
+                          disabled={isSaving}
                         >
-                          Save & Continue
+                          {isSaving ? 'Saving...' : 'Save & Continue'}
                         </Button>
                     </div>
                   </div>

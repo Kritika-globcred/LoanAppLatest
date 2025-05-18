@@ -16,6 +16,9 @@ import { loanAppSteps } from '@/lib/loan-steps';
 import { ArrowLeft, RefreshCw, Send, Loader2 } from 'lucide-react';
 import type { GenerateLenderRecommendationsInput, GenerateLenderRecommendationsOutput, LenderRecommendation } from '@/ai/flows/generate-lender-recommendations-flow';
 import { generateLenderRecommendations } from '@/ai/flows/generate-lender-recommendations-flow';
+import { getOrGenerateUserId } from '@/lib/user-utils';
+import { getUserApplicationData, saveUserApplicationData } from '@/services/firebase-service'; // Assuming getUserApplicationData is available
+
 
 interface AdmissionKycData {
   universityName?: string;
@@ -33,6 +36,7 @@ export default function LenderRecommendationsPage() {
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const router = useRouter();
   const { toast } = useToast();
+  const userId = getOrGenerateUserId();
 
   const [avekaMessage, setAvekaMessage] = useState("Let's find some suitable lenders for you!");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
@@ -42,43 +46,45 @@ export default function LenderRecommendationsPage() {
   const [foreignLenders, setForeignLenders] = useState<LenderRecommendation[]>([]);
   
   const [selectedLenders, setSelectedLenders] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [userInputForFlow, setUserInputForFlow] = useState<GenerateLenderRecommendationsInput | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setAvekaMessageVisible(true), 500);
     
-    const admissionDataString = localStorage.getItem('admissionKycData');
-    const personalDataString = localStorage.getItem('personalKycDataReviewed'); // Assuming reviewed data is stored here
+    const fetchDataForRecommendations = async () => {
+        if (!userId) return;
+        const result = await getUserApplicationData(userId);
+        if (result.success && result.data) {
+            const appData = result.data;
+            const admissionData = appData.admissionKyc as AdmissionKycData | undefined;
+            const personalData = appData.personalKyc as PersonalKycData | undefined;
 
-    if (admissionDataString && personalDataString) {
-      try {
-        const admissionData: AdmissionKycData = JSON.parse(admissionDataString);
-        const personalData: PersonalKycData = JSON.parse(personalDataString);
-
-        if (personalData.countryOfUser && admissionData.universityName && admissionData.admissionFees && admissionData.admissionLevel) {
-          setUserInputForFlow({
-            userCountryOfResidence: personalData.countryOfUser,
-            admissionUniversityName: admissionData.universityName,
-            tuitionFees: admissionData.admissionFees,
-            courseLevel: admissionData.admissionLevel,
-          });
+            if (personalData?.countryOfUser && admissionData?.universityName && admissionData?.admissionFees && admissionData?.admissionLevel) {
+              setUserInputForFlow({
+                userCountryOfResidence: personalData.countryOfUser,
+                admissionUniversityName: admissionData.universityName,
+                tuitionFees: admissionData.admissionFees,
+                courseLevel: admissionData.admissionLevel,
+              });
+            } else {
+              toast({ title: "Missing Information", description: "Could not retrieve all necessary details (country, university, fees, level) for lender recommendations.", variant: "destructive" });
+              setAvekaMessage("I'm missing some key details like your country, university, or tuition fees. Please ensure those steps are complete.");
+            }
         } else {
-          toast({ title: "Missing Information", description: "Could not retrieve all necessary details (country, university, fees, level) for lender recommendations.", variant: "destructive" });
-          setAvekaMessage("I'm missing some key details like your country, university, or tuition fees. Please ensure those steps are complete.");
+             toast({ title: "Information Missing", description: "Please complete Admission & Personal KYC steps first.", variant: "destructive" });
+             setAvekaMessage("I need some information from your Admission and Personal KYC steps to find lenders. Please complete those first.");
+             // Optionally redirect if critical data is missing
+             // router.push('/loan-application/admission-kyc'); 
         }
-      } catch (e) {
-        console.error("Failed to parse data for lender recommendations", e);
-        toast({ title: "Error", description: "Could not load your details for recommendations.", variant: "destructive" });
-      }
-    } else {
-        toast({ title: "Information Missing", description: "Please complete Admission & Personal KYC steps first.", variant: "destructive" });
-        setAvekaMessage("I need some information from your Admission and Personal KYC steps to find lenders. Please complete those first.");
-    }
-    return () => clearTimeout(timer);
-  }, [toast]);
+    };
 
-  const fetchLenderRecommendations = async () => {
+    fetchDataForRecommendations();
+    return () => clearTimeout(timer);
+  }, [userId, toast, router]);
+
+  const fetchLenderRecs = async () => {
     if (!userInputForFlow) {
       toast({ title: "Input Missing", description: "Cannot fetch recommendations without user details.", variant: "destructive" });
       return;
@@ -109,7 +115,7 @@ export default function LenderRecommendationsPage() {
 
   useEffect(() => {
     if (userInputForFlow) {
-      fetchLenderRecommendations();
+      fetchLenderRecs();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userInputForFlow]);
@@ -120,15 +126,25 @@ export default function LenderRecommendationsPage() {
     );
   };
 
-  const handleSubmitSelected = () => {
-    // In a real app, you'd likely want to save more than just names, perhaps the full lender objects or IDs.
-    localStorage.setItem('selectedLenders', JSON.stringify(selectedLenders));
-    toast({ title: "Lender Selections Saved!", description: `You've indicated interest in ${selectedLenders.length} lender(s).` });
-    router.push('/loan-application/final-summary'); 
+  const handleSubmitSelected = async () => {
+    if (!userId) {
+        toast({title: "Error", description: "User session not found.", variant: "destructive"});
+        return;
+    }
+    setIsSubmitting(true);
+    const result = await saveUserApplicationData(userId, { lenderSelections: selectedLenders });
+    setIsSubmitting(false);
+
+    if(result.success) {
+        toast({ title: "Lender Selections Saved!", description: `You've indicated interest in ${selectedLenders.length} lender(s).` });
+        router.push('/loan-application/final-summary'); 
+    } else {
+        toast({ title: "Save Failed", description: result.error || "Could not save selections.", variant: "destructive"});
+    }
   };
   
   const renderLenderCard = (lender: LenderRecommendation, type: 'domestic' | 'foreign') => (
-    <Card key={`${type}-${lender.lenderName}`} className="bg-[hsl(var(--card)/0.35)] backdrop-blur-sm shadow-md border-0 rounded-xl text-white">
+    <Card key={`${type}-${lender.lenderName.replace(/\s+/g, '-')}`} className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white border-0 rounded-xl">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
@@ -161,7 +177,7 @@ export default function LenderRecommendationsPage() {
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
         
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
@@ -206,7 +222,7 @@ export default function LenderRecommendationsPage() {
                 <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://placehold.co/50x50.png"
+                        src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}
@@ -226,12 +242,13 @@ export default function LenderRecommendationsPage() {
                 </div>
 
                 <div className="my-6 flex flex-wrap justify-center gap-4">
-                    <Button onClick={fetchLenderRecommendations} disabled={isLoadingRecommendations || !userInputForFlow} className="gradient-border-button">
+                    <Button onClick={fetchLenderRecs} disabled={isLoadingRecommendations || !userInputForFlow || isSubmitting} className="gradient-border-button">
                         {isLoadingRecommendations ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                         Refresh Recommendations
                     </Button>
-                    <Button onClick={handleSubmitSelected} disabled={selectedLenders.length === 0 || isLoadingRecommendations} className="gradient-border-button">
-                        <Send className="mr-2 h-4 w-4" /> Submit Selections ({selectedLenders.length})
+                    <Button onClick={handleSubmitSelected} disabled={selectedLenders.length === 0 || isLoadingRecommendations || isSubmitting} className="gradient-border-button">
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                         Submit Selections ({selectedLenders.length})
                     </Button>
                 </div>
 

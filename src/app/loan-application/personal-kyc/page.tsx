@@ -13,13 +13,18 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, UploadCloud, Camera, AlertCircle, ArrowLeft } from 'lucide-react';
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
+import { getOrGenerateUserId } from '@/lib/user-utils';
+import { uploadFileToStorage } from '@/services/firebase-service';
+
 
 export default function PersonalKYCPage() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const { toast } = useToast();
   const router = useRouter();
+  const userId = getOrGenerateUserId();
 
+  const [avekaMessage, setAvekaMessage] = useState("");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
   const [avekaPassportPromptVisible, setAvekaPassportPromptVisible] = useState(false);
   const [isIndia, setIsIndia] = useState<boolean | null>(null);
@@ -31,6 +36,7 @@ export default function PersonalKYCPage() {
   const [passportPreview, setPassportPreview] = useState<string | null>(null);
 
   const [showPassportSection, setShowPassportSection] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const idFileInputRef = useRef<HTMLInputElement>(null);
   const passportFileInputRef = useRef<HTMLInputElement>(null);
@@ -46,14 +52,16 @@ export default function PersonalKYCPage() {
       const countryValue = localStorage.getItem('selectedCountryValue');
       const isFromIndia = countryValue?.includes('_IN') || false;
       setIsIndia(isFromIndia);
-      setIdDocumentType(isFromIndia ? "PAN Card" : "National ID");
+      const docType = isFromIndia ? "PAN Card" : "National ID";
+      setIdDocumentType(docType);
+      setAvekaMessage(`Next, I need your ${docType}. Please upload a clear image or take a picture. For best results, ensure the image is in JPG or PNG format.`);
     }
     return () => clearTimeout(timer);
   }, []);
 
    useEffect(() => {
     if (idDocumentPreview && !passportFile) {
-      const timer = setTimeout(() => setAvekaPassportPromptVisible(true), 300); // Slight delay for smooth transition
+      const timer = setTimeout(() => setAvekaPassportPromptVisible(true), 300); 
       return () => clearTimeout(timer);
     } else {
       setAvekaPassportPromptVisible(false);
@@ -99,10 +107,12 @@ export default function PersonalKYCPage() {
           setIdDocumentFile(file);
           setIdDocumentPreview(reader.result as string);
           setShowPassportSection(true);
-          toast({ title: `${idDocumentType} Uploaded`, description: `Great! The Passport section is now visible below. Please upload your Passport.` });
+          setAvekaMessage(`Thanks for the ${idDocumentType}!`); // Main Aveka message update
+          toast({ title: `${idDocumentType} Uploaded`, description: `The Passport section is now visible below. Please upload your Passport.` });
         } else {
           setPassportFile(file);
           setPassportPreview(reader.result as string);
+          setAvekaMessage("Excellent! You've uploaded both documents. Ready to review them and let AI extract the details?");
           toast({ title: "Passport Uploaded", description: "Excellent! You can now proceed to review your documents." });
         }
       };
@@ -126,11 +136,13 @@ export default function PersonalKYCPage() {
           setIdDocumentFile(capturedFile);
           setIdDocumentPreview(dataUrl);
           setShowPassportSection(true);
-          toast({ title: `${idDocumentType} Captured`, description: "Great! The Passport section is now visible below. Please upload your Passport." });
+          setAvekaMessage(`Thanks for the ${idDocumentType}!`); // Main Aveka message update
+          toast({ title: `${idDocumentType} Captured`, description: "The Passport section is now visible below. Please upload your Passport." });
         } else if (showCameraFor === 'passport') {
           setPassportFile(capturedFile);
           setPassportPreview(dataUrl);
-           toast({ title: "Passport Captured", description: "Excellent! You can now proceed to review your documents." });
+          setAvekaMessage("Excellent! You've uploaded both documents. Ready to review them and let AI extract the details?");
+          toast({ title: "Passport Captured", description: "Excellent! You can now proceed to review your documents." });
         }
         setShowCameraFor(null);
       }
@@ -151,41 +163,53 @@ export default function PersonalKYCPage() {
     return new Blob([u8arr], {type:mime});
   }
 
-  const handleProceedToReview = () => {
-    if (!idDocumentPreview || !passportPreview) {
+  const handleProceedToReview = async () => {
+    if (!idDocumentFile || !passportFile) {
       toast({ title: "Documents Missing", description: "Please upload both required documents.", variant: "destructive" });
       return;
     }
-
-    if (typeof window !== 'undefined') {
-        localStorage.setItem('idDocumentDataUri', idDocumentPreview);
-        localStorage.setItem('passportDataUri', passportPreview);
-        localStorage.setItem('idDocumentType', idDocumentType);
+    if (!userId) {
+      toast({ title: "Error", description: "User session not found.", variant: "destructive" });
+      return;
     }
 
+    setIsUploading(true);
+    let idDocUrl = null, passportDocUrl = null;
+
+    const idUploadResult = await uploadFileToStorage(userId, idDocumentFile, `personal_id/${idDocumentFile.name}`);
+    if (idUploadResult.success && idUploadResult.downloadURL) {
+        idDocUrl = idUploadResult.downloadURL;
+    } else {
+        toast({ title: "ID Upload Failed", description: idUploadResult.error || `Could not upload ${idDocumentType}.`, variant: "destructive" });
+        setIsUploading(false);
+        return;
+    }
+
+    const passportUploadResult = await uploadFileToStorage(userId, passportFile, `passport/${passportFile.name}`);
+    if (passportUploadResult.success && passportUploadResult.downloadURL) {
+        passportDocUrl = passportUploadResult.downloadURL;
+    } else {
+        toast({ title: "Passport Upload Failed", description: passportUploadResult.error || "Could not upload Passport.", variant: "destructive" });
+        setIsUploading(false);
+        return;
+    }
+
+    localStorage.setItem('personalDocsForReview', JSON.stringify({
+        idDocumentDataUri: idDocUrl, // Storing Firebase URL
+        passportDataUri: passportDocUrl, // Storing Firebase URL
+        idDocumentType: idDocumentType
+    }));
+    
+    setIsUploading(false);
     toast({ title: "Proceeding to Review", description: "Let's review your personal details." });
     router.push('/loan-application/review-personal-kyc');
   };
 
-  const renderPrimaryAvekaMessage = () => {
-    let message = "";
-    if (!idDocumentFile) {
-      message = isIndia === null
-        ? "Let's verify your identity. Please wait while I check your details..."
-        : `Next, I need your ${idDocumentType}. Please upload a clear image or take a picture. For best results, ensure the image is in JPG or PNG format.`;
-    } else if (idDocumentFile && passportFile) {
-       message = "Excellent! You've uploaded both documents. Ready to review them and let AI extract the details?";
-    } else if (idDocumentFile && !passportFile && !avekaPassportPromptVisible) {
-      // This covers the brief period before the passport prompt animates in
-      message = `Thanks for the ${idDocumentType}! Now, just your Passport, please.`;
-    }
-
-
-    return (
-      <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4">
+  const renderPrimaryAvekaMessage = () => (
+      <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
         <div className="flex-shrink-0 mb-3 md:mb-0">
             <Image
-            src="https://placehold.co/50x50.png"
+            src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
             alt="Aveka, GlobCred's Smart AI"
             width={50}
             height={50}
@@ -200,17 +224,17 @@ export default function PersonalKYCPage() {
         >
             <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
             <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
-            <p className="text-base text-white">{message}</p>
+            <p className="text-base text-white">{avekaMessage}</p>
         </div>
       </div>
     );
-  };
+  
 
-  const AvekaPassportPrompt = () => (
-    <div className="my-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4">
+  const AvekaPassportPromptComponent = () => (
+    <div className="my-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
        <div className="flex-shrink-0 mb-3 md:mb-0">
             <Image
-            src="https://placehold.co/50x50.png"
+            src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
             alt="Aveka, GlobCred's Smart AI"
             width={50}
             height={50}
@@ -248,19 +272,20 @@ export default function PersonalKYCPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => docType === 'id' ? (setIdDocumentFile(null), setIdDocumentPreview(null), setShowPassportSection(false), setAvekaPassportPromptVisible(false)) : (setPassportFile(null), setPassportPreview(null))}
+            onClick={() => docType === 'id' ? (setIdDocumentFile(null), setIdDocumentPreview(null), setShowPassportSection(false), setAvekaPassportPromptVisible(false), setAvekaMessage(`Next, I need your ${idDocumentType}. Please upload a clear image...`)) : (setPassportFile(null), setPassportPreview(null), setAvekaMessage("Got it. Now please upload your passport again or take a picture."))}
             className="mt-2 bg-white/20 hover:bg-white/30 text-white"
+            disabled={isUploading}
           >
             Remove {file?.type.startsWith("image/") ? title : file?.name}
           </Button>
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-          <Button onClick={() => !disabled && fileInputRef.current?.click()} className="gradient-border-button w-auto">
+          <Button onClick={() => !disabled && fileInputRef.current?.click()} className="gradient-border-button w-auto" disabled={isUploading || disabled}>
             <UploadCloud className="mr-2 h-5 w-5" /> Upload {title}
           </Button>
-          <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(e, docType)} className="hidden" accept="image/*,.pdf" disabled={disabled} />
-          <Button onClick={() => !disabled && setShowCameraFor(docType)} className="gradient-border-button w-auto">
+          <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(e, docType)} className="hidden" accept="image/*,.pdf" disabled={disabled || isUploading} />
+          <Button onClick={() => !disabled && setShowCameraFor(docType)} className="gradient-border-button w-auto" disabled={isUploading || disabled}>
             <Camera className="mr-2 h-5 w-5" /> Take Picture
           </Button>
         </div>
@@ -286,10 +311,10 @@ export default function PersonalKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
 
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -301,9 +326,9 @@ export default function PersonalKYCPage() {
                       aria-current={activeNavItem === item ? "page" : undefined}
                     >
                       <span
-                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 transition-all duration-300 ease-in-out ${
+                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
                           activeNavItem === item
-                            ? 'bg-gradient-to-r from-red-500 to-yellow-400 shadow-[0_0_3px_theme(colors.red.500),0_0_5px_theme(colors.yellow.400)] scale-110'
+                            ? 'progress-dot-active'
                             : 'bg-gray-400/60'
                         }`}
                         aria-hidden="true"
@@ -323,8 +348,8 @@ export default function PersonalKYCPage() {
           </div>
           <LoanProgressBar steps={loanAppSteps} />
 
-          <div className="flex items-center mb-6 mt-4"> {/* Added mt-4 for spacing */}
-            <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/admission-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
+          <div className="flex items-center mb-6 mt-4"> 
+            <Button variant="outline" size="sm" onClick={() => router.push(localStorage.getItem('hasOfferLetterStatus') === 'false' ? '/loan-application/preferences' : '/loan-application/admission-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
           </div>
@@ -332,7 +357,7 @@ export default function PersonalKYCPage() {
           <div className="py-8">
             <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-2xl mx-auto">
               <div className="flex flex-col items-center text-center">
-                {(!idDocumentFile || (idDocumentFile && passportFile)) && renderPrimaryAvekaMessage()}
+                {renderPrimaryAvekaMessage()}
 
                 {renderDocumentUploadSection(
                   'id',
@@ -342,9 +367,9 @@ export default function PersonalKYCPage() {
                   idFileInputRef
                 )}
 
-                {showPassportSection && !passportFile && idDocumentFile && (
+                {showPassportSection && idDocumentPreview && (
                   <div className="mt-6 w-full">
-                     <AvekaPassportPrompt />
+                     <AvekaPassportPromptComponent />
                   </div>
                 )}
 
@@ -390,9 +415,9 @@ export default function PersonalKYCPage() {
                       onClick={handleProceedToReview}
                       size="lg"
                       className="gradient-border-button"
-                      disabled={!idDocumentFile || !passportFile}
+                      disabled={!idDocumentFile || !passportFile || isUploading}
                     >
-                      Proceed to Document Review
+                      {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Proceed to Document Review'}
                     </Button>
                   </div>
                 )}

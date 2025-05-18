@@ -34,6 +34,8 @@ import { useToast } from "@/hooks/use-toast";
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
 import { ArrowLeft, Check, ChevronsUpDown } from 'lucide-react';
+import { getOrGenerateUserId } from '@/lib/user-utils';
+import { saveUserApplicationData } from '@/services/firebase-service';
 
 // Sample country list - in a real app, this would be comprehensive
 const globalCountryList = [
@@ -46,8 +48,11 @@ const globalCountryList = [
 
 const allCourseLevelOptions = ["Graduation", "Post-Graduation", "Masters", "PhD"];
 
-interface AcademicData {
-  graduation?: { level?: string | null; };
+interface AcademicGraduationData {
+  level?: string | null;
+}
+interface AcademicKycDataForPrefs {
+  graduation?: AcademicGraduationData;
 }
 
 const sampleCourses = [
@@ -69,11 +74,12 @@ export default function PreferencesPage() {
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const { toast } = useToast();
   const router = useRouter();
+  const userId = getOrGenerateUserId();
 
   const [preferredCountry1, setPreferredCountry1] = useState<string | undefined>();
   const [preferredCountry2, setPreferredCountry2] = useState<string | undefined>();
   const [courseLevel, setCourseLevel] = useState<string | undefined>();
-  const [courseName, setCourseName] = useState<string | undefined>();
+  const [selectedCourseName, setSelectedCourseName] = useState<string | undefined>(); // For combobox value
   const [openCourseCombobox, setOpenCourseCombobox] = useState(false);
   
   const [courseLevelOptions, setCourseLevelOptions] = useState<string[]>(allCourseLevelOptions);
@@ -81,6 +87,7 @@ export default function PreferencesPage() {
 
   const [avekaMessage, setAvekaMessage] = useState("Great! Since you're exploring options, let's gather some of your study preferences. This will help us tailor the best choices for you.");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setAvekaMessageVisible(true), 500);
@@ -91,33 +98,38 @@ export default function PreferencesPage() {
     const storedAcademicData = localStorage.getItem('academicKycData');
     if (storedAcademicData) {
       try {
-        const parsedData = JSON.parse(storedAcademicData) as AcademicData;
+        const parsedData = JSON.parse(storedAcademicData) as AcademicKycDataForPrefs;
         const gradLevel = parsedData.graduation?.level;
 
         if (gradLevel && (gradLevel === "Degree" || gradLevel === "Diploma" || gradLevel === "Pursuing")) {
-          setCourseLevelOptions(["Post-Graduation", "Masters", "PhD"]);
-          setDefaultCourseLevel("Post-Graduation");
-          setCourseLevel("Post-Graduation"); 
+          const filteredOptions = ["Post-Graduation", "Masters", "PhD"];
+          setCourseLevelOptions(filteredOptions);
+          const newDefault = "Post-Graduation";
+          setDefaultCourseLevel(newDefault);
+          setCourseLevel(newDefault); 
         } else { 
           setCourseLevelOptions(allCourseLevelOptions);
-          setDefaultCourseLevel("Graduation");
-          setCourseLevel("Graduation");
+          const newDefault = "Graduation";
+          setDefaultCourseLevel(newDefault);
+          setCourseLevel(newDefault);
         }
       } catch (e) {
         console.error("Failed to parse academicKycData for preferences", e);
         setCourseLevelOptions(allCourseLevelOptions);
-        setDefaultCourseLevel("Graduation");
-        setCourseLevel("Graduation");
+        const newDefault = "Graduation";
+        setDefaultCourseLevel(newDefault);
+        setCourseLevel(newDefault);
       }
-    } else {
+    } else { // No academic data found, default to all options and "Graduation"
       setCourseLevelOptions(allCourseLevelOptions);
-      setDefaultCourseLevel("Graduation");
-      setCourseLevel("Graduation");
+      const newDefault = "Graduation";
+      setDefaultCourseLevel(newDefault);
+      setCourseLevel(newDefault);
     }
   }, []);
 
-  const handleSaveAndContinue = () => {
-    if (!preferredCountry1 || !courseLevel || !courseName) {
+  const handleSaveAndContinue = async () => {
+    if (!preferredCountry1 || !courseLevel || !selectedCourseName) {
       toast({
         title: "Missing Information",
         description: "Please select Preferred Country 1, Course Level, and Course Name.",
@@ -125,16 +137,28 @@ export default function PreferencesPage() {
       });
       return;
     }
+    if(!userId) {
+        toast({title: "Error", description: "User session not found.", variant: "destructive"});
+        return;
+    }
+    setIsSaving(true);
 
     const preferencesData = {
       preferredCountry1,
       preferredCountry2: preferredCountry2 || null, 
       courseLevel,
-      courseName,
+      courseName: selectedCourseName, // use selectedCourseName
     };
-    localStorage.setItem('preferencesData', JSON.stringify(preferencesData));
-    toast({ title: "Preferences Saved!", description: "Proceeding to Recommendations." });
-    router.push('/loan-application/recommendations'); // Updated navigation
+    // localStorage.setItem('preferencesData', JSON.stringify(preferencesData)); // Keep for recommendations page
+    const result = await saveUserApplicationData(userId, { preferences: preferencesData });
+    setIsSaving(false);
+
+    if(result.success) {
+        toast({ title: "Preferences Saved!", description: "Proceeding to Recommendations." });
+        router.push('/loan-application/recommendations');
+    } else {
+        toast({title: "Save Failed", description: result.error || "Could not save preferences.", variant: "destructive"});
+    }
   };
 
   return (
@@ -145,7 +169,7 @@ export default function PreferencesPage() {
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
         
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
@@ -190,7 +214,7 @@ export default function PreferencesPage() {
                 <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://placehold.co/50x50.png"
+                        src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}
@@ -268,7 +292,7 @@ export default function PreferencesPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="courseName" className="text-white">Course Name <span className="text-red-400">*</span></Label>
+                    <Label htmlFor="courseName" className="text-white">Course <span className="text-red-400">*</span></Label>
                     <Popover open={openCourseCombobox} onOpenChange={setOpenCourseCombobox}>
                       <PopoverTrigger asChild>
                         <Button
@@ -277,8 +301,8 @@ export default function PreferencesPage() {
                           aria-expanded={openCourseCombobox}
                           className="w-full justify-between bg-white/80 text-black hover:bg-white/70 hover:text-black"
                         >
-                          {courseName
-                            ? sampleCourses.find((course) => course.value === courseName)?.label
+                          {selectedCourseName
+                            ? sampleCourses.find((course) => course.value === selectedCourseName)?.label
                             : "Select course..."}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
@@ -294,14 +318,14 @@ export default function PreferencesPage() {
                                   key={course.value}
                                   value={course.value}
                                   onSelect={(currentValue) => {
-                                    setCourseName(currentValue === courseName ? undefined : currentValue);
+                                    setSelectedCourseName(currentValue === selectedCourseName ? undefined : currentValue);
                                     setOpenCourseCombobox(false);
                                   }}
                                   className="text-black hover:bg-gray-100 aria-selected:bg-gray-200"
                                 >
                                   <Check
                                     className={`mr-2 h-4 w-4 ${
-                                      courseName === course.value ? "opacity-100" : "opacity-0"
+                                      selectedCourseName === course.value ? "opacity-100" : "opacity-0"
                                     }`}
                                   />
                                   {course.label}
@@ -315,8 +339,8 @@ export default function PreferencesPage() {
                   </div>
 
                   <div className="flex justify-center pt-4">
-                    <Button onClick={handleSaveAndContinue} size="lg" className="gradient-border-button">
-                      Save & Continue
+                    <Button onClick={handleSaveAndContinue} size="lg" className="gradient-border-button" disabled={isSaving}>
+                      {isSaving ? 'Saving...' : 'Save & Continue'}
                     </Button>
                   </div>
                 </div>
@@ -328,4 +352,3 @@ export default function PreferencesPage() {
     </div>
   );
 }
-

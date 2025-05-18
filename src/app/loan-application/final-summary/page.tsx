@@ -17,7 +17,7 @@ export default function FinalSummaryPage() {
   const router = useRouter();
   const [avekaMessage, setAvekaMessage] = useState("You've reached the final summary! Please review all your details before submission. (Content Placeholder)");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
-  const [previousPage, setPreviousPage] = useState('/loan-application/review-professional-kyc'); // Default back
+  const [previousPage, setPreviousPage] = useState('/loan-application/review-professional-kyc'); 
 
   useEffect(() => {
     const timer = setTimeout(() => setAvekaMessageVisible(true), 500);
@@ -26,12 +26,12 @@ export default function FinalSummaryPage() {
   
   useEffect(() => {
     const hasOfferLetter = localStorage.getItem('hasOfferLetterStatus');
-    if (hasOfferLetter === 'false') { // User chose "No" to offer letter, came from Preferences
-      setPreviousPage('/loan-application/preferences');
-    } else if (hasOfferLetter === 'true') { // User chose "Yes" to offer letter, came from Lender Recommendations
+    if (hasOfferLetter === 'false') { 
+      setPreviousPage('/loan-application/recommendations'); // If no offer, they came from Recommendations (which followed Preferences)
+    } else if (hasOfferLetter === 'true') { 
       setPreviousPage('/loan-application/lender-recommendations');
-    } else { // Default or unknown, should ideally not happen if status is always set
-      // Fallback to the step before conditional branching
+    } else { 
+      // Fallback if status is not set, default to a logical prior step
       setPreviousPage('/loan-application/review-professional-kyc'); 
     }
   }, []);
@@ -46,7 +46,7 @@ export default function FinalSummaryPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
@@ -94,7 +94,7 @@ export default function FinalSummaryPage() {
                 <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://placehold.co/50x50.png"
+                        src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}

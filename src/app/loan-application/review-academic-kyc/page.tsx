@@ -13,12 +13,34 @@ import { useToast } from "@/hooks/use-toast";
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
 import { ArrowLeft } from 'lucide-react';
+import { getOrGenerateUserId } from '@/lib/user-utils';
+import { saveUserApplicationData } from '@/services/firebase-service';
 
-interface AcademicData {
-  graduation?: { level?: string | null; cgpa?: string; scale?: string | null; completionDay?: string; completionMonth?: string; completionYear?: string; pursuingCourse?: string; pursuingType?: string | null; expectedDay?: string; expectedMonth?: string; expectedYear?: string; naReason?: string; };
-  postGraduation?: { level?: string | null; cgpa?: string; scale?: string | null; completionDay?: string; completionMonth?: string; completionYear?: string; pursuingCourse?: string; pursuingType?: string | null; expectedDay?: string; expectedMonth?: string; expectedYear?: string; naReason?: string; };
-  languageTest?: { given?: string | null; type?: string | null; ieltsScore?: string | null; otherName?: string; score?: string; testDay?: string; testMonth?: string; testYear?: string; };
-  courseTest?: { given?: string | null; type?: string | null; otherName?: string; score?: string; testDay?: string; testMonth?: string; testYear?: string; };
+interface AcademicDetail {
+  level?: string | null;
+  cgpa?: string;
+  scale?: string | null;
+  completionDate?: string;
+  pursuingCourse?: string;
+  pursuingType?: string | null;
+  expectedCompletion?: string;
+  naReason?: string;
+}
+
+interface TestDetail {
+  given?: string | null;
+  type?: string | null;
+  ieltsScore?: string | null;
+  otherName?: string;
+  score?: string;
+  date?: string;
+}
+
+interface AcademicKycData {
+  graduation?: AcademicDetail;
+  postGraduation?: AcademicDetail;
+  languageTest?: TestDetail;
+  courseTest?: TestDetail;
 }
 
 
@@ -27,9 +49,11 @@ export default function ReviewAcademicKYCPage() {
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const router = useRouter();
   const { toast } = useToast();
+  const userId = getOrGenerateUserId();
 
-  const [academicData, setAcademicData] = useState<AcademicData | null>(null);
+  const [academicData, setAcademicData] = useState<AcademicKycData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
   const [avekaMessage, setAvekaMessage] = useState("Let's review your academic details. Please verify everything carefully.");
@@ -65,49 +89,83 @@ export default function ReviewAcademicKYCPage() {
     setIsLoading(false);
   }, [toast]);
 
-  const handleConfirmAndContinue = () => {
+  const handleConfirmAndContinue = async () => {
+    if (!userId) {
+        toast({ title: "Error", description: "User session not found.", variant: "destructive" });
+        return;
+    }
     if (!consentChecked) {
       toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
       return;
     }
-    console.log("Academic KYC Data Confirmed:", academicData);
-    console.log("Consent given at:", currentTime);
-    toast({ title: "Academic Details Confirmed!", description: "Proceeding to Professional KYC." });
-    router.push('/loan-application/professional-kyc'); // Navigate to the first step of Professional KYC
-  };
-
-  const formatDateFromParts = (year?: string, month?: string, day?: string): string => {
-    if (year && month && day) {
-      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      if (!isNaN(date.getTime())) {
-        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      }
+    if (!academicData) {
+      toast({ title: "Error", description: "No academic data to save.", variant: "destructive" });
+      return;
     }
-    return "Not Specified";
+    setIsSaving(true);
+
+    const dataToSave = {
+      academicKyc: {
+        ...academicData,
+        consentTimestamp: currentTime,
+      }
+    };
+
+    const result = await saveUserApplicationData(userId, dataToSave);
+    setIsSaving(false);
+
+    if (result.success) {
+        toast({ title: "Academic Details Confirmed!", description: "Proceeding to Professional KYC." });
+        router.push('/loan-application/professional-kyc');
+    } else {
+        toast({ title: "Save Failed", description: result.error || "Could not save academic details.", variant: "destructive" });
+    }
+  };
+  
+  const formatDisplayDate = (dateString?: string): string => {
+    if (!dateString || dateString === "Not Specified" || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return "Not Specified";
+    }
+    try {
+      const [year, month, day] = dateString.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      if (isNaN(date.getTime())) return "Invalid Date";
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch (e) {
+      return "Invalid Date";
+    }
   };
   
   const renderSection = (title: string, dataObject: Record<string, any> | undefined, fieldLabels: Record<string, string>) => {
-    if (!dataObject || Object.values(dataObject).every(val => val === null || val === undefined || String(val).trim() === '')) return null;
+    if (!dataObject || Object.values(dataObject).every(val => val === null || val === undefined || String(val).trim() === '' || String(val).trim() === 'Not Specified')) {
+        // If all fields are null, undefined, empty or "Not Specified", don't render the section, unless it's graduation or post-graduation with "Not applicable"
+        if ((title === "Graduation Details" || title === "Post-Graduation Details") && dataObject.level === "Not applicable" && dataObject.naReason) {
+            // Allow rendering if "Not applicable" is chosen and reason is provided
+        } else {
+            return null;
+        }
+    }
 
     const detailsToRender = Object.entries(fieldLabels)
         .map(([key, label]) => {
             let value = dataObject[key];
-            if (value === null || value === undefined || String(value).trim() === '') return null;
+            
+            if (value === null || value === undefined || String(value).trim() === '') {
+                if(key === 'naReason' && dataObject.level !== 'Not applicable') return null; // Only show NA reason if level is N/A
+                if(key === 'scale' && !dataObject.cgpa) return null; // Only show scale if CGPA exists
+                // For other potentially empty fields, we might still want to show "Not Specified" if they are generally expected
+                if (key !== 'naReason' && key !== 'scale') value = "Not Specified"; else return null;
+            }
 
             let displayValue = String(value);
+
             if (key.toLowerCase().includes('date') || key.toLowerCase().includes('completion')) {
-                 displayValue = formatDateFromParts(dataObject[`${key}Year`], dataObject[`${key}Month`], dataObject[`${key}Day`]);
-                 if (key === 'completionDate') displayValue = formatDateFromParts(dataObject['completionYear'], dataObject['completionMonth'], dataObject['completionDay']);
-                 if (key === 'expectedCompletion') displayValue = formatDateFromParts(dataObject['expectedYear'], dataObject['expectedMonth'], dataObject['expectedDay']);
-                 if (key === 'testDate') displayValue = formatDateFromParts(dataObject['testYear'], dataObject['testMonth'], dataObject['testDay']);
-
-
+                displayValue = formatDisplayDate(String(value));
             } else if (key === 'ieltsScore') {
                 displayValue = value === 'yes' ? 'Yes (Above 6.5)' : value === 'no' ? 'No (6.5 or Below)' : String(value);
             } else if (key === 'given' && (title.includes("Language Test") || title.includes("Course Test"))) {
                 displayValue = String(value).charAt(0).toUpperCase() + String(value).slice(1).replace('_', ' ');
             }
-
 
             return (
                 <div key={`${title}-${key}`} className="mb-3 grid grid-cols-1 sm:grid-cols-3 gap-1 items-baseline">
@@ -132,10 +190,10 @@ export default function ReviewAcademicKYCPage() {
     level: "Level",
     cgpa: "CGPA/Percentage",
     scale: "CGPA Scale",
-    completionDate: "Completion Date", // Placeholder, actual value from parts
+    completionDate: "Completion Date",
     pursuingCourse: "Pursuing Course Name",
     pursuingType: "Pursuing Type",
-    expectedCompletion: "Expected Completion Date", // Placeholder
+    expectedCompletion: "Expected Completion Date",
     naReason: "Reason (N/A)"
   };
 
@@ -144,10 +202,10 @@ export default function ReviewAcademicKYCPage() {
   const languageTestLabels = {
     given: "Appeared for Test",
     type: "Test Type",
-    ieltsScore: "IELTS Score", 
+    ieltsScore: "IELTS Score (Overall >6.5)", 
     otherName: "Other Test Name",
     score: "Score",
-    testDate: "Test Date / Expected Date" // Placeholder
+    date: "Test Date / Expected Date"
   };
 
   const courseTestLabels = {
@@ -155,14 +213,15 @@ export default function ReviewAcademicKYCPage() {
     type: "Test Type",
     otherName: "Other Test Name",
     score: "Score",
-    testDate: "Test Date / Expected Date" // Placeholder
+    date: "Test Date / Expected Date"
   };
 
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[hsl(var(--background))]">
-        <p className="text-white">Loading review data...</p>
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="text-white mt-4">Loading review data...</p>
       </div>
     );
   }
@@ -176,7 +235,7 @@ export default function ReviewAcademicKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
@@ -224,7 +283,7 @@ export default function ReviewAcademicKYCPage() {
                 <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                   <div className="flex-shrink-0 mb-3 md:mb-0">
                     <Image
-                      src="https://placehold.co/50x50.png"
+                      src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
                       alt="Aveka, GlobCred's Smart AI"
                       width={50}
                       height={50}
@@ -264,8 +323,8 @@ export default function ReviewAcademicKYCPage() {
                 </div>
                 <p className="text-xs text-gray-400">Consent captured at: {currentTime}</p>
                 <div className="flex justify-center">
-                  <Button onClick={handleConfirmAndContinue} disabled={!consentChecked || isLoading} size="lg" className="gradient-border-button">
-                    Confirm & Continue
+                  <Button onClick={handleConfirmAndContinue} disabled={!consentChecked || isLoading || isSaving} size="lg" className="gradient-border-button">
+                     {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Confirm & Continue'}
                   </Button>
                 </div>
               </div>

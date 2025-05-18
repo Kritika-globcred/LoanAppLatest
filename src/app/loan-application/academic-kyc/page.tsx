@@ -76,18 +76,18 @@ export default function AcademicKYCPage() {
 
   // Language Test State
   const [languageTestGiven, setLanguageTestGiven] = useState<string | null>(null);
-  const [languageTestType, setLanguageTestType] = useState<string | null>(null); // For Asian: IELTS/Other radio. For Non-Asian: TOEFL/PTE/Duolingo/Other Test dropdown.
-  const [languageTestOtherName, setLanguageTestOtherName] = useState(''); // If languageTestType is 'Other' (Asian) or 'Other Test' (Non-Asian dropdown)
+  const [languageTestType, setLanguageTestType] = useState<string | null>(null); 
+  const [languageTestOtherName, setLanguageTestOtherName] = useState(''); 
   const [languageTestScore, setLanguageTestScore] = useState('');
   const [languageTestDay, setLanguageTestDay] = useState<string | undefined>();
   const [languageTestMonth, setLanguageTestMonth] = useState<string | undefined>();
   const [languageTestYear, setLanguageTestYear] = useState<string | undefined>();
-  const [ieltsAbove65, setIeltsAbove65] = useState<string | null>(null); // Specifically for IELTS
+  const [ieltsAbove65, setIeltsAbove65] = useState<string | null>(null); 
 
   // Course Test State
   const [courseTestGiven, setCourseTestGiven] = useState<string | null>(null);
-  const [courseTestType, setCourseTestType] = useState<string | null>(null); // GMAT/GRE/Other dropdown
-  const [courseTestOtherName, setCourseTestOtherName] = useState(''); // If courseTestType is 'Other'
+  const [courseTestType, setCourseTestType] = useState<string | null>(null); 
+  const [courseTestOtherName, setCourseTestOtherName] = useState(''); 
   const [courseTestScore, setCourseTestScore] = useState('');
   const [courseTestDay, setCourseTestDay] = useState<string | undefined>();
   const [courseTestMonth, setCourseTestMonth] = useState<string | undefined>();
@@ -119,7 +119,7 @@ export default function AcademicKYCPage() {
       return gradPursuingCourse && gradPursuingType && gradExpectedCompletionYear && gradExpectedCompletionMonth && gradExpectedCompletionDay;
     }
     if (gradLevel === "Not applicable") {
-      return gradNaReason;
+      return gradNaReason.trim() !== '';
     }
     return false;
   };
@@ -133,7 +133,7 @@ export default function AcademicKYCPage() {
       return postGradPursuingCourse && postGradPursuingType && postGradExpectedCompletionYear && postGradExpectedCompletionMonth && postGradExpectedCompletionDay;
     }
     if (postGradLevel === "Not applicable") {
-      return postGradNaReason;
+      return postGradNaReason.trim() !== '';
     }
     return false;
   };
@@ -145,13 +145,13 @@ export default function AcademicKYCPage() {
       return languageTestDay && languageTestMonth && languageTestYear;
     }
     if (languageTestGiven === 'yes') {
-      if (isAsianCountry) {
-        if (languageTestType === 'IELTS') return ieltsAbove65;
-        if (languageTestType === 'Other') return languageTestOtherName && languageTestScore;
-      } else { // Non-Asian
-        if (!languageTestType) return false;
-        if (languageTestType === 'Other Test') return languageTestOtherName && languageTestScore;
-        return languageTestScore; // For TOEFL, PTE, Duolingo
+      if (isAsianCountry) { // Asian countries
+        if (languageTestType === 'IELTS') return ieltsAbove65 !== null;
+        if (languageTestType === 'Other') return languageTestOtherName.trim() !== '' && languageTestScore.trim() !== '';
+      } else { // Non-Asian countries
+        if (!languageTestType) return false; // Main test type (TOEFL, PTE, Duolingo, Other)
+        if (languageTestType === 'Other Test') return languageTestOtherName.trim() !== '' && languageTestScore.trim() !== ''; // If 'Other Test' from dropdown
+        return languageTestScore.trim() !== ''; // For TOEFL, PTE, Duolingo directly
       }
     }
     return false;
@@ -165,8 +165,8 @@ export default function AcademicKYCPage() {
     }
     if (courseTestGiven === 'yes') {
       if (!courseTestType) return false;
-      if (courseTestType === 'Other') return courseTestOtherName && courseTestScore;
-      return courseTestScore; // For GMAT, GRE
+      if (courseTestType === 'Other') return courseTestOtherName.trim() !== '' && courseTestScore.trim() !== '';
+      return courseTestScore.trim() !== ''; // For GMAT, GRE
     }
     return false;
   };
@@ -177,33 +177,32 @@ export default function AcademicKYCPage() {
       setAvekaMessage("Great! Now, please tell me about your post-graduation, if any.");
       setShowPostGraduation(true);
     }
-  }, [gradLevel, gradCgpa, gradCompletionYear, gradCompletionMonth, gradCompletionDay, gradPursuingCourse, gradPursuingType, gradExpectedCompletionYear, gradExpectedCompletionMonth, gradExpectedCompletionDay, gradNaReason, showPostGraduation]);
+  }, [gradLevel, gradCgpa, gradCompletionYear, gradCompletionMonth, gradCompletionDay, gradPursuingCourse, gradPursuingType, gradExpectedCompletionYear, gradExpectedCompletionMonth, gradExpectedCompletionDay, gradNaReason, showPostGraduation, isGraduationComplete]);
 
   useEffect(() => {
     if (showPostGraduation && isPostGraduationComplete() && !showLanguageTest) {
       setAvekaMessage("Thanks! Let's move on to language proficiency tests. Have you appeared for any?");
       setShowLanguageTest(true);
     }
-  }, [postGradLevel, postGradCgpa, postGradCompletionYear, postGradCompletionMonth, postGradCompletionDay, postGradPursuingCourse, postGradPursuingType, postGradExpectedCompletionYear, postGradExpectedCompletionMonth, postGradExpectedCompletionDay, postGradNaReason, showPostGraduation, showLanguageTest]);
+  }, [postGradLevel, postGradCgpa, postGradCompletionYear, postGradCompletionMonth, postGradCompletionDay, postGradPursuingCourse, postGradPursuingType, postGradExpectedCompletionYear, postGradExpectedCompletionMonth, postGradExpectedCompletionDay, postGradNaReason, showPostGraduation, showLanguageTest, isPostGraduationComplete]);
 
   useEffect(() => {
     if (showLanguageTest && isLanguageTestComplete() && !showCourseTest) {
       setAvekaMessage("Almost there! Lastly, any specific course tests like GMAT or GRE?");
       setShowCourseTest(true);
     }
-  }, [languageTestGiven, languageTestType, ieltsAbove65, languageTestOtherName, languageTestScore, languageTestDay, languageTestMonth, languageTestYear, isAsianCountry, showLanguageTest, showCourseTest]);
+  }, [languageTestGiven, languageTestType, ieltsAbove65, languageTestOtherName, languageTestScore, languageTestDay, languageTestMonth, languageTestYear, isAsianCountry, showLanguageTest, showCourseTest, isLanguageTestComplete]);
   
   useEffect(() => {
     if (showCourseTest && isCourseTestComplete()) {
       setAvekaMessage("Fantastic! You've completed the academic details. Please click 'Save & Continue' to proceed to the review page.");
     }
-  }, [courseTestGiven, courseTestType, courseTestOtherName, courseTestScore, courseTestDay, courseTestMonth, courseTestYear, showCourseTest]);
+  }, [courseTestGiven, courseTestType, courseTestOtherName, courseTestScore, courseTestDay, courseTestMonth, courseTestYear, showCourseTest, isCourseTestComplete]);
 
 
   const handleSaveAndContinue = () => {
     const constructDateString = (year?: string, month?: string, day?: string): string | undefined => {
       if (year && month && day) {
-        // Ensure month and day are two digits
         const formattedMonth = month.padStart(2, '0');
         const formattedDay = day.padStart(2, '0');
         return `${year}-${formattedMonth}-${formattedDay}`;
@@ -319,7 +318,10 @@ export default function AcademicKYCPage() {
       )}
       { gradLevel === "Pursuing" && (
          <>
-          <div><Label htmlFor="gradPursuingCourse" className="text-white">Course Name</Label><Input id="gradPursuingCourse" value={gradPursuingCourse} onChange={(e) => setGradPursuingCourse(e.target.value)} placeholder="E.g., Bachelor of Technology in CS" className="bg-white/80 text-black" /></div>
+          <div>
+            <Label htmlFor="gradPursuingCourse" className="text-white">Course Name</Label>
+            <Input id="gradPursuingCourse" value={gradPursuingCourse} onChange={(e) => setGradPursuingCourse(e.target.value)} placeholder="E.g., Bachelor of Technology in CS" className="bg-white/80 text-black" />
+          </div>
           <div>
             <Label className="text-white">Degree/Diploma</Label>
             <RadioGroup value={gradPursuingType || ''} onValueChange={setGradPursuingType} className="flex space-x-4 text-white">
@@ -373,7 +375,10 @@ export default function AcademicKYCPage() {
         )}
         { postGradLevel === "Pursuing" && (
            <>
-            <div><Label htmlFor="postGradPursuingCourse" className="text-white">Course Name</Label><Input id="postGradPursuingCourse" value={postGradPursuingCourse} onChange={(e) => setPostGradPursuingCourse(e.target.value)} placeholder="E.g., Master of Business Administration" className="bg-white/80 text-black" /></div>
+            <div>
+              <Label htmlFor="postGradPursuingCourse" className="text-white">Course Name</Label>
+              <Input id="postGradPursuingCourse" value={postGradPursuingCourse} onChange={(e) => setPostGradPursuingCourse(e.target.value)} placeholder="E.g., Master of Business Administration" className="bg-white/80 text-black" />
+            </div>
             <div>
               <Label className="text-white">Degree/Diploma</Label>
               <RadioGroup value={postGradPursuingType || ''} onValueChange={setPostGradPursuingType} className="flex space-x-4 text-white">
@@ -408,7 +413,7 @@ export default function AcademicKYCPage() {
         {languageTestGiven === 'yes' && (
           <div className="space-y-4">
             {isAsianCountry === null && <p className="text-white text-sm">Loading country information...</p>}
-            {isAsianCountry === true && (
+            {isAsianCountry === true && ( // Asian Path
               <>
                 <Label className="text-white">Which test have you appeared for?</Label>
                 <RadioGroup value={languageTestType || ''} onValueChange={(value) => { setLanguageTestType(value); setLanguageTestOtherName(''); setLanguageTestScore(''); setIeltsAbove65(null); }} className="flex space-x-4 text-white">
@@ -442,7 +447,7 @@ export default function AcademicKYCPage() {
             {isAsianCountry === false && ( // Non-Asian Path
               <>
                 <Label className="text-white">Which test have you appeared for?</Label>
-                 <Select value={languageTestType || ''} onValueChange={(value) => {setLanguageTestType(value); if (value !== 'Other Test') {setLanguageTestOtherName(''); setLanguageTestScore('');} }}>
+                 <Select value={languageTestType || ''} onValueChange={(value) => {setLanguageTestType(value); if (value !== 'Other Test') {setLanguageTestOtherName('');} setLanguageTestScore(''); }}>
                   <SelectTrigger className="bg-white/80 text-black w-full md:w-auto"><SelectValue placeholder="Select test" /></SelectTrigger>
                   <SelectContent className="bg-white text-black">
                     {['TOEFL', 'PTE', 'Duolingo', 'Other Test'].map(test => <SelectItem key={`lang-test-nonasian-${test}`} value={test} className="hover:bg-gray-100">{test}</SelectItem>)}
@@ -557,9 +562,9 @@ export default function AcademicKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -573,7 +578,7 @@ export default function AcademicKYCPage() {
                       <span
                         className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
                           activeNavItem === item
-                            ? 'bg-gradient-to-r from-red-500 to-yellow-400 shadow-[0_0_3px_theme(colors.red.500),0_0_5px_theme(colors.yellow.400)] scale-110'
+                            ? 'progress-dot-active'
                             : 'bg-gray-400/60'
                         }`}
                         aria-hidden="true"
@@ -604,7 +609,7 @@ export default function AcademicKYCPage() {
                 <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://placehold.co/50x50.png"
+                        src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}
@@ -637,4 +642,3 @@ export default function AcademicKYCPage() {
     </div>
   );
 }
-    

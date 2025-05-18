@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, ArrowLeft, Edit3, Save, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Edit3, Save } from 'lucide-react';
 import { extractPersonalKycDetails, type ExtractPersonalKycInput, type ExtractPersonalKycOutput } from '@/ai/flows/extract-personal-kyc-flow';
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
+import { getOrGenerateUserId } from '@/lib/user-utils';
+import { saveUserApplicationData } from '@/services/firebase-service';
 
 type EditableKycOutput = ExtractPersonalKycOutput & { ageInYears?: string | number };
 
@@ -25,6 +26,7 @@ export default function ReviewPersonalKYCPage() {
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const router = useRouter();
   const { toast } = useToast();
+  const userId = getOrGenerateUserId();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false); 
@@ -72,11 +74,18 @@ export default function ReviewPersonalKYCPage() {
       setIsLoading(true);
       setAvekaMessage("Hold tight! I'm carefully reviewing your documents with AI to extract the details...");
 
-      const idDocumentDataUri = localStorage.getItem('idDocumentDataUri');
-      const passportDataUri = localStorage.getItem('passportDataUri');
-      const idDocType = localStorage.getItem('idDocumentType') as "PAN Card" | "National ID" | null;
+      const docsForReviewString = localStorage.getItem('personalDocsForReview');
+      if (!docsForReviewString) {
+          toast({ title: "Error", description: "Document data not found for review. Please go back.", variant: "destructive" });
+          setIsLoading(false); setIsProcessing(false);
+          setAvekaMessage("Could not find your document details. Please try uploading again.");
+          router.push('/loan-application/personal-kyc');
+          return;
+      }
+      const { idDocumentDataUri, passportDataUri, idDocumentType } = JSON.parse(docsForReviewString);
 
-      if (!idDocumentDataUri || !passportDataUri || !idDocType) {
+
+      if (!idDocumentDataUri || !passportDataUri || !idDocumentType) {
         toast({
           title: "Error: Missing Documents",
           description: "Could not find document data. Please go back and re-upload.",
@@ -93,7 +102,7 @@ export default function ReviewPersonalKYCPage() {
         const input: ExtractPersonalKycInput = {
           idDocumentImageUri: idDocumentDataUri,
           passportImageUri: passportDataUri,
-          idDocumentType: idDocType,
+          idDocumentType: idDocumentType,
         };
         const result = await extractPersonalKycDetails(input);
         const ageInYears = calculateAge(result.dateOfBirth);
@@ -109,7 +118,7 @@ export default function ReviewPersonalKYCPage() {
         });
         setAvekaMessage("I encountered an issue while extracting details. You might need to re-upload clearer images, or you can try filling the details manually if this persists.");
         setExtractedData({
-            idNumber: "Not Specified", idType: idDocType, passportNumber: "Not Specified",
+            idNumber: "Not Specified", idType: idDocumentType, passportNumber: "Not Specified",
             mothersName: "Not Specified", fathersName: "Not Specified",
             passportExpiryDate: "Not Specified", passportIssueDate: "Not Specified",
             nameOnPassport: "Not Specified", countryOfUser: "Not Specified",
@@ -145,16 +154,41 @@ export default function ReviewPersonalKYCPage() {
     }
   };
 
-  const handleConfirmAndContinue = () => {
+  const handleConfirmAndContinue = async () => {
+    if (!userId) {
+      toast({ title: "Error", description: "User session not found.", variant: "destructive" });
+      return;
+    }
     if (!consentChecked) {
       toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
       return;
     }
-    console.log("Personal KYC Data Confirmed:", extractedData);
-    console.log("Consent given at:", currentTime);
-    // Store data if needed or pass via state management
-    toast({ title: "Step 2 Complete!", description: "Moving to Academic KYC." });
-    router.push('/loan-application/academic-kyc'); 
+     if (!extractedData) {
+      toast({ title: "Error", description: "No data to save.", variant: "destructive" });
+      return;
+    }
+    setIsProcessing(true);
+
+    const personalKycDataToSave = {
+      ...extractedData,
+      idDocumentUrl: JSON.parse(localStorage.getItem('personalDocsForReview') || '{}').idDocumentDataUri, // Use stored Firebase URL
+      passportUrl: JSON.parse(localStorage.getItem('personalDocsForReview') || '{}').passportDataUri, // Use stored Firebase URL
+      consentTimestamp: currentTime,
+    };
+    
+    // Remove temporary localStorage item
+    localStorage.removeItem('personalDocsForReview');
+
+
+    const result = await saveUserApplicationData(userId, { personalKyc: personalKycDataToSave });
+    setIsProcessing(false);
+
+    if (result.success) {
+        toast({ title: "Personal KYC Confirmed!", description: "Proceeding to Academic KYC." });
+        router.push('/loan-application/academic-kyc'); 
+    } else {
+        toast({ title: "Save Failed", description: result.error || "Could not save personal KYC details.", variant: "destructive"});
+    }
   };
 
   const renderEditableTable = () => {
@@ -222,7 +256,7 @@ export default function ReviewPersonalKYCPage() {
       <p className="text-xs text-gray-400">Consent captured at: {currentTime}</p>
       <div className="flex justify-center">
         <Button onClick={handleConfirmAndContinue} disabled={!consentChecked || isProcessing || isLoading} size="lg" className="gradient-border-button">
-          Confirm & Continue
+          {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Confirm & Continue'}
         </Button>
       </div>
     </div>
@@ -237,9 +271,9 @@ export default function ReviewPersonalKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
              <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -251,9 +285,9 @@ export default function ReviewPersonalKYCPage() {
                       aria-current={activeNavItem === item ? "page" : undefined}
                     >
                       <span
-                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 transition-all duration-300 ease-in-out ${
+                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
                           activeNavItem === item
-                            ? 'bg-gradient-to-r from-red-500 to-yellow-400 shadow-[0_0_3px_theme(colors.red.500),0_0_5px_theme(colors.yellow.400)] scale-110'
+                            ? 'progress-dot-active'
                             : 'bg-gray-400/60'
                         }`}
                         aria-hidden="true"
@@ -282,10 +316,10 @@ export default function ReviewPersonalKYCPage() {
           <div className="py-8">
             <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-3xl mx-auto">
               <div className="flex flex-col items-center text-center mb-6">
-                <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4">
+                <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://placehold.co/50x50.png"
+                        src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}
@@ -295,7 +329,7 @@ export default function ReviewPersonalKYCPage() {
                     </div>
                     <div
                         className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow
-                                    transform transition-all duration-500 ease-out
+                                    transform transition-all duration-500 ease-out w-full
                                     ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
                     >
                         <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
