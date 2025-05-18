@@ -5,6 +5,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
+import { Sparkles } from 'lucide-react'; // Import Sparkles icon
 
 export default function Home() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
@@ -58,7 +59,7 @@ export default function Home() {
 
           {/* New Welcome Section (Hero Section) */}
           <div className="text-center text-white">
-            <h1 className="text-3xl md:text-4xl font-bold mb-4">
+            <h1 className="text-3xl md:text-4xl font-bold mb-4 max-w-2xl mx-auto">
               Welcome to GlobCred
             </h1>
             <p className="text-lg md:text-xl mb-8 max-w-2xl mx-auto">
@@ -69,10 +70,10 @@ export default function Home() {
             <div className="mt-10 flex flex-col md:flex-row items-center justify-center md:items-start md:space-x-6 max-w-3xl mx-auto">
               <div className="flex-shrink-0 mb-4 md:mb-0">
                 <Image
-                  src="https://placehold.co/40x40.png" // Placeholder for Aveka's image, size reduced
+                  src="https://placehold.co/50x50.png" // Aveka's image placeholder
                   alt="Aveka, GlobCred's Smart AI"
-                  width={40} // Reduced size
-                  height={40} // Reduced size
+                  width={50} // Updated size
+                  height={50} // Updated size
                   className="rounded-full border-2 border-white shadow-lg"
                   data-ai-hint="robot avatar"
                 />
@@ -82,9 +83,9 @@ export default function Home() {
                 <p className="font-semibold text-xl mb-1">Aveka</p>
                 <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                 <p className="text-base">
-                  Hello there! I'm Aveka, your financial and admission counsellor for your Study Abroad Journey.
+                  Hello there! I&apos;m Aveka, your financial and admission counsellor for your Study Abroad Journey.
                   <br />
-                  Ready to start your loan journey? Let's begin!
+                  Ready to start your loan journey? Let&apos;s begin!
                 </p>
               </div>
             </div>
@@ -92,6 +93,7 @@ export default function Home() {
             {/* New "Get Started" Button below Aveka's message */}
             <div className="mt-8 flex justify-center">
               <Button variant="default" size="lg" className="gradient-border-button">
+                <Sparkles className="mr-2 h-5 w-5" /> {/* Icon added */}
                 Get Started
               </Button>
             </div>
