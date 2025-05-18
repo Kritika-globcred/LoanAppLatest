@@ -7,7 +7,7 @@ export default function Home() {
     <div className="flex flex-col items-center">
       {/* Responsive Section acting as the main website container */}
       <section
-        className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] p-6 md:p-8 overflow-hidden shadow-lg"
+        className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] pt-[5px] px-6 pb-6 md:px-8 md:pb-8 overflow-hidden shadow-lg"
         style={{
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')"
         }}
