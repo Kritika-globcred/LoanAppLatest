@@ -21,26 +21,26 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 
 interface CountryInfo {
-  value: string; // Unique value for the select item, e.g., '+91', '+1_US'
+  value: string; // Unique value for the select item, e.g., '+91_IN'
   label: string; // Display label, e.g., 'IN (+91)'
 }
 
 const defaultCountryCodes: CountryInfo[] = [
-  { value: '+91', label: 'IN (+91)' },
-  { value: '+233', label: 'GH (+233)' },
-  { value: '+234', label: 'NG (+234)' },
-  { value: '+263', label: 'ZW (+263)' },
-  { value: '+254', label: 'KE (+254)' },
-  { value: '+256', label: 'UG (+256)' },
+  { value: '+91_IN', label: 'IN (+91)' },
+  { value: '+233_GH', label: 'GH (+233)' },
+  { value: '+234_NG', label: 'NG (+234)' },
+  { value: '+263_ZW', label: 'ZW (+263)' },
+  { value: '+254_KE', label: 'KE (+254)' },
+  { value: '+256_UG', label: 'UG (+256)' },
 ];
 
 const globalCountryCodesSample: CountryInfo[] = [
   { value: '+1_US', label: 'US (+1)' },
   { value: '+1_CA', label: 'CA (+1)' },
-  { value: '+44', label: 'GB (+44)' },
-  { value: '+61', label: 'AU (+61)' },
-  { value: '+49', label: 'DE (+49)' },
-  { value: '+33', label: 'FR (+33)' },
+  { value: '+44_GB', label: 'GB (+44)' },
+  { value: '+61_AU', label: 'AU (+61)' },
+  { value: '+49_DE', label: 'DE (+49)' },
+  { value: '+33_FR', label: 'FR (+33)' },
 ];
 
 export default function MobileVerificationPage() {
@@ -62,10 +62,10 @@ export default function MobileVerificationPage() {
   }, []);
 
   const handleGetOtpClick = () => {
-    if (!mobileNumber.trim() || !/^\d{10}$/.test(mobileNumber.trim())) { // Basic 10-digit validation
+    if (!mobileNumber.trim() || !/^\d{7,15}$/.test(mobileNumber.trim())) { // Basic 7-15 digit validation
       toast({
         title: "Invalid Mobile Number",
-        description: "Please enter a valid 10-digit mobile number.",
+        description: "Please enter a valid mobile number (7-15 digits).",
         variant: "destructive",
       });
       return;
@@ -170,11 +170,11 @@ export default function MobileVerificationPage() {
 
                 {!otpSent ? (
                   <div className="w-full space-y-6">
-                    <div className="grid grid-cols-3 gap-4 items-end">
-                      <div className="col-span-1">
+                    <div className="grid grid-cols-[auto_1fr] gap-4 items-end">
+                      <div>
                         <Label htmlFor="countryCode" className="block text-sm font-medium text-left mb-1">Code</Label>
                         <Select value={countryCode} onValueChange={setCountryCode}>
-                          <SelectTrigger id="countryCode" className="w-full bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring">
+                          <SelectTrigger id="countryCode" className="bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring">
                             <SelectValue placeholder="Select code" />
                           </SelectTrigger>
                           <SelectContent className="bg-white text-black">
@@ -201,7 +201,7 @@ export default function MobileVerificationPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="col-span-2">
+                      <div>
                         <Label htmlFor="mobileNumber" className="block text-sm font-medium text-left mb-1">Mobile Number</Label>
                         <Input
                           id="mobileNumber"
@@ -218,7 +218,7 @@ export default function MobileVerificationPage() {
                         <Button
                         onClick={handleGetOtpClick}
                         variant="default"
-                        size="md"
+                        size="sm"
                         className="gradient-border-button w-auto"
                         >
                         Get OTP
@@ -244,7 +244,7 @@ export default function MobileVerificationPage() {
                         <Button
                         onClick={handleSaveAndContinue}
                         variant="default"
-                        size="md"
+                        size="sm"
                         className="gradient-border-button w-auto"
                         >
                         Save & Continue
@@ -260,4 +260,3 @@ export default function MobileVerificationPage() {
     </div>
   );
 }
-
