@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
+import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
+import { loanAppSteps } from '@/lib/loan-steps';
 
 interface CountryInfo {
   value: string; 
@@ -117,6 +119,7 @@ export default function MobileVerificationPage() {
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
+          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>

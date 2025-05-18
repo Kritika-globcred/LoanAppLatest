@@ -15,6 +15,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, ArrowLeft, Edit3, Save, AlertCircle } from 'lucide-react';
 import { extractPersonalKycDetails, type ExtractPersonalKycInput, type ExtractPersonalKycOutput } from '@/ai/flows/extract-personal-kyc-flow';
+import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
+import { loanAppSteps } from '@/lib/loan-steps';
 
 type EditableKycOutput = ExtractPersonalKycOutput & { ageInYears?: string | number };
 
@@ -236,8 +238,9 @@ export default function ReviewPersonalKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
         <div className="relative z-10">
+          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
              <nav>
@@ -319,5 +322,3 @@ export default function ReviewPersonalKYCPage() {
     </div>
   );
 }
-
-    

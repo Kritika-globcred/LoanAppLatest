@@ -17,6 +17,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, UploadCloud, Camera, Edit3, Save, AlertCircle, ArrowLeft } from 'lucide-react';
 import type { ExtractOfferLetterInput, ExtractOfferLetterOutput } from '@/ai/flows/extract-offer-letter-flow';
 import { extractOfferLetterDetails } from '@/ai/flows/extract-offer-letter-flow';
+import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
+import { loanAppSteps } from '@/lib/loan-steps';
 
 
 export default function AdmissionKYCPage() {
@@ -273,7 +275,7 @@ export default function AdmissionKYCPage() {
                       className="bg-white/80 text-black"
                     />
                   ) : (
-                    String(value !== undefined && value !== null && value !== '' ? value : 'Not Specified')
+                    String(value !== undefined && value !== null && String(value).trim() !== '' ? value : 'Not Specified')
                   )}
                 </TableCell>
                 <TableCell className="text-right">
@@ -325,6 +327,7 @@ export default function AdmissionKYCPage() {
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
+          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>

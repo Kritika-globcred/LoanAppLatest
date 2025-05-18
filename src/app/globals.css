@@ -112,6 +112,13 @@
   .animate-marquee {
     animation: marquee 40s linear infinite;
   }
+
+  .progress-dot-active {
+    @apply inline-block w-2.5 h-2.5 rounded-full mr-1.5 sm:mr-2 shrink-0; /* Added shrink-0 */
+    background-image: linear-gradient(to right, theme('colors.red.500'), theme('colors.yellow.400'));
+    box-shadow: 0 0 4px theme('colors.red.400'), 0 0 6px theme('colors.yellow.300'), 0 0 8px theme('colors.red.500');
+    animation: pulse-glow 1.5s infinite ease-in-out alternate;
+  }
 }
 
 @keyframes marquee {
@@ -120,5 +127,23 @@
   }
   100% {
     transform: translateX(-50%); /* scrolls one full width of the original content */
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+     box-shadow: 0 0 3px theme('colors.red.400'), 0 0 5px theme('colors.yellow.300'), 0 0 7px theme('colors.red.500');
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+    box-shadow: 0 0 5px theme('colors.red.500'), 0 0 8px theme('colors.yellow.400'), 0 0 10px theme('colors.red.600');
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.8;
+    box-shadow: 0 0 3px theme('colors.red.400'), 0 0 5px theme('colors.yellow.300'), 0 0 7px theme('colors.red.500');
   }
 }
