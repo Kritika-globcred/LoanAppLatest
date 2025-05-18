@@ -89,7 +89,7 @@ export default function Home() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary))/0.10] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] backdrop-blur-lg rounded-2xl z-0"></div>
 
         <div className="relative z-10">
           {/* Header Section */}
@@ -136,7 +136,7 @@ export default function Home() {
             <div className="mt-10 flex flex-col md:flex-row items-center justify-center md:items-start md:space-x-6 max-w-3xl mx-auto">
               <div className="flex-shrink-0 mb-4 md:mb-0">
                 <Image
-                  src="https://placehold.co/50x50.png"
+                  src="https://placehold.co/50x50.png" // Placeholder, replace with actual Aveka image URL
                   alt="Aveka, GlobCred's Smart AI"
                   width={50}
                   height={50}
@@ -169,7 +169,7 @@ export default function Home() {
             <h2 className="text-3xl font-bold text-center mb-10">What Our Students Say</h2>
             <div className="grid md:grid-cols-3 gap-8">
               {testimonials.map((testimonial, index) => (
-                <Card key={index} className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white">
+                <Card key={index} className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white border-0">
                   <CardHeader className="flex flex-row items-center space-x-4 pb-4">
                     <Image
                       src={testimonial.image}
@@ -219,7 +219,7 @@ export default function Home() {
           <section className="py-12 text-white">
             <h2 className="text-3xl font-bold text-center mb-10">Our Impact</h2>
             <div className="grid md:grid-cols-3 gap-8">
-              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center">
+              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0">
                 <CardHeader>
                   <div className="flex justify-center mb-3">
                     <Landmark size={40} className="text-primary" />
@@ -232,7 +232,7 @@ export default function Home() {
                   <p className="text-lg text-gray-300">Loan Amount Disbursed</p>
                 </CardContent>
               </Card>
-              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center">
+              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0">
                 <CardHeader>
                    <div className="flex justify-center mb-3">
                     <Smile size={40} className="text-primary" />
@@ -245,7 +245,7 @@ export default function Home() {
                   <p className="text-lg text-gray-300">Happy Students</p>
                 </CardContent>
               </Card>
-              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center">
+              <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0">
                 <CardHeader>
                   <div className="flex justify-center mb-3">
                     <Signal size={40} className="text-primary" />
