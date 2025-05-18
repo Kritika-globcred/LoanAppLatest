@@ -13,8 +13,8 @@
     --popover: 0 0% 30%; /* Medium Grey for popovers */
     --popover-foreground: 0 0% 90%; /* Light Grey Text for popovers */
 
-    --primary: 220 90% 60%; /* Lighter Blue for primary actions */
-    --primary-foreground: 220 90% 15%; /* Dark text on lighter primary */
+    --primary: 0 0% 100%; /* White */
+    --primary-foreground: 0 0% 20%; /* Dark Grey text for white primary button */
 
     --secondary: 0 0% 40%; /* Lighter Grey for secondary elements */
     --secondary-foreground: 0 0% 90%; /* Light Grey Text for secondary elements */
@@ -53,8 +53,8 @@
     --popover: 220 25% 10%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 220 90% 60%; /* Lighter version of primary for dark mode */
-    --primary-foreground: 220 90% 15%; /* Dark text on lighter primary */
+    --primary: 0 0% 100%; /* White */
+    --primary-foreground: 220 25% 15%; /* Dark text for white primary button in dark mode */
 
     --secondary: 220 15% 18%; /* Dark secondary */
     --secondary-foreground: 0 0% 98%; /* White text on dark secondary */
