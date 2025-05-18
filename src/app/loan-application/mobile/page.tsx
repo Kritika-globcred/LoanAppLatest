@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // Import useRouter
+import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 import { Input } from "@/components/ui/input";
@@ -22,8 +22,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 
 interface CountryInfo {
-  value: string; // Unique value for the select item, e.g., '+91_IN'
-  label: string; // Display label, e.g., 'IN (+91)'
+  value: string; 
+  label: string; 
 }
 
 const defaultCountryCodes: CountryInfo[] = [
@@ -48,7 +48,7 @@ export default function MobileVerificationPage() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const { toast } = useToast();
-  const router = useRouter(); // Initialize useRouter
+  const router = useRouter(); 
 
   const [countryCode, setCountryCode] = useState(defaultCountryCodes[0].value);
   const [mobileNumber, setMobileNumber] = useState('');
@@ -93,7 +93,11 @@ export default function MobileVerificationPage() {
       description: "Proceeding to the next step.",
     });
     console.log("OTP Verified. Country Value:", countryCode, "Mobile:", mobileNumber);
-    router.push('/loan-application/admission-kyc'); // Navigate to Admission KYC page
+    // Store selected country code for use in later steps
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectedCountryValue', countryCode);
+    }
+    router.push('/loan-application/admission-kyc'); 
   };
 
   const handleGoBackToMobileEntry = () => {
@@ -110,7 +114,7 @@ export default function MobileVerificationPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary))/0.10] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4 mb-6">
@@ -165,9 +169,9 @@ export default function MobileVerificationPage() {
                                     transform transition-all duration-500 ease-out
                                     ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
                     >
-                        <p className="font-semibold text-lg mb-1">Aveka</p>
+                        <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
                         <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
-                        <p className="text-base">
+                        <p className="text-base text-white">
                         Hi there! To start your loan application, please share your mobile number.
                         </p>
                     </div>
@@ -177,7 +181,7 @@ export default function MobileVerificationPage() {
                   <div className="w-full space-y-6">
                     <div className="grid grid-cols-[auto_1fr] gap-4 items-end">
                       <div>
-                        <Label htmlFor="countryCode" className="block text-sm font-medium text-left mb-1">Code</Label>
+                        <Label htmlFor="countryCode" className="block text-sm font-medium text-left mb-1 text-white">Code</Label>
                         <Select value={countryCode} onValueChange={setCountryCode}>
                           <SelectTrigger id="countryCode" className="w-auto bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring">
                             <SelectValue placeholder="Select code" />
@@ -207,7 +211,7 @@ export default function MobileVerificationPage() {
                         </Select>
                       </div>
                       <div>
-                        <Label htmlFor="mobileNumber" className="block text-sm font-medium text-left mb-1">Mobile Number</Label>
+                        <Label htmlFor="mobileNumber" className="block text-sm font-medium text-left mb-1 text-white">Mobile Number</Label>
                         <Input
                           id="mobileNumber"
                           type="tel"
@@ -233,7 +237,7 @@ export default function MobileVerificationPage() {
                 ) : (
                   <div className="w-full space-y-4">
                     <div>
-                      <Label htmlFor="otp" className="block text-sm font-medium text-left mb-1">Enter OTP</Label>
+                      <Label htmlFor="otp" className="block text-sm font-medium text-left mb-1 text-white">Enter OTP</Label>
                       <Input
                         id="otp"
                         type="text"

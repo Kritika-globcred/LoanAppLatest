@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { ChangeEvent, FormEvent } from 'react';
+import type { ChangeEvent } from 'react';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, UploadCloud, Camera, Edit3, Save, AlertCircle } from 'lucide-react';
+import { Loader2, UploadCloud, Camera, Edit3, Save, AlertCircle, ArrowLeft } from 'lucide-react';
 import type { ExtractOfferLetterInput, ExtractOfferLetterOutput } from '@/ai/flows/extract-offer-letter-flow';
 import { extractOfferLetterDetails } from '@/ai/flows/extract-offer-letter-flow';
 
@@ -80,7 +80,7 @@ export default function AdmissionKYCPage() {
       };
       getCameraPermission();
       
-      return () => { // Cleanup function to stop the camera stream
+      return () => { 
         if (videoRef.current && videoRef.current.srcObject) {
           const stream = videoRef.current.srcObject as MediaStream;
           stream.getTracks().forEach(track => track.stop());
@@ -112,11 +112,10 @@ export default function AdmissionKYCPage() {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/png');
         setOfferLetterPreview(dataUrl);
-        // Convert data URL to file-like object for consistency
         fetch(dataUrl).then(res => res.blob()).then(blob => {
           setOfferLetterFile(new File([blob], "camera_capture.png", { type: "image/png" }));
         });
-        setShowCamera(false); // Close camera view after capture
+        setShowCamera(false); 
       }
     }
   };
@@ -127,7 +126,7 @@ export default function AdmissionKYCPage() {
       return;
     }
     setIsProcessingLetter(true);
-    setExtractedData(null); // Clear previous data
+    setExtractedData(null);
     try {
       const input: ExtractOfferLetterInput = { offerLetterImageUri: offerLetterPreview };
       const result = await extractOfferLetterDetails(input);
@@ -146,13 +145,12 @@ export default function AdmissionKYCPage() {
     }
   };
 
-  // Automatically process offer letter when preview is available
   useEffect(() => {
-    if (offerLetterPreview && !extractedData) { // Process only if preview is set and no data extracted yet
+    if (offerLetterPreview && !extractedData && !isProcessingLetter) { 
       processOfferLetter();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offerLetterPreview]); // Rerun when offerLetterPreview changes
+  }, [offerLetterPreview]); 
   
   const handleEditField = (field: keyof ExtractOfferLetterOutput, currentValue: string) => {
     setEditingField(field);
@@ -163,8 +161,11 @@ export default function AdmissionKYCPage() {
     if (extractedData && editingField) {
       const newData = { ...extractedData, [editingField]: editValue };
       setExtractedData(newData);
+      if (editingField === 'studentName' && typeof editValue === 'string' && editValue.trim() !== '') {
+        setStudentFirstName(editValue.split(' ')[0]);
+      }
       setEditingField(null);
-      toast({ title: "Details Updated", description: `${editingField} has been updated.`});
+      toast({ title: "Details Updated", description: `${editingField.replace(/([A-Z])/g, ' $1').trim()} has been updated.`});
     }
   };
 
@@ -175,39 +176,38 @@ export default function AdmissionKYCPage() {
     }
     console.log("Admission KYC Data:", extractedData);
     console.log("Consent given at:", currentTime);
-    toast({ title: "Step 1 Complete!", description: "Moving to the next step." });
-    // router.push('/loan-application/step-2'); // Navigate to next step
+    toast({ title: "Step 1 Complete!", description: "Moving to Personal KYC." });
+    router.push('/loan-application/personal-kyc'); 
+  };
+  
+  const handleNoOfferLetter = () => {
+    setHasOfferLetter(false);
+    toast({ title: "Okay", description: "Proceeding to Personal KYC." });
+    router.push('/loan-application/personal-kyc');
   };
 
   const renderInitialQuestion = () => (
     <div className="text-center">
-      <p className="text-base mb-6 text-white">
-        {studentFirstName ? `Hi ${studentFirstName}! ` : "Hi there! "}
-        Let's start with your admission details. Do you have your academic offer letter handy?
-      </p>
       <div className="flex justify-center space-x-4">
         <Button onClick={() => setHasOfferLetter(true)} size="lg" className="gradient-border-button">Yes, I have it</Button>
-        <Button onClick={() => setHasOfferLetter(false)} size="lg" variant="outline" className="bg-white text-black hover:bg-gray-100">No, not yet</Button>
+        <Button onClick={handleNoOfferLetter} size="lg" variant="outline" className="bg-white text-black hover:bg-gray-100">No, not yet</Button>
       </div>
     </div>
   );
 
   const renderFileUpload = () => (
     <div className="space-y-6">
-      <p className="text-base text-white">
-        Excellent! Please upload your offer letter or take a picture of it. For best results with AI extraction, please provide a clear image (JPG, PNG).
-      </p>
       <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
         <Button onClick={() => fileInputRef.current?.click()} size="lg" className="gradient-border-button w-full sm:w-auto">
           <UploadCloud className="mr-2 h-5 w-5" /> Upload Document
         </Button>
-        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" />
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,.pdf,.doc,.docx" />
         <Button onClick={() => setShowCamera(true)} size="lg" className="gradient-border-button w-full sm:w-auto">
           <Camera className="mr-2 h-5 w-5" /> Take Picture
         </Button>
       </div>
       {offerLetterPreview && (
-        <div className="mt-6 p-4 border border-gray-300 rounded-lg bg-gray-500/10 max-w-md mx-auto">
+        <div className="mt-6 p-4 border border-gray-600 rounded-lg bg-gray-700/30 max-w-md mx-auto">
           <h3 className="font-semibold mb-2 text-center text-white">Preview:</h3>
           {offerLetterFile?.type.startsWith('image/') ? (
             <Image src={offerLetterPreview} alt="Offer Letter Preview" width={400} height={500} className="rounded-md mx-auto max-h-[500px] object-contain" />
@@ -223,16 +223,16 @@ export default function AdmissionKYCPage() {
         </div>
       )}
        {showCamera && (
-        <div className="mt-6 p-4 border border-gray-300 rounded-lg bg-gray-500/10 max-w-md mx-auto">
+        <div className="mt-6 p-4 border border-gray-600 rounded-lg bg-gray-700/30 max-w-md mx-auto">
             <h3 className="font-semibold mb-2 text-center text-white">Camera View</h3>
             <video ref={videoRef} className="w-full aspect-video rounded-md" autoPlay muted />
             <canvas ref={canvasRef} className="hidden"></canvas>
-            { !(hasCameraPermission === false) && ( // Show button if permission is not explicitly denied
+            { !(hasCameraPermission === false) && ( 
                  <div className="mt-4 flex justify-center">
                     <Button onClick={handleCaptureImage} size="md" className="gradient-border-button">Capture Image</Button>
                 </div>
             )}
-            { hasCameraPermission === false && ( // Show only if permission is definitively false
+            { hasCameraPermission === false && ( 
                 <Alert variant="destructive" className="mt-4">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Camera Access Denied</AlertTitle>
@@ -252,9 +252,6 @@ export default function AdmissionKYCPage() {
 
     return (
       <div className="space-y-6">
-        <p className="text-base text-white">
-          Thanks, {studentFirstName || "there"}! I've extracted the following details. Please review and edit if needed.
-        </p>
         <Table className="bg-white/10 rounded-md">
           <TableHeader>
             <TableRow>
@@ -276,7 +273,7 @@ export default function AdmissionKYCPage() {
                       className="bg-white/80 text-black"
                     />
                   ) : (
-                    String(value !== undefined ? value : 'N/A')
+                    String(value !== undefined && value !== null && value !== '' ? value : 'Not Specified')
                   )}
                 </TableCell>
                 <TableCell className="text-right">
@@ -315,19 +312,6 @@ export default function AdmissionKYCPage() {
       </div>
     </div>
   );
-  
-  const renderNoOfferLetter = () => (
-      <div className="text-center">
-          <p className="text-base mb-6 text-white">
-              No problem! We'll guide you through entering your details manually in the next steps.
-          </p>
-          <Button onClick={() => {/* Placeholder for next step in "No" path */ router.push('/') }} size="lg" className="gradient-border-button">
-              Proceed with Manual Entry
-          </Button>
-           <p className="text-xs text-gray-400 mt-4">(Manual entry form coming soon!)</p>
-      </div>
-  );
-
 
   return (
     <div className="flex flex-col items-center">
@@ -338,7 +322,7 @@ export default function AdmissionKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary))/0.10] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.50)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4 mb-6">
@@ -373,6 +357,12 @@ export default function AdmissionKYCPage() {
               </Link>
             </div>
           </div>
+          
+          <div className="flex items-center mb-6">
+            <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/mobile')} className="bg-white/20 hover:bg-white/30 text-white">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+          </div>
 
           <div className="py-8">
             <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-2xl mx-auto">
@@ -380,7 +370,7 @@ export default function AdmissionKYCPage() {
                 <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://placehold.co/50x50.png" // Replace with Aveka's actual image URL
+                        src="https://placehold.co/50x50.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}
@@ -401,12 +391,12 @@ export default function AdmissionKYCPage() {
                              Let's start with your admission details. Do you have your academic offer letter handy?
                            </p>
                         )}
-                        {hasOfferLetter === true && !extractedData && !isProcessingLetter && (
+                        {hasOfferLetter === true && !extractedData && !isProcessingLetter && !offerLetterPreview && (
                             <p className="text-base text-white">
                                 Excellent! Please upload your offer letter or take a picture of it. For best results with AI extraction, please provide a clear image (JPG, PNG).
                             </p>
                         )}
-                        {hasOfferLetter === true && !extractedData && isProcessingLetter && (
+                        {hasOfferLetter === true && offerLetterPreview && !extractedData && isProcessingLetter && (
                             <p className="text-base text-white">
                                 Great! I'm currently analyzing your offer letter. This might take a few moments...
                             </p>
@@ -416,18 +406,12 @@ export default function AdmissionKYCPage() {
                                 Thanks, {studentFirstName || "there"}! I've extracted the following details from your offer letter. Please review them carefully.
                             </p>
                         )}
-                         {hasOfferLetter === false && (
-                            <p className="text-base text-white">
-                                No worries! We can proceed with manual entry for now.
-                            </p>
-                        )}
                     </div>
                 </div>
 
                 {hasOfferLetter === null && renderInitialQuestion()}
                 {hasOfferLetter === true && !extractedData && renderFileUpload()}
                 {hasOfferLetter === true && extractedData && renderExtractedDataTable()}
-                {hasOfferLetter === false && renderNoOfferLetter()}
 
               </div>
             </div>
@@ -437,4 +421,3 @@ export default function AdmissionKYCPage() {
     </div>
   );
 }
-
