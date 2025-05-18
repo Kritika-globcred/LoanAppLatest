@@ -16,10 +16,10 @@ import { ArrowLeft } from 'lucide-react';
 
 // Define a type for the academic data for clarity
 interface AcademicData {
-  graduation?: { level?: string | null; cgpa?: string; scale?: string | null; completionDate?: Date; pursuingCourse?: string; pursuingType?: string | null; expectedCompletion?: Date; naReason?: string; };
-  postGraduation?: { level?: string | null; cgpa?: string; scale?: string | null; completionDate?: Date; pursuingCourse?: string; pursuingType?: string | null; expectedCompletion?: Date; naReason?: string; };
-  languageTest?: { given?: string | null; type?: string | null; ieltsScore?: string | null; otherName?: string; score?: string; date?: Date; };
-  courseTest?: { given?: string | null; type?: string | null; otherName?: string; score?: string; date?: Date; };
+  graduation?: { level?: string | null; cgpa?: string; scale?: string | null; completionDate?: string; pursuingCourse?: string; pursuingType?: string | null; expectedCompletion?: string; naReason?: string; };
+  postGraduation?: { level?: string | null; cgpa?: string; scale?: string | null; completionDate?: string; pursuingCourse?: string; pursuingType?: string | null; expectedCompletion?: string; naReason?: string; };
+  languageTest?: { given?: string | null; type?: string | null; ieltsScore?: string | null; otherName?: string; score?: string; date?: string; };
+  courseTest?: { given?: string | null; type?: string | null; otherName?: string; score?: string; date?: string; };
 }
 
 
@@ -52,33 +52,19 @@ export default function ReviewAcademicKYCPage() {
     if (data) {
       try {
         const parsedData = JSON.parse(data);
-        // Convert date strings back to Date objects
-        if (parsedData.graduation?.completionDate) {
-          parsedData.graduation.completionDate = new Date(parsedData.graduation.completionDate);
-        }
-        if (parsedData.graduation?.expectedCompletion) {
-          parsedData.graduation.expectedCompletion = new Date(parsedData.graduation.expectedCompletion);
-        }
-        if (parsedData.postGraduation?.completionDate) {
-          parsedData.postGraduation.completionDate = new Date(parsedData.postGraduation.completionDate);
-        }
-        if (parsedData.postGraduation?.expectedCompletion) {
-          parsedData.postGraduation.expectedCompletion = new Date(parsedData.postGraduation.expectedCompletion);
-        }
-        if (parsedData.languageTest?.date) {
-          parsedData.languageTest.date = new Date(parsedData.languageTest.date);
-        }
-        if (parsedData.courseTest?.date) {
-          parsedData.courseTest.date = new Date(parsedData.courseTest.date);
-        }
         setAcademicData(parsedData);
       } catch (e) {
         console.error("Failed to parse academicKycData from localStorage", e);
-        setAcademicData(null); // Or handle error appropriately
+        setAcademicData(null); 
+        toast({
+            title: "Error Loading Data",
+            description: "Could not load your academic details. Please try again.",
+            variant: "destructive",
+        });
       }
     }
     setIsLoading(false);
-  }, []);
+  }, [toast]);
 
   const handleConfirmAndContinue = () => {
     if (!consentChecked) {
@@ -87,33 +73,48 @@ export default function ReviewAcademicKYCPage() {
     }
     console.log("Academic KYC Data Confirmed:", academicData);
     console.log("Consent given at:", currentTime);
-    toast({ title: "Academic Details Confirmed!", description: "Proceeding to the next step." });
-    // router.push('/loan-application/financial-details'); // Example next step
+    toast({ title: "Academic Details Confirmed!", description: "Proceeding to Professional KYC." });
+    router.push('/loan-application/professional-kyc');
   };
 
-  const renderDetailItem = (label: string, value: string | Date | undefined | null | number) => {
-    if (value === null || value === undefined || String(value).trim() === '') return null;
-    
-    let displayValue = String(value);
-    if (value instanceof Date && !isNaN(value.getTime())) {
-        displayValue = value.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    } else if (value instanceof Date && isNaN(value.getTime())) {
-        return null; // Invalid date
+  const formatDateString = (dateString: string | undefined) => {
+    if (!dateString) return "Not Specified";
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "Invalid Date";
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch (e) {
+      return "Invalid Date Format";
     }
-
-    return (
-      <div className="mb-3 grid grid-cols-1 sm:grid-cols-3 gap-1 items-baseline">
-        <p className="text-sm text-gray-300 sm:col-span-1 sm:text-right">{label}:</p>
-        <p className="text-md text-white sm:col-span-2 font-medium">{displayValue}</p>
-      </div>
-    );
   };
-
+  
   const renderSection = (title: string, dataObject: Record<string, any> | undefined, fieldLabels: Record<string, string>) => {
-    if (!dataObject || Object.values(dataObject).every(val => val === null || val === undefined || val === '')) return null;
+    if (!dataObject || Object.values(dataObject).every(val => val === null || val === undefined || String(val).trim() === '')) return null;
 
     const detailsToRender = Object.entries(fieldLabels)
-        .map(([key, label]) => renderDetailItem(label, dataObject[key]))
+        .map(([key, label]) => {
+            let value = dataObject[key];
+            if (value === null || value === undefined || String(value).trim() === '') return null;
+
+            let displayValue = String(value);
+            if (key.toLowerCase().includes('date') || key.toLowerCase().includes('completion')) {
+                 displayValue = formatDateString(String(value));
+            }
+            if (key === 'ieltsScore') {
+                displayValue = value === 'yes' ? 'Yes (Above 6.5)' : value === 'no' ? 'No (6.5 or Below)' : String(value);
+            }
+            if (key === 'given' && (title.includes("Language Test") || title.includes("Course Test"))) {
+                displayValue = String(value).charAt(0).toUpperCase() + String(value).slice(1).replace('_', ' ');
+            }
+
+
+            return (
+                <div key={`${title}-${key}`} className="mb-3 grid grid-cols-1 sm:grid-cols-3 gap-1 items-baseline">
+                    <p className="text-sm text-gray-300 sm:col-span-1 sm:text-right">{label}:</p>
+                    <p className="text-md text-white sm:col-span-2 font-medium">{displayValue}</p>
+                </div>
+            );
+        })
         .filter(Boolean);
 
     if (detailsToRender.length === 0) return null;
@@ -131,21 +132,21 @@ export default function ReviewAcademicKYCPage() {
     cgpa: "CGPA/Percentage",
     scale: "CGPA Scale",
     completionDate: "Completion Date",
-    pursuingCourse: "Pursuing Course",
+    pursuingCourse: "Pursuing Course Name",
     pursuingType: "Pursuing Type",
-    expectedCompletion: "Expected Completion",
+    expectedCompletion: "Expected Completion Date",
     naReason: "Reason (N/A)"
   };
 
-  const postGraduationLabels = { ...graduationLabels }; // Same labels
+  const postGraduationLabels = { ...graduationLabels }; 
 
   const languageTestLabels = {
     given: "Appeared for Test",
     type: "Test Type",
-    ieltsScore: "IELTS > 6.5",
+    ieltsScore: "IELTS Score", 
     otherName: "Other Test Name",
     score: "Score",
-    date: "Test Date"
+    date: "Test Date / Expected Date"
   };
 
   const courseTestLabels = {
@@ -153,13 +154,13 @@ export default function ReviewAcademicKYCPage() {
     type: "Test Type",
     otherName: "Other Test Name",
     score: "Score",
-    date: "Test Date"
+    date: "Test Date / Expected Date"
   };
 
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[hsl(var(--background))]">
         <p className="text-white">Loading review data...</p>
       </div>
     );
@@ -176,7 +177,7 @@ export default function ReviewAcademicKYCPage() {
       >
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.30)] rounded-2xl z-0"></div>
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -190,7 +191,7 @@ export default function ReviewAcademicKYCPage() {
                       <span
                         className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
                           activeNavItem === item
-                            ? 'bg-gradient-to-r from-red-500 to-yellow-400 shadow-[0_0_3px_theme(colors.red.500),0_0_5px_theme(colors.yellow.400)] scale-110'
+                            ? 'progress-dot-active' 
                             : 'bg-gray-400/60'
                         }`}
                       ></span>
@@ -249,7 +250,7 @@ export default function ReviewAcademicKYCPage() {
                   {renderSection("Course Test Details", academicData.courseTest, courseTestLabels)}
                 </div>
               ) : (
-                <p className="text-center text-white">No academic details found to review.</p>
+                <p className="text-center text-white">No academic details found to review. Please go back and fill them.</p>
               )}
 
               <div className="mt-8 space-y-6 border-t border-gray-500/50 pt-6">
@@ -261,12 +262,11 @@ export default function ReviewAcademicKYCPage() {
                 </div>
                 <p className="text-xs text-gray-400">Consent captured at: {currentTime}</p>
                 <div className="flex justify-center">
-                  <Button onClick={handleConfirmAndContinue} disabled={!consentChecked} size="lg" className="gradient-border-button">
+                  <Button onClick={handleConfirmAndContinue} disabled={!consentChecked || isLoading} size="lg" className="gradient-border-button">
                     Confirm & Continue
                   </Button>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
@@ -274,5 +274,3 @@ export default function ReviewAcademicKYCPage() {
     </div>
   );
 }
-
-    
