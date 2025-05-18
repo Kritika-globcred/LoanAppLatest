@@ -13,7 +13,7 @@ export default function Home() {
         }}
       >
         {/* Overlay for background image opacity */}
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.90)] rounded-2xl z-0"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.75)] rounded-2xl z-0"></div>
 
         {/* Content Wrapper - needs to be on top of the overlay */}
         <div className="relative z-10">
