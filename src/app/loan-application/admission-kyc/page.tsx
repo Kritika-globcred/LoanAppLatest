@@ -112,7 +112,7 @@ export default function AdmissionKYCPage() {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/png');
         setOfferLetterPreview(dataUrl);
-        // Convert data URL to file-like object for consistency, though not strictly needed for AI if sending dataURL
+        // Convert data URL to file-like object for consistency
         fetch(dataUrl).then(res => res.blob()).then(blob => {
           setOfferLetterFile(new File([blob], "camera_capture.png", { type: "image/png" }));
         });
@@ -127,7 +127,7 @@ export default function AdmissionKYCPage() {
       return;
     }
     setIsProcessingLetter(true);
-    setExtractedData(null);
+    setExtractedData(null); // Clear previous data
     try {
       const input: ExtractOfferLetterInput = { offerLetterImageUri: offerLetterPreview };
       const result = await extractOfferLetterDetails(input);
@@ -135,7 +135,7 @@ export default function AdmissionKYCPage() {
       if (result && typeof result.studentName === 'string' && result.studentName.trim() !== '') {
         setStudentFirstName(result.studentName.split(' ')[0]);
       } else {
-        setStudentFirstName(null); // Fallback if name is not a usable string
+        setStudentFirstName(null);
       }
       toast({ title: "Information Extracted", description: "Please review the details below." });
     } catch (error) {
@@ -145,6 +145,14 @@ export default function AdmissionKYCPage() {
       setIsProcessingLetter(false);
     }
   };
+
+  // Automatically process offer letter when preview is available
+  useEffect(() => {
+    if (offerLetterPreview && !extractedData) { // Process only if preview is set and no data extracted yet
+      processOfferLetter();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offerLetterPreview]); // Rerun when offerLetterPreview changes
   
   const handleEditField = (field: keyof ExtractOfferLetterOutput, currentValue: string) => {
     setEditingField(field);
@@ -206,12 +214,12 @@ export default function AdmissionKYCPage() {
           ) : (
             <p className="text-center text-sm text-white">Preview for {offerLetterFile?.name} (Non-image file)</p>
           )}
-          <div className="mt-4 flex justify-center">
-            <Button onClick={processOfferLetter} disabled={isProcessingLetter} size="lg" className="gradient-border-button">
-              {isProcessingLetter && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-              {isProcessingLetter ? 'Processing...' : 'Extract Details with AI'}
-            </Button>
-          </div>
+          {isProcessingLetter && (
+            <div className="mt-4 flex flex-col items-center text-white">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              <p>Extracting details, please wait...</p>
+            </div>
+          )}
         </div>
       )}
        {showCamera && (
@@ -393,9 +401,14 @@ export default function AdmissionKYCPage() {
                              Let's start with your admission details. Do you have your academic offer letter handy?
                            </p>
                         )}
-                        {hasOfferLetter && !extractedData && (
+                        {hasOfferLetter === true && !extractedData && !isProcessingLetter && (
                             <p className="text-base text-white">
                                 Excellent! Please upload your offer letter or take a picture of it. For best results with AI extraction, please provide a clear image (JPG, PNG).
+                            </p>
+                        )}
+                        {hasOfferLetter === true && !extractedData && isProcessingLetter && (
+                            <p className="text-base text-white">
+                                Great! I'm currently analyzing your offer letter. This might take a few moments...
                             </p>
                         )}
                          {extractedData && (
