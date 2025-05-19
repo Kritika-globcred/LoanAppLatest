@@ -33,7 +33,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
-import { ArrowLeft, Check, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import { getOrGenerateUserId } from '@/lib/user-utils';
 import { saveUserApplicationData } from '@/services/firebase-service';
 
@@ -43,7 +43,6 @@ const globalCountryList = [
   { value: 'GB', label: 'United Kingdom' }, { value: 'AU', label: 'Australia' },
   { value: 'DE', label: 'Germany' }, { value: 'FR', label: 'France' },
   { value: 'IN', label: 'India' }, { value: 'CN', label: 'China' },
-  // Add more countries as needed
 ];
 
 const allCourseLevelOptions = ["Graduation", "Post-Graduation", "Masters", "PhD"];
@@ -79,7 +78,7 @@ export default function PreferencesPage() {
   const [preferredCountry1, setPreferredCountry1] = useState<string | undefined>();
   const [preferredCountry2, setPreferredCountry2] = useState<string | undefined>();
   const [courseLevel, setCourseLevel] = useState<string | undefined>();
-  const [selectedCourseName, setSelectedCourseName] = useState<string | undefined>(); // For combobox value
+  const [selectedCourseName, setSelectedCourseName] = useState<string | undefined>(); 
   const [openCourseCombobox, setOpenCourseCombobox] = useState(false);
   
   const [courseLevelOptions, setCourseLevelOptions] = useState<string[]>(allCourseLevelOptions);
@@ -120,7 +119,7 @@ export default function PreferencesPage() {
         setDefaultCourseLevel(newDefault);
         setCourseLevel(newDefault);
       }
-    } else { // No academic data found, default to all options and "Graduation"
+    } else { 
       setCourseLevelOptions(allCourseLevelOptions);
       const newDefault = "Graduation";
       setDefaultCourseLevel(newDefault);
@@ -143,14 +142,14 @@ export default function PreferencesPage() {
     }
     setIsSaving(true);
 
-    const preferencesData = {
+    const preferencesDataToSave = {
       preferredCountry1,
       preferredCountry2: preferredCountry2 || null, 
       courseLevel,
-      courseName: selectedCourseName, // use selectedCourseName
+      courseName: selectedCourseName, 
     };
-    // localStorage.setItem('preferencesData', JSON.stringify(preferencesData)); // Keep for recommendations page
-    const result = await saveUserApplicationData(userId, { preferences: preferencesData });
+    
+    const result = await saveUserApplicationData(userId, { preferences: preferencesDataToSave });
     setIsSaving(false);
 
     if(result.success) {
@@ -169,10 +168,11 @@ export default function PreferencesPage() {
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4">
+         <LoanProgressBar steps={loanAppSteps} />
+          <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -200,7 +200,7 @@ export default function PreferencesPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          <LoanProgressBar steps={loanAppSteps} />
+          
 
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/review-professional-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
@@ -236,7 +236,7 @@ export default function PreferencesPage() {
                 <div className="w-full space-y-6 text-left">
                   <div>
                     <Label htmlFor="preferredCountry1" className="text-white">Preferred Country 1 <span className="text-red-400">*</span></Label>
-                    <Select value={preferredCountry1} onValueChange={setPreferredCountry1}>
+                    <Select value={preferredCountry1} onValueChange={setPreferredCountry1} disabled={isSaving}>
                       <SelectTrigger id="preferredCountry1" className="bg-white/80 text-black placeholder:text-gray-500">
                         <SelectValue placeholder="Select country" />
                       </SelectTrigger>
@@ -255,7 +255,7 @@ export default function PreferencesPage() {
 
                   <div>
                     <Label htmlFor="preferredCountry2" className="text-white">Preferred Country 2 (Optional)</Label>
-                    <Select value={preferredCountry2} onValueChange={setPreferredCountry2}>
+                    <Select value={preferredCountry2} onValueChange={setPreferredCountry2} disabled={isSaving}>
                       <SelectTrigger id="preferredCountry2" className="bg-white/80 text-black placeholder:text-gray-500">
                         <SelectValue placeholder="Select country (optional)" />
                       </SelectTrigger>
@@ -274,7 +274,7 @@ export default function PreferencesPage() {
                   
                   <div>
                     <Label htmlFor="courseLevel" className="text-white">Course Level <span className="text-red-400">*</span></Label>
-                    <Select value={courseLevel || defaultCourseLevel} onValueChange={setCourseLevel}>
+                    <Select value={courseLevel || defaultCourseLevel} onValueChange={setCourseLevel} disabled={isSaving}>
                       <SelectTrigger id="courseLevel" className="bg-white/80 text-black placeholder:text-gray-500">
                         <SelectValue placeholder="Select course level" />
                       </SelectTrigger>
@@ -300,6 +300,7 @@ export default function PreferencesPage() {
                           role="combobox"
                           aria-expanded={openCourseCombobox}
                           className="w-full justify-between bg-white/80 text-black hover:bg-white/70 hover:text-black"
+                          disabled={isSaving}
                         >
                           {selectedCourseName
                             ? sampleCourses.find((course) => course.value === selectedCourseName)?.label
@@ -340,7 +341,7 @@ export default function PreferencesPage() {
 
                   <div className="flex justify-center pt-4">
                     <Button onClick={handleSaveAndContinue} size="lg" className="gradient-border-button" disabled={isSaving}>
-                      {isSaving ? 'Saving...' : 'Save & Continue'}
+                      {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...</> : 'Save & Continue'}
                     </Button>
                   </div>
                 </div>

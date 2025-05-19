@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
-import { ArrowLeft, Loader2 } from 'lucide-react'; // Added Loader2 import
+import { ArrowLeft, Loader2 } from 'lucide-react'; 
 import { getOrGenerateUserId } from '@/lib/user-utils';
 import { saveUserApplicationData } from '@/services/firebase-service';
 
@@ -30,7 +30,7 @@ interface AcademicDetail {
 interface TestDetail {
   given?: string | null;
   type?: string | null;
-  ieltsScore?: string | null;
+  ieltsScore?: string | null; 
   otherName?: string;
   score?: string;
   date?: string;
@@ -134,7 +134,6 @@ export default function ReviewAcademicKYCPage() {
     }
     try {
       const [year, month, day] = dateString.split('-').map(Number);
-      // JavaScript months are 0-indexed
       const date = new Date(Date.UTC(year, month - 1, day));
       if (isNaN(date.getTime())) return "Invalid Date";
       return date.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
@@ -162,7 +161,7 @@ export default function ReviewAcademicKYCPage() {
                 if(key === 'scale' && !dataObject.cgpa) return null; 
                 if(key === 'ieltsScore' && dataObject.type !== 'IELTS') return null;
                 if(key === 'otherName' && !(dataObject.type === 'Other' || dataObject.type === 'Other Test')) return null;
-                if(key === 'score' && dataObject.type === 'IELTS' && dataObject.ieltsScore ) return null; // Don't show general score if IELTS specific score is handled
+                if(key === 'score' && dataObject.type === 'IELTS' && dataObject.ieltsScore ) return null;
                 
                 if (key !== 'naReason' && key !== 'scale' && key !== 'ieltsScore' && key !== 'otherName' && key !== 'score') value = "Not Specified"; else return null;
             }
@@ -178,7 +177,7 @@ export default function ReviewAcademicKYCPage() {
             } else if (key === 'level' && (title === "Graduation Details" || title === "Post-Graduation Details")) {
                 displayValue = String(value).charAt(0).toUpperCase() + String(value).slice(1);
             } else if (key === 'type' && (title === "Language Test Details" || title === "Course Test Details")) {
-                 displayValue = String(value); // Keep as is, e.g. "IELTS", "TOEFL"
+                 displayValue = String(value); 
             }
 
 
@@ -252,7 +251,8 @@ export default function ReviewAcademicKYCPage() {
       >
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4">
+         <LoanProgressBar steps={loanAppSteps} />
+          <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -284,7 +284,7 @@ export default function ReviewAcademicKYCPage() {
               </Link>
             </div>
           </div>
-          <LoanProgressBar steps={loanAppSteps} />
+          
 
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/academic-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
@@ -331,7 +331,7 @@ export default function ReviewAcademicKYCPage() {
 
               <div className="mt-8 space-y-6 border-t border-gray-500/50 pt-6">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="consent" checked={consentChecked} onCheckedChange={(checked) => setConsentChecked(checked as boolean)} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" />
+                  <Checkbox id="consent" checked={consentChecked} onCheckedChange={(checked) => setConsentChecked(checked as boolean)} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving} />
                   <Label htmlFor="consent" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-300">
                     I confirm that all the details mentioned above are correct.
                   </Label>

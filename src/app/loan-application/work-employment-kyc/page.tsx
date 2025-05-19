@@ -24,8 +24,8 @@ import { extractProfessionalProfileDetails, type ExtractProfessionalProfileInput
 import { getOrGenerateUserId } from '@/lib/user-utils';
 import { saveUserApplicationData, uploadFileToStorage, getUserApplicationData } from '@/services/firebase-service';
 
-const yearOptions = Array.from({ length: 26 }, (_, i) => String(i)); // 0-25 years
-const monthOptions = Array.from({ length: 12 }, (_, i) => String(i)); // 0-11 months
+const yearOptions = Array.from({ length: 26 }, (_, i) => String(i)); 
+const monthOptions = Array.from({ length: 12 }, (_, i) => String(i)); 
 const currencyOptions = ["USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY", "Other"];
 
 interface WorkEmploymentDataToSave {
@@ -33,7 +33,7 @@ interface WorkEmploymentDataToSave {
   workExperienceYears?: string;
   workExperienceMonths?: string;
   workExperienceProofType?: 'resume' | 'linkedin' | null;
-  resumeUrl?: string | null; // Firebase Storage URL for resume
+  resumeUrl?: string | null; 
   linkedInUrl?: string | null;
   isCurrentlyWorking?: 'yes' | 'no' | null;
   monthlySalary?: string | null;
@@ -63,8 +63,8 @@ export default function WorkEmploymentKYCPage() {
   const [workExperienceYears, setWorkExperienceYears] = useState<string | undefined>();
   const [workExperienceMonths, setWorkExperienceMonths] = useState<string | undefined>();
   const [workExperienceProofType, setWorkExperienceProofType] = useState<'resume' | 'linkedin' | null>(null);
-  const [resumeFile, setResumeFile] = useState<File | null>(null); // For actual file upload
-  const [resumePreview, setResumePreview] = useState<string | null>(null); // For image resume data URI preview & AI
+  const [resumeFile, setResumeFile] = useState<File | null>(null); 
+  const [resumePreview, setResumePreview] = useState<string | null>(null); 
   const [linkedInUrl, setLinkedInUrl] = useState('');
   
   const [isProcessingProfile, setIsProcessingProfile] = useState(false);
@@ -73,7 +73,7 @@ export default function WorkEmploymentKYCPage() {
   const [editProfileValue, setEditProfileValue] = useState('');
 
   const [showEmploymentStatus, setShowEmploymentStatus] = useState(false);
-  const [isCurrentlyWorking, setIsCurrentlyWorking] = useState<string | null>(null);
+  const [isCurrentlyWorking, setIsCurrentlyWorking] = useState<'yes' | 'no' | null>(null);
   const [monthlySalary, setMonthlySalary] = useState('');
   const [salaryCurrency, setSalaryCurrency] = useState<string | undefined>();
   const [familyMonthlySalary, setFamilyMonthlySalary] = useState('');
@@ -107,7 +107,7 @@ export default function WorkEmploymentKYCPage() {
   useEffect(() => {
     if (isWorkExperienceCoreComplete() && !showEmploymentStatus) {
       setShowEmploymentStatus(true);
-      setAvekaMessage("Work experience details look good. Finally, let's confirm your current employment status.");
+      setAvekaMessage("Work experience details noted. Please provide your professional proof (optional), then confirm your current employment status below.");
     }
   }, [workExperienceIndustry, workExperienceYears, workExperienceMonths, showEmploymentStatus]);
 
@@ -118,7 +118,7 @@ export default function WorkEmploymentKYCPage() {
       return;
     }
     setIsProcessingProfile(true);
-    setAvekaMessage(`Analyzing your ${type === 'resumeImage' ? 'resume' : 'LinkedIn profile'}...`);
+    setAvekaMessage(`Analyzing your ${type === 'resumeImage' ? 'resume' : 'LinkedIn profile'}... This might take a moment.`);
     try {
       const result = await extractProfessionalProfileDetails({ profileDataSource: source, sourceType: type });
       setExtractedProfileData(result);
@@ -137,19 +137,19 @@ export default function WorkEmploymentKYCPage() {
   const handleResumeFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setResumeFile(file); // Store actual File object
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string;
-        if (file.type.startsWith('image/')) {
-          setResumePreview(dataUrl); // Data URI for preview and AI
+      setResumeFile(file); 
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          setResumePreview(dataUrl); 
           processProfile(dataUrl, 'resumeImage');
-        } else {
-          setResumePreview(null); 
-          toast({ title: "Resume Uploaded", description: `${file.name} uploaded. Non-image resumes are not automatically processed by AI for preview here.`});
-        }
-      };
-      reader.readAsDataURL(file);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setResumePreview(null); 
+        toast({ title: "Resume Uploaded", description: `${file.name} uploaded. Non-image resumes are not automatically processed by AI for preview here.`});
+      }
     }
   };
   
@@ -175,10 +175,11 @@ export default function WorkEmploymentKYCPage() {
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/png');
-        setResumeFile(new File([dataURLtoBlob(dataUrl)], "resume_capture.png", { type: "image/png" }));
+        const capturedFile = new File([dataURLtoBlob(dataUrl)], "resume_capture.png", { type: "image/png" });
+        setResumeFile(capturedFile);
         setResumePreview(dataUrl);
         setShowCameraForResume(false);
-        processProfile(dataUrl, 'resumeImage'); // Process captured image
+        processProfile(dataUrl, 'resumeImage'); 
       }
     }
   };
@@ -224,13 +225,18 @@ export default function WorkEmploymentKYCPage() {
       toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
       return;
     }
+    if (!isWorkExperienceCoreComplete() || !isEmploymentStatusComplete()) {
+        toast({ title: "Incomplete Details", description: "Please fill all mandatory work experience and employment status fields.", variant: "destructive"});
+        return;
+    }
+
     setIsSaving(true);
 
-    let resumeFirebaseUrl: string | undefined = undefined;
+    let uploadedResumeUrl: string | undefined = undefined;
     if (workExperienceProofType === 'resume' && resumeFile) {
       const uploadResult = await uploadFileToStorage(userId, resumeFile, `resume/${resumeFile.name}`);
       if (uploadResult.success && uploadResult.downloadURL) {
-        resumeFirebaseUrl = uploadResult.downloadURL;
+        uploadedResumeUrl = uploadResult.downloadURL;
       } else {
         toast({ title: "Resume Upload Failed", description: uploadResult.error || "Could not upload resume.", variant: "destructive" });
         setIsSaving(false);
@@ -243,7 +249,7 @@ export default function WorkEmploymentKYCPage() {
       workExperienceYears,
       workExperienceMonths,
       workExperienceProofType,
-      resumeUrl: resumeFirebaseUrl,
+      resumeUrl: uploadedResumeUrl,
       linkedInUrl: workExperienceProofType === 'linkedin' ? linkedInUrl : null,
       isCurrentlyWorking,
       monthlySalary: isCurrentlyWorking === 'yes' ? monthlySalary : null,
@@ -259,8 +265,6 @@ export default function WorkEmploymentKYCPage() {
 
     const result = await saveUserApplicationData(userId, { 
       professionalKyc: { 
-        // @ts-ignore
-        ...(await getUserApplicationData(userId).then(res => res.data?.professionalKyc || {})),
         workEmployment: workEmploymentDataToSave 
       }
     });
@@ -350,7 +354,8 @@ export default function WorkEmploymentKYCPage() {
       >
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4">
+         <LoanProgressBar steps={loanAppSteps} />
+          <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -368,7 +373,7 @@ export default function WorkEmploymentKYCPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          <LoanProgressBar steps={loanAppSteps} />
+          
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/professional-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -420,7 +425,7 @@ export default function WorkEmploymentKYCPage() {
                 </div>
                 <div>
                   <Label className="text-white">Provide professional proof (Optional):</Label>
-                  <RadioGroup value={workExperienceProofType || ''} onValueChange={(value) => { setWorkExperienceProofType(value as 'resume' | 'linkedin' | null); setExtractedProfileData({}); setResumeFile(null); setResumePreview(null); setLinkedInUrl(''); }} className="flex space-x-4 text-white mt-1" >
+                  <RadioGroup value={workExperienceProofType || ''} onValueChange={(value) => { setWorkExperienceProofType(value as 'resume' | 'linkedin' | null); setExtractedProfileData({}); setResumeFile(null); setResumePreview(null); setLinkedInUrl(''); if (value === 'resume') { setAvekaMessage("Okay, please upload your resume (image preferred for AI).");} else if (value === 'linkedin') {setAvekaMessage("Great, please paste your LinkedIn profile URL.");} }} className="flex space-x-4 text-white mt-1" >
                     <div className="flex items-center space-x-2"><RadioGroupItem value="resume" id="proof-resume" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving || isProcessingProfile}/><Label htmlFor="proof-resume">Upload Resume</Label></div>
                     <div className="flex items-center space-x-2"><RadioGroupItem value="linkedin" id="proof-linkedin" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving || isProcessingProfile}/><Label htmlFor="proof-linkedin">Share LinkedIn Link</Label></div>
                   </RadioGroup>
@@ -452,7 +457,7 @@ export default function WorkEmploymentKYCPage() {
                 <div className="space-y-6 p-4 border-0 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
                   <h3 className="font-semibold text-lg text-center text-white">Current Employment Status</h3>
                   <Label className="text-white">Are you currently working? <span className="text-red-400">*</span></Label>
-                  <RadioGroup value={isCurrentlyWorking || ''} onValueChange={setIsCurrentlyWorking} className="flex space-x-4 text-white" >
+                  <RadioGroup value={isCurrentlyWorking || ''} onValueChange={(value) => { setIsCurrentlyWorking(value as 'yes' | 'no' | null); if (value === 'yes') {setAvekaMessage("Great, please provide your monthly salary.");} else {setAvekaMessage("Okay, please provide your estimated family's monthly salary.");} }} className="flex space-x-4 text-white" >
                     <div className="flex items-center space-x-2"><RadioGroupItem value="yes" id="working-yes" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving}/><Label htmlFor="working-yes">Yes</Label></div>
                     <div className="flex items-center space-x-2"><RadioGroupItem value="no" id="working-no" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving}/><Label htmlFor="working-no">No</Label></div>
                   </RadioGroup>
@@ -493,7 +498,7 @@ export default function WorkEmploymentKYCPage() {
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md">
               <h3 className="font-semibold mb-4 text-center text-white text-lg">Camera for Resume</h3>
-              <video ref={videoRef} className="w-full aspect-video rounded-md" autoPlay muted />
+              <video ref={videoRef} className="w-full aspect-video rounded-md" autoPlay muted playsInline />
               <canvas ref={canvasRef} className="hidden"></canvas>
               {hasCameraPermission === false ? (
                 <Alert variant="destructive" className="mt-4"><AlertCircle className="h-4 w-4" /> <AlertTitle>Camera Access Denied</AlertTitle> <AlertDescription>Enable camera permissions.</AlertDescription></Alert>

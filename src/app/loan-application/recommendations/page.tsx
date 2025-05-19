@@ -17,7 +17,7 @@ import { ArrowLeft, RefreshCw, Send, Loader2 } from 'lucide-react';
 import type { GenerateRecommendationsInput, GenerateRecommendationsOutput, UniversityRecommendation } from '@/ai/flows/generate-recommendations-flow';
 import { generateRecommendations } from '@/ai/flows/generate-recommendations-flow';
 import { getOrGenerateUserId } from '@/lib/user-utils';
-import { saveUserApplicationData } from '@/services/firebase-service';
+import { getUserApplicationData, saveUserApplicationData } from '@/services/firebase-service';
 
 
 interface PreferencesData {
@@ -40,31 +40,19 @@ export default function RecommendationsPage() {
   const [recommendations, setRecommendations] = useState<UniversityRecommendation[]>([]);
   const [selectedUniversities, setSelectedUniversities] = useState<string[]>([]);
   const [preferences, setPreferences] = useState<PreferencesData | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setAvekaMessageVisible(true), 500);
-    // const storedPrefs = localStorage.getItem('preferencesData'); // No longer using local storage directly for this
-    // Instead, fetch from Firestore if needed, or assume it's part of a larger app state. For now, will rely on it being passed or fetched if this page is reloaded.
-    // For this flow, we primarily use preferences passed to Genkit from the previous step.
-    // Let's fetch the data from Firestore to ensure we have the latest.
     const fetchPrefs = async () => {
         if(userId) {
-            const appDataResult = await saveUserApplicationData(userId, {}); // This is a way to get existing data
-            // The firebase service would need a get function, for now we assume prefs are in localstorage
-            // Or better, the Genkit flow will receive this as input.
-            // For this example, we'll assume the preferences were set in localStorage for the AI flow input construction.
-            const storedPrefs = localStorage.getItem('preferencesData');
-             if (storedPrefs) {
-                try {
-                    setPreferences(JSON.parse(storedPrefs));
-                } catch (e) {
-                    console.error("Failed to parse preferencesData", e);
-                    toast({ title: "Error", description: "Could not load your preferences.", variant: "destructive" });
-                }
+            setIsLoadingRecommendations(true); // Start loading early
+            const appDataResult = await getUserApplicationData(userId);
+            if (appDataResult.success && appDataResult.data?.preferences) {
+                setPreferences(appDataResult.data.preferences as PreferencesData);
             } else {
                  toast({ title: "Preferences not found", description: "Please complete the preferences step.", variant: "destructive" });
-                 router.push('/loan-application/preferences'); // Redirect if no prefs
+                 router.push('/loan-application/preferences'); 
             }
         }
     };
@@ -75,6 +63,7 @@ export default function RecommendationsPage() {
   const fetchRecs = async () => {
     if (!preferences) {
       toast({ title: "Preferences Missing", description: "Please complete the preferences step first.", variant: "destructive" });
+      setIsLoadingRecommendations(false);
       return;
     }
     setIsLoadingRecommendations(true);
@@ -105,11 +94,11 @@ export default function RecommendationsPage() {
   };
 
   useEffect(() => {
-    if (preferences && userId) { // Ensure userId is also available
+    if (preferences && userId) { 
       fetchRecs();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preferences, userId]); // Add userId to dependency array
+  }, [preferences, userId]); 
 
   const handleUniversitySelection = (universityName: string, checked: boolean) => {
     setSelectedUniversities(prev =>
@@ -126,9 +115,9 @@ export default function RecommendationsPage() {
         toast({title: "Error", description: "User session not found.", variant: "destructive"});
         return;
     }
-    setIsSubmitting(true);
-    const result = await saveUserApplicationData(userId, { selectedRecommendedUniversities: selectedUniversities });
-    setIsSubmitting(false);
+    setIsSaving(true);
+    const result = await saveUserApplicationData(userId, { selectedUniversities: selectedUniversities });
+    setIsSaving(false);
 
     if (result.success) {
         toast({ title: "Selection Submitted!", description: `You've selected ${selectedUniversities.length} universities.` });
@@ -146,10 +135,11 @@ export default function RecommendationsPage() {
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4">
+         <LoanProgressBar steps={loanAppSteps} />
+          <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -177,7 +167,7 @@ export default function RecommendationsPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          <LoanProgressBar steps={loanAppSteps} />
+          
 
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/preferences')} className="bg-white/20 hover:bg-white/30 text-white">
@@ -211,12 +201,12 @@ export default function RecommendationsPage() {
                 </div>
 
                 <div className="my-6 flex flex-wrap justify-center gap-4">
-                    <Button onClick={fetchRecs} disabled={isLoadingRecommendations || !preferences || isSubmitting} className="gradient-border-button">
+                    <Button onClick={fetchRecs} disabled={isLoadingRecommendations || !preferences || isSaving} className="gradient-border-button">
                         {isLoadingRecommendations ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                         Refresh Recommendations
                     </Button>
-                    <Button onClick={handleSubmitSelected} disabled={selectedUniversities.length === 0 || isLoadingRecommendations || isSubmitting} className="gradient-border-button">
-                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    <Button onClick={handleSubmitSelected} disabled={selectedUniversities.length === 0 || isLoadingRecommendations || isSaving} className="gradient-border-button">
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                         Submit Selected ({selectedUniversities.length})
                     </Button>
                 </div>
@@ -248,6 +238,7 @@ export default function RecommendationsPage() {
                                     checked={selectedUniversities.includes(rec.universityName)}
                                     onCheckedChange={(checked) => handleUniversitySelection(rec.universityName, !!checked)}
                                     className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                                    disabled={isSaving}
                                 />
                                 <Label htmlFor={`uni-select-${index}`} className="text-sm">Select</Label>
                             </div>

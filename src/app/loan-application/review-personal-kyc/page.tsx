@@ -29,7 +29,7 @@ export default function ReviewPersonalKYCPage() {
   const userId = getOrGenerateUserId();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false); 
+  const [isSaving, setIsSaving] = useState(false); 
   const [extractedData, setExtractedData] = useState<EditableKycOutput | null>(null);
   const [editingField, setEditingField] = useState<keyof EditableKycOutput | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -70,14 +70,13 @@ export default function ReviewPersonalKYCPage() {
 
   useEffect(() => {
     const processKycDocuments = async () => {
-      setIsProcessing(true);
       setIsLoading(true);
       setAvekaMessage("Hold tight! I'm carefully reviewing your documents with AI to extract the details...");
 
       const docsForReviewString = localStorage.getItem('personalDocsForReview');
       if (!docsForReviewString) {
           toast({ title: "Error", description: "Document data not found for review. Please go back.", variant: "destructive" });
-          setIsLoading(false); setIsProcessing(false);
+          setIsLoading(false);
           setAvekaMessage("Could not find your document details. Please try uploading again.");
           router.push('/loan-application/personal-kyc');
           return;
@@ -92,7 +91,6 @@ export default function ReviewPersonalKYCPage() {
           variant: "destructive",
         });
         setIsLoading(false);
-        setIsProcessing(false);
         setAvekaMessage("It seems there was an issue fetching your document data. Please try uploading them again.");
         router.push('/loan-application/personal-kyc');
         return;
@@ -126,7 +124,6 @@ export default function ReviewPersonalKYCPage() {
         });
       } finally {
         setIsLoading(false);
-        setIsProcessing(false);
       }
     };
 
@@ -167,21 +164,21 @@ export default function ReviewPersonalKYCPage() {
       toast({ title: "Error", description: "No data to save.", variant: "destructive" });
       return;
     }
-    setIsProcessing(true);
+    setIsSaving(true);
+
+    const docsForReview = JSON.parse(localStorage.getItem('personalDocsForReview') || '{}');
 
     const personalKycDataToSave = {
       ...extractedData,
-      idDocumentUrl: JSON.parse(localStorage.getItem('personalDocsForReview') || '{}').idDocumentDataUri, // Use stored Firebase URL
-      passportUrl: JSON.parse(localStorage.getItem('personalDocsForReview') || '{}').passportDataUri, // Use stored Firebase URL
+      idDocumentUrl: docsForReview.idDocumentDataUri, 
+      passportUrl: docsForReview.passportDataUri, 
       consentTimestamp: currentTime,
     };
     
-    // Remove temporary localStorage item
     localStorage.removeItem('personalDocsForReview');
 
-
     const result = await saveUserApplicationData(userId, { personalKyc: personalKycDataToSave });
-    setIsProcessing(false);
+    setIsSaving(false);
 
     if (result.success) {
         toast({ title: "Personal KYC Confirmed!", description: "Proceeding to Academic KYC." });
@@ -255,8 +252,8 @@ export default function ReviewPersonalKYCPage() {
       </div>
       <p className="text-xs text-gray-400">Consent captured at: {currentTime}</p>
       <div className="flex justify-center">
-        <Button onClick={handleConfirmAndContinue} disabled={!consentChecked || isProcessing || isLoading} size="lg" className="gradient-border-button">
-          {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Confirm & Continue'}
+        <Button onClick={handleConfirmAndContinue} disabled={!consentChecked || isSaving || isLoading} size="lg" className="gradient-border-button">
+          {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Confirm & Continue'}
         </Button>
       </div>
     </div>
@@ -271,9 +268,10 @@ export default function ReviewPersonalKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4">
+         <LoanProgressBar steps={loanAppSteps} />
+          <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
              <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -305,7 +303,7 @@ export default function ReviewPersonalKYCPage() {
               </Link>
             </div>
           </div>
-          <LoanProgressBar steps={loanAppSteps} />
+          
 
           <div className="flex items-center mb-6 mt-4"> 
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/personal-kyc')} className="bg-white/20 hover:bg-white/30 text-white">

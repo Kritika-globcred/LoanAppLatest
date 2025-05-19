@@ -16,11 +16,12 @@ import { Loader2, ArrowLeft, Edit3, Save } from 'lucide-react';
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
 import { getOrGenerateUserId } from '@/lib/user-utils';
-import { getUserApplicationData, saveUserApplicationData } from '@/services/firebase-service'; // Assuming UserApplicationData is defined here
-import type { UserApplicationData } from '@/services/firebase-service'; // Import the type
+import { getUserApplicationData, saveUserApplicationData, type UserApplicationData } from '@/services/firebase-service'; 
 
-type ProfessionalKycReviewData = NonNullable<UserApplicationData['professionalKyc']>;
-type EditableCombinedDataKey = keyof (NonNullable<ProfessionalKycReviewData['coSignatory']> & NonNullable<ProfessionalKycReviewData['workEmployment']>);
+type CoSignatoryData = NonNullable<UserApplicationData['professionalKyc']>['coSignatory'];
+type WorkEmploymentData = NonNullable<UserApplicationData['professionalKyc']>['workEmployment'];
+type CombinedProfessionalData = Partial<CoSignatoryData & WorkEmploymentData>;
+type EditableCombinedDataKey = keyof CombinedProfessionalData;
 
 
 export default function ReviewProfessionalKYCPage() {
@@ -30,7 +31,7 @@ export default function ReviewProfessionalKYCPage() {
   const { toast } = useToast();
   const userId = getOrGenerateUserId();
 
-  const [combinedData, setCombinedData] = useState<Partial<ProfessionalKycReviewData['coSignatory'] & ProfessionalKycReviewData['workEmployment']>>({});
+  const [combinedData, setCombinedData] = useState<CombinedProfessionalData>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -66,11 +67,10 @@ export default function ReviewProfessionalKYCPage() {
 
       if (result.success && result.data?.professionalKyc) {
         const profKyc = result.data.professionalKyc;
-        const mergedData = {
+        const mergedData: CombinedProfessionalData = {
           ...(profKyc.coSignatory || {}),
           ...(profKyc.workEmployment || {}),
         };
-        // @ts-ignore
         setCombinedData(mergedData);
         setAvekaMessage("Great! Here's a summary of your professional information. Please review it carefully and make any corrections if needed.");
       } else if (result.error) {
@@ -85,7 +85,7 @@ export default function ReviewProfessionalKYCPage() {
     loadDataForReview();
   }, [userId, toast]);
 
-  const handleEditField = (field: EditableCombinedDataKey, currentValue: string | number | undefined | null) => {
+  const handleEditField = (field: EditableCombinedDataKey, currentValue: string | number | undefined | null | boolean) => {
     setEditingField(field);
     setEditValue(String(currentValue !== undefined && currentValue !== null ? currentValue : ''));
   };
@@ -93,7 +93,6 @@ export default function ReviewProfessionalKYCPage() {
   const handleSaveEdit = () => {
     if (combinedData && editingField) {
       const newData = { ...combinedData, [editingField]: editValue };
-      // @ts-ignore
       setCombinedData(newData);
       setEditingField(null);
       toast({ title: "Details Updated", description: `${String(editingField).replace(/([A-Z])/g, ' $1').trim()} has been updated.`});
@@ -111,43 +110,27 @@ export default function ReviewProfessionalKYCPage() {
     }
     setIsSaving(true);
     
-    // Data is already saved in Firestore at previous steps. 
-    // Here we might just update a "reviewed" status or save the edited combinedData again if edits were made.
-    // For simplicity, we'll just update the 'reviewedTimestamp'
-    const finalProfessionalData = {
-        ...combinedData, // This contains the potentially edited values
-        reviewedTimestamp: currentTime,
-    };
-    
-    // Since professionalKyc is nested, we need to structure the update correctly
-    const dataToSave = {
-        professionalKyc: {
-            // It's safer to fetch existing professionalKyc and merge,
-            // but for this example, we assume combinedData has all necessary fields
-            // and we're essentially overwriting/adding to coSignatory and workEmployment.
-            // This might be too simplistic if coSignatory and workEmployment have many other fields not in combinedData.
-            // A better approach would be to fetch, merge, then save.
-            coSignatory: {}, // Placeholder, needs to be populated from combinedData
-            workEmployment: {}, // Placeholder
-            reviewedTimestamp: currentTime,
-        }
+    // Reconstruct the professionalKyc object with potentially edited data
+    const professionalKycToSave: UserApplicationData['professionalKyc'] = {
+        coSignatory: {},
+        workEmployment: {},
+        reviewedTimestamp: currentTime, 
     };
 
-    // Reconstruct coSignatory and workEmployment from combinedData
-    const coSignatoryFields: (keyof NonNullable<ProfessionalKycReviewData['coSignatory']>)[] = ['coSignatoryChoice', 'coSignatoryIdDocumentType', 'coSignatoryRelationship', 'idNumber', 'idType', 'nameOnId', 'coSignatoryIdUrl', 'consentTimestamp'];
-    const workEmploymentFields: (keyof NonNullable<ProfessionalKycReviewData['workEmployment']>)[] = ['workExperienceIndustry', 'workExperienceYears', 'workExperienceMonths', 'workExperienceProofType', 'resumeUrl', 'linkedInUrl', 'extractedYearsOfExperience', 'extractedGapInLast3YearsMonths', 'extractedCurrentOrLastIndustry', 'extractedCurrentOrLastJobRole', 'isCurrentlyWorking', 'monthlySalary', 'salaryCurrency', 'familyMonthlySalary', 'familySalaryCurrency', 'consentTimestamp'];
+    const coSignatoryFields: (keyof CoSignatoryData)[] = ['coSignatoryChoice', 'coSignatoryIdDocumentType', 'coSignatoryRelationship', 'idNumber', 'idType', 'nameOnId', 'coSignatoryIdUrl', 'consentTimestamp'];
+    const workEmploymentFields: (keyof WorkEmploymentData)[] = ['workExperienceIndustry', 'workExperienceYears', 'workExperienceMonths', 'workExperienceProofType', 'resumeUrl', 'linkedInUrl', 'extractedYearsOfExperience', 'extractedGapInLast3YearsMonths', 'extractedCurrentOrLastIndustry', 'extractedCurrentOrLastJobRole', 'isCurrentlyWorking', 'monthlySalary', 'salaryCurrency', 'familyMonthlySalary', 'familySalaryCurrency', 'consentTimestamp'];
 
     for (const key in combinedData) {
         if (coSignatoryFields.includes(key as any)) {
             // @ts-ignore
-            dataToSave.professionalKyc.coSignatory[key] = combinedData[key];
+            professionalKycToSave.coSignatory[key] = combinedData[key];
         } else if (workEmploymentFields.includes(key as any)) {
             // @ts-ignore
-            dataToSave.professionalKyc.workEmployment[key] = combinedData[key];
+            professionalKycToSave.workEmployment[key] = combinedData[key];
         }
     }
     
-    const result = await saveUserApplicationData(userId, dataToSave);
+    const result = await saveUserApplicationData(userId, { professionalKyc: professionalKycToSave });
     setIsSaving(false);
 
     if (result.success) {
@@ -164,30 +147,26 @@ export default function ReviewProfessionalKYCPage() {
   };
 
   const displayLabels: Record<string, string> = {
-    // Co-Signatory Fields
     coSignatoryChoice: "Co-Signatory Added",
-    coSignatoryIdDocumentType: "Co-Signatory ID Type (Selected)",
+    coSignatoryIdDocumentType: "Co-Signatory ID Type",
     coSignatoryRelationship: "Relationship with Co-Signatory",
-    idNumber: "Co-Signatory ID Number (Extracted)",
-    idType: "Co-Signatory ID Type (Extracted)",
-    nameOnId: "Name on Co-Signatory ID (Extracted)",
-    coSignatoryIdUrl: "Co-Signatory ID Document URL",
+    idNumber: "Co-Signatory ID Number",
+    idType: "Co-Signatory Extracted ID Type",
+    nameOnId: "Name on Co-Signatory ID",
+    coSignatoryIdUrl: "Co-Signatory ID Document",
     
-    // Work & Employment Fields (Manual Entry)
-    workExperienceIndustry: "Industry (Manual)",
-    workExperienceYears: "Experience Years (Manual)",
-    workExperienceMonths: "Experience Months (Manual)",
+    workExperienceIndustry: "Industry",
+    workExperienceYears: "Experience Years",
+    workExperienceMonths: "Experience Months",
     workExperienceProofType: "Professional Proof Type",
-    resumeUrl: "Resume URL",
-    linkedInUrl: "LinkedIn URL",
+    resumeUrl: "Resume Document",
+    linkedInUrl: "LinkedIn Profile",
     
-    // Work & Employment Fields (AI Extracted from Profile)
-    extractedYearsOfExperience: "Years of Experience (AI)",
-    extractedGapInLast3YearsMonths: "Gap in Last 3 Years (AI)",
-    extractedCurrentOrLastIndustry: "Industry (AI)",
-    extractedCurrentOrLastJobRole: "Job Role (AI)",
+    extractedYearsOfExperience: "Years of Experience (AI Extracted)",
+    extractedGapInLast3YearsMonths: "Employment Gap (AI Extracted)",
+    extractedCurrentOrLastIndustry: "Industry (AI Extracted)",
+    extractedCurrentOrLastJobRole: "Job Role (AI Extracted)",
     
-    // Employment Status
     isCurrentlyWorking: "Currently Working",
     monthlySalary: "Your Monthly Salary",
     salaryCurrency: "Your Salary Currency",
@@ -195,52 +174,31 @@ export default function ReviewProfessionalKYCPage() {
     familySalaryCurrency: "Family's Salary Currency",
   };
   
-  const getFieldsToDisplay = (data: Partial<ProfessionalKycReviewData['coSignatory'] & ProfessionalKycReviewData['workEmployment']> | null): EditableCombinedDataKey[] => {
+  const getFieldsToDisplay = (data: CombinedProfessionalData): EditableCombinedDataKey[] => {
     if (!data) return [];
     
-    let fields: EditableCombinedDataKey[] = [];
-
-    // Co-Signatory
-    if (data.coSignatoryChoice !== undefined) fields.push('coSignatoryChoice');
-    if (data.coSignatoryChoice === 'yes') {
-      if (data.coSignatoryIdDocumentType) fields.push('coSignatoryIdDocumentType');
-      if (data.coSignatoryRelationship) fields.push('coSignatoryRelationship');
-      if (data.idNumber) fields.push('idNumber');
-      if (data.idType) fields.push('idType');
-      if (data.nameOnId) fields.push('nameOnId');
-      if (data.coSignatoryIdUrl) fields.push('coSignatoryIdUrl');
-    }
-
-    // Work Experience (Manual)
-    if (data.workExperienceIndustry) fields.push('workExperienceIndustry');
-    if (data.workExperienceYears) fields.push('workExperienceYears');
-    if (data.workExperienceMonths) fields.push('workExperienceMonths');
+    const orderedFields: EditableCombinedDataKey[] = [
+      // Co-Signatory
+      'coSignatoryChoice', 'coSignatoryIdDocumentType', 'coSignatoryRelationship', 'idNumber', 'idType', 'nameOnId', 'coSignatoryIdUrl',
+      // Work Experience
+      'workExperienceIndustry', 'workExperienceYears', 'workExperienceMonths', 'workExperienceProofType', 'resumeUrl', 'linkedInUrl',
+      // AI Extracted Profile
+      'extractedYearsOfExperience', 'extractedGapInLast3YearsMonths', 'extractedCurrentOrLastIndustry', 'extractedCurrentOrLastJobRole',
+      // Employment Status
+      'isCurrentlyWorking', 'monthlySalary', 'salaryCurrency', 'familyMonthlySalary', 'familySalaryCurrency'
+    ];
     
-    // Proof Type
-    if (data.workExperienceProofType) fields.push('workExperienceProofType');
-    if (data.workExperienceProofType === 'resume' && data.resumeUrl) fields.push('resumeUrl');
-    if (data.workExperienceProofType === 'linkedin' && data.linkedInUrl) fields.push('linkedInUrl');
-
-    // AI Extracted from Profile
-    if (data.extractedYearsOfExperience && data.extractedYearsOfExperience !== "Error - Check Manually") fields.push('extractedYearsOfExperience');
-    if (data.extractedGapInLast3YearsMonths && data.extractedGapInLast3YearsMonths !== "Error - Check Manually") fields.push('extractedGapInLast3YearsMonths');
-    if (data.extractedCurrentOrLastIndustry && data.extractedCurrentOrLastIndustry !== "Error - Check Manually") fields.push('extractedCurrentOrLastIndustry');
-    if (data.extractedCurrentOrLastJobRole && data.extractedCurrentOrLastJobRole !== "Error - Check Manually") fields.push('extractedCurrentOrLastJobRole');
-
-    // Employment Status
-    if (data.isCurrentlyWorking) fields.push('isCurrentlyWorking');
-    if (data.isCurrentlyWorking === 'yes') {
-      if (data.monthlySalary) fields.push('monthlySalary');
-      if (data.salaryCurrency) fields.push('salaryCurrency');
-    } else if (data.isCurrentlyWorking === 'no') {
-      if (data.familyMonthlySalary) fields.push('familyMonthlySalary');
-      if (data.familySalaryCurrency) fields.push('familySalaryCurrency');
-    }
-    
-    return fields.filter(key => {
+    return orderedFields.filter(key => {
         const value = data[key as keyof typeof data];
-        // Filter out only if value is truly undefined or null. Empty string is a valid "Not Specified" or deliberate empty field.
-        return value !== undefined && value !== null;
+        
+        if (value === undefined || value === null) return false;
+        if (data.coSignatoryChoice !== 'yes' && (key === 'coSignatoryIdDocumentType' || key === 'coSignatoryRelationship' || key === 'idNumber' || key === 'idType' || key === 'nameOnId' || key === 'coSignatoryIdUrl')) return false;
+        if (data.workExperienceProofType !== 'resume' && key === 'resumeUrl') return false;
+        if (data.workExperienceProofType !== 'linkedin' && key === 'linkedInUrl') return false;
+        if (data.isCurrentlyWorking !== 'yes' && (key === 'monthlySalary' || key === 'salaryCurrency')) return false;
+        if (data.isCurrentlyWorking !== 'no' && (key === 'familyMonthlySalary' || key === 'familySalaryCurrency')) return false;
+        
+        return true;
     });
   };
 
@@ -262,18 +220,22 @@ export default function ReviewProfessionalKYCPage() {
           </TableHeader>
           <TableBody>
             {fieldsToDisplay.map((key) => {
-              // @ts-ignore
-              const value = combinedData[key];
-              const fieldLabel = displayLabels[key] || String(key).replace(/([A-Z])/g, ' $1').trim();
+              const value = combinedData[key as keyof CombinedProfessionalData];
+              const fieldLabel = displayLabels[key as string] || String(key).replace(/([A-Z])/g, ' $1').trim();
               let displayValue = String(value !== undefined && value !== null && String(value).trim() !== '' ? value : 'Not Specified');
+
               if (key === 'coSignatoryChoice') {
                 displayValue = value === 'yes' ? 'Yes' : value === 'no' ? 'No' : value === 'addLater' ? 'Add Later' : 'Not Specified';
               } else if (key === 'isCurrentlyWorking') {
                 displayValue = value === 'yes' ? 'Yes' : value === 'no' ? 'No' : 'Not Specified';
+              } else if (key === 'coSignatoryIdUrl' || key === 'resumeUrl') {
+                displayValue = value ? <Link href={String(value)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">View Document</Link> : "Not Provided";
+              } else if (key === 'linkedInUrl' && value) {
+                 displayValue = <Link href={String(value)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{String(value)}</Link>;
               }
 
-              // Fields not to make editable on review (e.g. URLs)
-              const nonEditableFields: EditableCombinedDataKey[] = ['coSignatoryIdUrl', 'resumeUrl', 'linkedInUrl'];
+
+              const nonEditableFields: EditableCombinedDataKey[] = ['coSignatoryIdUrl', 'resumeUrl'];
 
               return (
                 <TableRow key={key}>
@@ -328,7 +290,8 @@ export default function ReviewProfessionalKYCPage() {
       >
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4">
+         <LoanProgressBar steps={loanAppSteps} />
+          <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
              <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -346,7 +309,7 @@ export default function ReviewProfessionalKYCPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          <LoanProgressBar steps={loanAppSteps} />
+          
 
           <div className="flex items-center mb-6 mt-4"> 
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/work-employment-kyc')} className="bg-white/20 hover:bg-white/30 text-white">

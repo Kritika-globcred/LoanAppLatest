@@ -17,7 +17,7 @@ import { ArrowLeft, RefreshCw, Send, Loader2 } from 'lucide-react';
 import type { GenerateLenderRecommendationsInput, GenerateLenderRecommendationsOutput, LenderRecommendation } from '@/ai/flows/generate-lender-recommendations-flow';
 import { generateLenderRecommendations } from '@/ai/flows/generate-lender-recommendations-flow';
 import { getOrGenerateUserId } from '@/lib/user-utils';
-import { getUserApplicationData, saveUserApplicationData } from '@/services/firebase-service'; // Assuming getUserApplicationData is available
+import { getUserApplicationData, saveUserApplicationData } from '@/services/firebase-service'; 
 
 
 interface AdmissionKycData {
@@ -46,7 +46,7 @@ export default function LenderRecommendationsPage() {
   const [foreignLenders, setForeignLenders] = useState<LenderRecommendation[]>([]);
   
   const [selectedLenders, setSelectedLenders] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   const [userInputForFlow, setUserInputForFlow] = useState<GenerateLenderRecommendationsInput | null>(null);
 
@@ -55,6 +55,7 @@ export default function LenderRecommendationsPage() {
     
     const fetchDataForRecommendations = async () => {
         if (!userId) return;
+        setIsLoadingRecommendations(true); 
         const result = await getUserApplicationData(userId);
         if (result.success && result.data) {
             const appData = result.data;
@@ -69,14 +70,14 @@ export default function LenderRecommendationsPage() {
                 courseLevel: admissionData.admissionLevel,
               });
             } else {
-              toast({ title: "Missing Information", description: "Could not retrieve all necessary details (country, university, fees, level) for lender recommendations.", variant: "destructive" });
+              toast({ title: "Missing Information", description: "Could not retrieve all necessary details (country, university, fees, level) for lender recommendations. Please ensure Admission & Personal KYC are complete.", variant: "destructive" });
               setAvekaMessage("I'm missing some key details like your country, university, or tuition fees. Please ensure those steps are complete.");
+              setIsLoadingRecommendations(false); 
             }
         } else {
              toast({ title: "Information Missing", description: "Please complete Admission & Personal KYC steps first.", variant: "destructive" });
              setAvekaMessage("I need some information from your Admission and Personal KYC steps to find lenders. Please complete those first.");
-             // Optionally redirect if critical data is missing
-             // router.push('/loan-application/admission-kyc'); 
+             setIsLoadingRecommendations(false); 
         }
     };
 
@@ -87,6 +88,7 @@ export default function LenderRecommendationsPage() {
   const fetchLenderRecs = async () => {
     if (!userInputForFlow) {
       toast({ title: "Input Missing", description: "Cannot fetch recommendations without user details.", variant: "destructive" });
+      setIsLoadingRecommendations(false); 
       return;
     }
     setIsLoadingRecommendations(true);
@@ -114,7 +116,7 @@ export default function LenderRecommendationsPage() {
   };
 
   useEffect(() => {
-    if (userInputForFlow) {
+    if (userInputForFlow && !isLoadingRecommendations) { // Only fetch if input is ready and not already loading
       fetchLenderRecs();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,9 +133,9 @@ export default function LenderRecommendationsPage() {
         toast({title: "Error", description: "User session not found.", variant: "destructive"});
         return;
     }
-    setIsSubmitting(true);
-    const result = await saveUserApplicationData(userId, { lenderSelections: selectedLenders });
-    setIsSubmitting(false);
+    setIsSaving(true);
+    const result = await saveUserApplicationData(userId, { selectedLenderRecommendations: selectedLenders });
+    setIsSaving(false);
 
     if(result.success) {
         toast({ title: "Lender Selections Saved!", description: `You've indicated interest in ${selectedLenders.length} lender(s).` });
@@ -157,6 +159,7 @@ export default function LenderRecommendationsPage() {
               checked={selectedLenders.includes(lender.lenderName)}
               onCheckedChange={(checked) => handleLenderSelection(lender.lenderName, !!checked)}
               className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+              disabled={isSaving}
             />
             <Label htmlFor={`lender-select-${type}-${lender.lenderName.replace(/\s+/g, '-')}`} className="text-sm">Select</Label>
           </div>
@@ -177,10 +180,11 @@ export default function LenderRecommendationsPage() {
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4">
+         <LoanProgressBar steps={loanAppSteps} />
+          <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -208,7 +212,7 @@ export default function LenderRecommendationsPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          <LoanProgressBar steps={loanAppSteps} />
+          
 
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/review-professional-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
@@ -242,12 +246,12 @@ export default function LenderRecommendationsPage() {
                 </div>
 
                 <div className="my-6 flex flex-wrap justify-center gap-4">
-                    <Button onClick={fetchLenderRecs} disabled={isLoadingRecommendations || !userInputForFlow || isSubmitting} className="gradient-border-button">
+                    <Button onClick={fetchLenderRecs} disabled={isLoadingRecommendations || !userInputForFlow || isSaving} className="gradient-border-button">
                         {isLoadingRecommendations ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                         Refresh Recommendations
                     </Button>
-                    <Button onClick={handleSubmitSelected} disabled={selectedLenders.length === 0 || isLoadingRecommendations || isSubmitting} className="gradient-border-button">
-                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    <Button onClick={handleSubmitSelected} disabled={selectedLenders.length === 0 || isLoadingRecommendations || isSaving} className="gradient-border-button">
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                          Submit Selections ({selectedLenders.length})
                     </Button>
                 </div>
