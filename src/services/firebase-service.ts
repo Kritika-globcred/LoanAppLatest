@@ -29,7 +29,7 @@ let firebaseApp: FirebaseApp | null = null;
 let db: Firestore | null = null; 
 let storage: FirebaseStorage | null = null;
 
-const CUSTOMER_COLLECTION = 'customer'; // Using your specified collection name
+const CUSTOMER_COLLECTION = 'customer';
 
 const getFirebaseConfig = () => {
   if (typeof window === "undefined") {
@@ -47,9 +47,10 @@ const getFirebaseConfig = () => {
   };
 
   if (!config.projectId || !config.apiKey) {
-    console.error("[Firebase Service] Firebase config not found or incomplete. Ensure .env.local is set up correctly with NEXT_PUBLIC_ prefixed variables.");
+    console.error("[Firebase Service] Firebase config not found or incomplete in environment variables. Ensure .env.local is set up correctly with NEXT_PUBLIC_ prefixed variables.");
     return null;
   }
+  console.log("[Firebase Service] Loaded Firebase config from environment variables for Project ID:", config.projectId);
   return config;
 };
 
@@ -61,7 +62,7 @@ export const initializeFirebaseClientSDK = (): { firebaseApp: FirebaseApp | null
 
   const config = getFirebaseConfig();
   if (!config) {
-    console.error("[Firebase Service] Cannot initialize Firebase: Config is missing.");
+    console.error("[Firebase Service] Cannot initialize Firebase: Config is missing or invalid.");
     return { firebaseApp: null, db: null, storage: null };
   }
 
@@ -77,15 +78,12 @@ export const initializeFirebaseClientSDK = (): { firebaseApp: FirebaseApp | null
     }
   } else {
     firebaseApp = getApps()[0];
-    // Check if the existing app is for the correct project
     if (firebaseApp.options.projectId === config.projectId) {
-      console.log("[Firebase Service] Using existing Firebase App instance for project:", config.projectId);
+      // console.log("[Firebase Service] Using existing Firebase App instance for project:", config.projectId);
     } else {
-      // This case is complex; ideally, you only initialize one app.
-      // For simplicity, we'll log an error if a different project is already initialized.
       console.error("[Firebase Service] Mismatch: An app for a different project is already initialized. Expected:", config.projectId, "Found:", firebaseApp.options.projectId);
-      // To handle this, you might need to ensure only one Firebase app is initialized or manage multiple apps.
-      // For now, we'll proceed with the already initialized app, but this is a potential issue.
+      // This indicates a significant issue if multiple projects are being mixed.
+      // For now, we'll proceed with the already initialized app, but this should be investigated.
     }
   }
 
@@ -109,9 +107,11 @@ export const initializeFirebaseClientSDK = (): { firebaseApp: FirebaseApp | null
 };
 
 const ensureFirebaseInitialized = () => {
-  if (!db || !storage || !firebaseApp) { // also check firebaseApp
+  if (!db || !storage || !firebaseApp) {
+    console.warn("[Firebase Service] Firebase not fully initialized, attempting re-initialization.");
     return initializeFirebaseClientSDK();
   }
+  // console.log("[Firebase Service] Firebase instances confirmed.");
   return { firebaseApp, db, storage };
 }
 
@@ -139,7 +139,7 @@ export interface UserApplicationData {
   personalKyc?: {
     idDocumentType?: "PAN Card" | "National ID";
     idNumber?: string;
-    idTypeFromDoc?: string; // This might be redundant if idDocumentType is reliable
+    idTypeFromDoc?: string; 
     passportNumber?: string;
     mothersName?: string;
     fathersName?: string;
@@ -155,7 +155,35 @@ export interface UserApplicationData {
     consentTimestamp?: string;
   };
   academicKyc?: any; 
-  professionalKyc?: any; 
+  professionalKyc?: {
+    coSignatoryChoice?: string | null;
+    coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null;
+    coSignatoryIdUrl?: string | null; // Storing URL of the uploaded ID
+    coSignatoryRelationship?: string | null;
+    coSignatoryIdNumber?: string; // AI Extracted
+    coSignatoryIdType?: string;   // AI Extracted
+    coSignatoryNameOnId?: string; // AI Extracted
+
+    workExperienceIndustry?: string;
+    workExperienceYears?: string;
+    workExperienceMonths?: string;
+    workExperienceProofType?: 'resume' | 'linkedin' | null;
+    resumeUrl?: string | null; // Storing URL of uploaded resume
+    linkedInUrl?: string | null;
+    
+    // AI Extracted from professional profile
+    extractedYearsOfExperience?: string; 
+    extractedGapInLast3YearsMonths?: string; 
+    extractedCurrentOrLastIndustry?: string; 
+    extractedCurrentOrLastJobRole?: string; 
+    
+    isCurrentlyWorking?: 'yes' | 'no' | null;
+    monthlySalary?: string | null;
+    salaryCurrency?: string | null;
+    familyMonthlySalary?: string | null;
+    familySalaryCurrency?: string | null;
+    consentTimestamp?: string;
+  };
   preferences?: any; 
   lenderRecommendations?: any; 
   selectedLenderRecommendations?: string[];
@@ -166,27 +194,36 @@ export interface UserApplicationData {
 export async function saveUserApplicationData(userId: string, data: Partial<UserApplicationData>): Promise<{success: boolean, error?: string}> {
   const { db: currentDb, firebaseApp: currentApp } = ensureFirebaseInitialized();
   if (!currentDb || !currentApp) {
+    console.error("[Firebase Service] Firestore not initialized. Cannot save data for user:", userId);
     return { success: false, error: "Firestore not initialized. Cannot save data." };
   }
-  console.log(`[Firebase Service] Saving data for user ${userId} to collection '${CUSTOMER_COLLECTION}' in project '${currentApp.options.projectId}':`, data);
+  console.log(`[Firebase Service] Attempting to save data for user ${userId} to collection '${CUSTOMER_COLLECTION}' in project '${currentApp.options.projectId}'. Data:`, JSON.parse(JSON.stringify(data))); // Log a copy
   try {
     const userDocRef = doc(currentDb, CUSTOMER_COLLECTION, userId);
-    const dataToSave: Partial<UserApplicationData> = {
-      ...data,
-      userId, 
-      updatedAt: serverTimestamp(),
-    };
+    
+    let dataToSave: Partial<UserApplicationData> = { ...data, userId, updatedAt: serverTimestamp() };
 
+    // Check if document exists to conditionally add createdAt
     const docSnapshot = await getDoc(userDocRef);
+    if (docSnapshot.metadata.fromCache) {
+        console.warn(`[Firebase Service] Read for user ${userId} was from cache. This might indicate an offline state or network issues.`);
+    }
+
     if (!docSnapshot.exists()) {
+      console.log(`[Firebase Service] Document for user ${userId} does not exist. Adding createdAt timestamp.`);
       (dataToSave as UserApplicationData).createdAt = serverTimestamp();
+    } else {
+      console.log(`[Firebase Service] Document for user ${userId} exists. Merging data.`);
     }
     
     await setDoc(userDocRef, dataToSave, { merge: true });
     console.log(`[Firebase Service] Data for user ${userId} saved successfully.`);
     return { success: true };
-  } catch (error) {
-    console.error('[Firebase Service] Error saving user data:', error);
+  } catch (error: any) {
+    console.error(`[Firebase Service] Error saving user data for ${userId}:`, error.code, error.message, error);
+    if (error.code === 'unavailable' || error.message.toLowerCase().includes('offline')) {
+        return { success: false, error: 'Failed to save data: The client is offline or unable to reach Firestore.' };
+    }
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error during Firestore save.' };
   }
 }
@@ -195,6 +232,7 @@ export async function saveUserApplicationData(userId: string, data: Partial<User
 export async function getUserApplicationData(userId: string): Promise<{success: boolean, data?: UserApplicationData, error?: string}> {
   const { db: currentDb } = ensureFirebaseInitialized();
   if (!currentDb) {
+     console.error("[Firebase Service] Firestore not initialized. Cannot get data for user:", userId);
      return { success: false, error: "Firestore not initialized. Cannot get data." };
   }
   console.log(`[Firebase Service] Fetching data for user ${userId} from collection '${CUSTOMER_COLLECTION}'`);
@@ -202,13 +240,17 @@ export async function getUserApplicationData(userId: string): Promise<{success: 
     const docRef = doc(currentDb, CUSTOMER_COLLECTION, userId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
+      console.log(`[Firebase Service] Data found for user ${userId}.`);
       return { success: true, data: docSnap.data() as UserApplicationData };
     } else {
       console.log(`[Firebase Service] No application data found for user ${userId}.`);
-      return { success: false, error: 'No application data found for this user.' };
+      return { success: true, data: undefined }; // Return success true but undefined data if not found
     }
-  } catch (error) {
-    console.error('[Firebase Service] Error fetching user data:', error);
+  } catch (error: any) {
+    console.error(`[Firebase Service] Error fetching user data for ${userId}:`, error.code, error.message, error);
+    if (error.code === 'unavailable' || error.message.toLowerCase().includes('offline')) {
+        return { success: false, error: 'Failed to fetch data: The client is offline or unable to reach Firestore.' };
+    }
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error during Firestore get.' };
   }
 }
@@ -217,64 +259,77 @@ export async function getUserApplicationData(userId: string): Promise<{success: 
 export async function uploadFileToStorage(
   userId: string,
   file: File | string,
-  documentPath: string
+  documentPath: string // e.g., "offer_letter/my_offer.pdf" or "id_documents/pan_card.jpg"
 ): Promise<{success: boolean, downloadURL?: string, error?: string}> {
   const { storage: currentStorage, firebaseApp: currentApp } = ensureFirebaseInitialized();
   if (!currentStorage || !currentApp) {
+    console.error("[Firebase Service] Firebase Storage not initialized. Cannot upload file:", documentPath);
     return { success: false, error: "Firebase Storage not initialized. Cannot upload file." };
   }
-  console.log(`[Firebase Service] Uploading file "${documentPath}" for user ${userId} to project '${currentApp.options.projectId}'.`);
   
-  const sanitizedDocumentPath = documentPath.replace(/\s+/g, '_');
+  const sanitizedDocumentPath = documentPath.replace(/\s+/g, '_'); // Replace spaces
   const filePath = `user_documents/${userId}/${sanitizedDocumentPath}`;
+  console.log(`[Firebase Service] Attempting to upload file to Firebase Storage. Path: ${filePath} for user ${userId} in project '${currentApp.options.projectId}'.`);
+  
   const fileStorageRefObj = storageRef(currentStorage, filePath);
 
   try {
     let uploadTask;
     if (typeof file === 'string') { 
-      // Data URI
       const mimeTypeMatch = file.match(/^data:(.+?);base64,/);
-      const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'application/octet-stream'; // Default MIME type
+      const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'application/octet-stream';
       const base64String = file.substring(file.indexOf(',') + 1);
 
-      if(!base64String) throw new Error("Invalid data URI provided for uploadString.");
-      console.log(`[Firebase Service] Uploading data URI as ${mimeType}`);
+      if(!base64String || base64String.trim() === '') {
+        console.error("[Firebase Service] Invalid or empty data URI provided for uploadString for path:", documentPath);
+        throw new Error("Invalid data URI provided for uploadString.");
+      }
+      // console.log(`[Firebase Service] Uploading data URI as ${mimeType} for path: ${documentPath}`);
       uploadTask = uploadString(fileStorageRefObj, base64String, 'base64', { contentType: mimeType });
     } else { 
-      // File object
-      console.log(`[Firebase Service] Uploading File object: ${file.name}, type: ${file.type}`);
+      // console.log(`[Firebase Service] Uploading File object: ${file.name}, type: ${file.type} for path: ${documentPath}`);
       uploadTask = uploadBytesResumable(fileStorageRefObj, file);
     }
 
     if (typeof file !== 'string') { 
+        // For File objects, use the resumable upload to track progress if needed (not fully implemented here for brevity)
         await new Promise<void>((resolve, reject) => {
-            (uploadTask as any).on( 
+            (uploadTask as any).on( // Using 'any' as Firebase's UploadTask type can be complex with overloads
                 'state_changed',
                 (snapshot: any) => {
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    // const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                     // console.log('[Firebase Service] Upload is ' + progress + '% done for ' + documentPath);
                 },
-                (error: any) => {
-                    console.error('[Firebase Service] Upload failed for ' + documentPath + ':', error);
-                    reject(error);
+                (uploadError: any) => { // Explicitly type uploadError
+                    console.error(`[Firebase Service] Upload failed during state_changed for ${documentPath}:`, uploadError.code, uploadError.message, uploadError);
+                    reject(uploadError);
                 },
-                () => {
-                    console.log('[Firebase Service] Upload successful for ' + documentPath);
-                    resolve();
+                async () => { // This is the success callback
+                    console.log(`[Firebase Service] Upload successful (via state_changed) for ${documentPath}`);
+                    try {
+                        const url = await getDownloadURL(fileStorageRefObj);
+                        resolve(); // Resolve the outer promise here
+                    } catch (getUrlError) {
+                        console.error(`[Firebase Service] Error getting download URL for ${documentPath} after upload:`, getUrlError);
+                        reject(getUrlError);
+                    }
                 }
             );
         });
     } else { 
-        await uploadTask;
-         console.log('[Firebase Service] Upload successful for ' + documentPath + ' (data URI)');
+        await uploadTask; // For data URI strings, 'uploadString' returns a promise that resolves on completion
+        console.log(`[Firebase Service] Data URI upload successful for ${documentPath}`);
     }
 
     const downloadURL = await getDownloadURL(fileStorageRefObj);
     console.log(`[Firebase Service] File ${documentPath} uploaded successfully. Download URL: ${downloadURL}`);
     return { success: true, downloadURL };
 
-  } catch (error) {
-    console.error('[Firebase Service] Error uploading file ' + documentPath + ':', error);
+  } catch (error: any) {
+    console.error(`[Firebase Service] Error uploading file ${documentPath}:`, error.code, error.message, error);
+    if (error.code && (error.code.includes('storage/unauthorized') || error.code.includes('storage/object-not-found'))) {
+      console.error("[Firebase Service] Suggestion: Check Firebase Storage security rules for the path:", filePath);
+    }
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error during file upload.' };
   }
 }
@@ -284,6 +339,7 @@ export async function uploadFileToStorage(
 export async function checkUserExistsByMobile(mobileNumber: string, countryCodeVal: string): Promise<{success: boolean, exists: boolean, userId?: string, data?: UserApplicationData, error?: string}> {
   const { db: currentDb } = ensureFirebaseInitialized();
   if (!currentDb) {
+    console.error("[Firebase Service] Firestore not initialized. Cannot check user by mobile:", mobileNumber);
     return { success: false, exists: false, error: "Firestore not initialized. Cannot check user." };
   }
   
@@ -297,13 +353,16 @@ export async function checkUserExistsByMobile(mobileNumber: string, countryCodeV
     
     if (!querySnapshot.empty) {
       const userDoc = querySnapshot.docs[0];
-      console.log(`[Firebase Service] User found with ID: ${userDoc.id}`);
+      console.log(`[Firebase Service] User found with ID: ${userDoc.id} for mobile ${mobileNumber}`);
       return { success: true, exists: true, userId: userDoc.id, data: userDoc.data() as UserApplicationData };
     }
     console.log(`[Firebase Service] No user found with mobile ${mobileNumber} and country code ${formattedCountryCode}`);
     return { success: true, exists: false };
-  } catch (error) {
-    console.error('[Firebase Service] Error checking user by mobile:', error);
+  } catch (error: any) {
+    console.error(`[Firebase Service] Error checking user by mobile ${mobileNumber}:`, error.code, error.message, error);
+     if (error.code === 'unavailable' || error.message.toLowerCase().includes('offline')) {
+        return { success: false, exists: false, error: 'Failed to check user: The client is offline or unable to reach Firestore.' };
+    }
     return { success: false, exists: false, error: error instanceof Error ? error.message : 'Unknown error during user check by mobile.' };
   }
 }
@@ -325,3 +384,4 @@ export async function getAllUniversities(): Promise<any[]> {
   // return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   return [{id: 'uni1', name: 'Placeholder University', courses: [{name: 'CS'}]}];
 }
+
