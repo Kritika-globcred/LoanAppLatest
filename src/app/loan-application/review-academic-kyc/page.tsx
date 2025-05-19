@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react'; // Added Loader2 import
 import { getOrGenerateUserId } from '@/lib/user-utils';
 import { saveUserApplicationData } from '@/services/firebase-service';
 
@@ -85,6 +85,12 @@ export default function ReviewAcademicKYCPage() {
             variant: "destructive",
         });
       }
+    } else {
+        toast({
+            title: "No Data Found",
+            description: "Could not find academic details to review. Please go back.",
+            variant: "destructive",
+        });
     }
     setIsLoading(false);
   }, [toast]);
@@ -128,17 +134,18 @@ export default function ReviewAcademicKYCPage() {
     }
     try {
       const [year, month, day] = dateString.split('-').map(Number);
-      const date = new Date(year, month - 1, day);
+      // JavaScript months are 0-indexed
+      const date = new Date(Date.UTC(year, month - 1, day));
       if (isNaN(date.getTime())) return "Invalid Date";
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      return date.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
     } catch (e) {
+      console.error("Error formatting date:", dateString, e);
       return "Invalid Date";
     }
   };
   
   const renderSection = (title: string, dataObject: Record<string, any> | undefined, fieldLabels: Record<string, string>) => {
     if (!dataObject || Object.values(dataObject).every(val => val === null || val === undefined || String(val).trim() === '' || String(val).trim() === 'Not Specified')) {
-        // If all fields are null, undefined, empty or "Not Specified", don't render the section, unless it's graduation or post-graduation with "Not applicable"
         if ((title === "Graduation Details" || title === "Post-Graduation Details") && dataObject.level === "Not applicable" && dataObject.naReason) {
             // Allow rendering if "Not applicable" is chosen and reason is provided
         } else {
@@ -151,10 +158,13 @@ export default function ReviewAcademicKYCPage() {
             let value = dataObject[key];
             
             if (value === null || value === undefined || String(value).trim() === '') {
-                if(key === 'naReason' && dataObject.level !== 'Not applicable') return null; // Only show NA reason if level is N/A
-                if(key === 'scale' && !dataObject.cgpa) return null; // Only show scale if CGPA exists
-                // For other potentially empty fields, we might still want to show "Not Specified" if they are generally expected
-                if (key !== 'naReason' && key !== 'scale') value = "Not Specified"; else return null;
+                if(key === 'naReason' && dataObject.level !== 'Not applicable') return null; 
+                if(key === 'scale' && !dataObject.cgpa) return null; 
+                if(key === 'ieltsScore' && dataObject.type !== 'IELTS') return null;
+                if(key === 'otherName' && !(dataObject.type === 'Other' || dataObject.type === 'Other Test')) return null;
+                if(key === 'score' && dataObject.type === 'IELTS' && dataObject.ieltsScore ) return null; // Don't show general score if IELTS specific score is handled
+                
+                if (key !== 'naReason' && key !== 'scale' && key !== 'ieltsScore' && key !== 'otherName' && key !== 'score') value = "Not Specified"; else return null;
             }
 
             let displayValue = String(value);
@@ -165,7 +175,12 @@ export default function ReviewAcademicKYCPage() {
                 displayValue = value === 'yes' ? 'Yes (Above 6.5)' : value === 'no' ? 'No (6.5 or Below)' : String(value);
             } else if (key === 'given' && (title.includes("Language Test") || title.includes("Course Test"))) {
                 displayValue = String(value).charAt(0).toUpperCase() + String(value).slice(1).replace('_', ' ');
+            } else if (key === 'level' && (title === "Graduation Details" || title === "Post-Graduation Details")) {
+                displayValue = String(value).charAt(0).toUpperCase() + String(value).slice(1);
+            } else if (key === 'type' && (title === "Language Test Details" || title === "Course Test Details")) {
+                 displayValue = String(value); // Keep as is, e.g. "IELTS", "TOEFL"
             }
+
 
             return (
                 <div key={`${title}-${key}`} className="mb-3 grid grid-cols-1 sm:grid-cols-3 gap-1 items-baseline">
@@ -235,7 +250,7 @@ export default function ReviewAcademicKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
