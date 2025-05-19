@@ -5,11 +5,11 @@ export function Logo() {
   return (
     <Link href="/" className="hover:opacity-80 transition-opacity">
       <Image 
-        src="https://globcred.org/images/globcred-logo.png" 
+        src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/globcred-white.png" 
         alt="Globcred Logo" 
-        width={150} // You might want to adjust this width
-        height={40} // And this height, to maintain aspect ratio
-        className="h-auto" // Added to help with responsiveness if width is primary driver
+        width={150} 
+        height={40} 
+        className="h-auto" 
       />
     </Link>
   );
