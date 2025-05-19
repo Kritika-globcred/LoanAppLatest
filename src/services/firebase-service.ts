@@ -29,7 +29,7 @@ let firebaseApp: FirebaseApp | null = null;
 let db: Firestore | null = null; 
 let storage: FirebaseStorage | null = null;
 
-const CUSTOMER_COLLECTION = 'customer'; // Updated to 'customer'
+const CUSTOMER_COLLECTION = 'customer'; 
 
 const getFirebaseConfig = () => {
   if (typeof window === "undefined") {
@@ -50,13 +50,13 @@ const getFirebaseConfig = () => {
     console.error("[Firebase Service] Firebase config not found or incomplete in environment variables. Ensure .env.local is set up correctly with NEXT_PUBLIC_ prefixed variables.");
     return null;
   }
-  // console.log("[Firebase Service] Loaded Firebase config from environment variables for Project ID:", config.projectId);
+  // console.log("[Firebase Service] Loaded Firebase config for Project ID:", config.projectId);
   return config;
 };
 
 export const initializeFirebaseClientSDK = (): { firebaseApp: FirebaseApp | null, db: Firestore | null, storage: FirebaseStorage | null } => {
   if (firebaseApp && db && storage) {
-    // console.log("[Firebase Service] Firebase already initialized. Returning existing instances.");
+    // console.log("[Firebase Service] Firebase already initialized. Returning existing instances for Project ID:", firebaseApp.options.projectId);
     return { firebaseApp, db, storage };
   }
 
@@ -78,18 +78,17 @@ export const initializeFirebaseClientSDK = (): { firebaseApp: FirebaseApp | null
     }
   } else {
     firebaseApp = getApps()[0];
+    // Check if the existing app is for the same project
     if (firebaseApp.options.projectId === config.projectId) {
       // console.log("[Firebase Service] Using existing Firebase App instance for project:", config.projectId);
     } else {
-      console.warn("[Firebase Service] Mismatch: An app for a different project is already initialized. Expected:", config.projectId, "Found:", firebaseApp.options.projectId);
-      // Attempting to re-initialize with the correct config if project ID mismatch
-      // This is not ideal and suggests a potential issue in how Firebase instances are managed if multiple projects are in play.
-      // For this context, we'll try to use the new config if there's a mismatch.
+      console.warn(`[Firebase Service] Mismatch: An app for project ${firebaseApp.options.projectId} is already initialized. Attempting to initialize for ${config.projectId} as a secondary app.`);
       try {
-        firebaseApp = initializeApp(config, "secondary"); // Initialize as a secondary app if main is different
-        console.log("[Firebase Service] Firebase App re-initialized as secondary for project:", config.projectId);
+        // Attempt to initialize with a unique name if it's a different project
+        firebaseApp = initializeApp(config, `app-${config.projectId?.replace(/-/g, '')}`);
+        console.log("[Firebase Service] Firebase App re-initialized as named instance for project:", config.projectId);
       } catch (error) {
-         console.error("[Firebase Service] Error re-initializing Firebase App as secondary:", error);
+         console.error("[Firebase Service] Error re-initializing Firebase App as named instance:", error);
          return { firebaseApp: null, db: null, storage: null };
       }
     }
@@ -119,7 +118,7 @@ const ensureFirebaseInitialized = () => {
     console.warn("[Firebase Service] Firebase not fully initialized, attempting re-initialization.");
     return initializeFirebaseClientSDK();
   }
-  // console.log("[Firebase Service] Firebase instances confirmed.");
+  // console.log("[Firebase Service] Firebase instances confirmed for Project ID:", firebaseApp.options.projectId);
   return { firebaseApp, db, storage };
 }
 
@@ -130,8 +129,8 @@ export interface UserApplicationData {
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
   mobileNumber?: string;
-  countryCode?: string; // e.g., +91
-  countryShortName?: string; // e.g., IN
+  countryCode?: string; 
+  countryShortName?: string; 
   hasOfferLetter?: boolean;
   admissionKyc?: {
     studentName?: string;
@@ -204,37 +203,29 @@ export async function saveUserApplicationData(userId: string, data: Partial<User
     console.error("[Firebase Service] Firestore not initialized. Cannot save data for user:", userId);
     return { success: false, error: "Firestore not initialized. Cannot save data." };
   }
-  console.log(`[Firebase Service] Saving data for user ${userId} to collection '${CUSTOMER_COLLECTION}' in project '${currentApp.options.projectId}'. Data being merged:`, JSON.parse(JSON.stringify(data)));
+  
+  const dataToSet = {
+    ...data, // This will include `createdAt` if provided by the caller (e.g., mobile page)
+    userId, 
+    updatedAt: serverTimestamp(),
+  };
+
+  console.log(`[Firebase Service] Saving data for user ${userId} to collection '${CUSTOMER_COLLECTION}' in project '${currentApp.options.projectId}'. Data being merged:`, JSON.parse(JSON.stringify(dataToSet)));
   
   try {
     const userDocRef = doc(currentDb, CUSTOMER_COLLECTION, userId);
-    
-    // Simplified save: always include updatedAt. 
-    // createdAt will be included in the initial data object if it's a new user.
-    // { merge: true } will prevent overwriting createdAt if it already exists.
-    const dataToSet = {
-      ...data,
-      userId, // Ensure userId is part of the data being set
-      updatedAt: serverTimestamp(),
-    };
-
-    // If data.createdAt is already provided (e.g., for the first save), it will be used.
-    // Otherwise, if creating a new document and `data` doesn't have `createdAt`, 
-    // this `createdAt` will be written. If merging into an existing doc without `createdAt`
-    // in `data`, Firestore won't add it if it's not in `dataToSet`.
-    // For robust "created only once" logic, a check for document existence or specific
-    // inclusion of `createdAt` in the first `data` payload is best.
-    // The mobile page is already including `createdAt` in its `initialData` for the first save.
-
     await setDoc(userDocRef, dataToSet, { merge: true });
     console.log(`[Firebase Service] Data for user ${userId} saved successfully.`);
     return { success: true };
   } catch (error: any) {
     console.error(`[Firebase Service] Error saving user data for ${userId}:`, `"${error.code}"`, `"${error.message}"`, error);
-    if (error.code === 'unavailable' || error.message.toLowerCase().includes('offline')) {
-        return { success: false, error: 'Failed to save data: The client is offline or unable to reach Firestore.' };
+    let detailedError = error.message || 'Unknown error during Firestore save.';
+    if (error.code === 'unavailable') {
+        detailedError = `Failed to save data: The client is offline or unable to reach Firestore. (Code: ${error.code})`;
+    } else if (error.code) {
+        detailedError = `Firestore error: ${error.message} (Code: ${error.code})`;
     }
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error during Firestore save.' };
+    return { success: false, error: detailedError };
   }
 }
 
@@ -263,18 +254,21 @@ export async function getUserApplicationData(userId: string): Promise<{success: 
     }
   } catch (error: any) {
     console.error(`[Firebase Service] Error fetching user data for ${userId}:`, `"${error.code}"`, `"${error.message}"`, error);
-    if (error.code === 'unavailable' || error.message.toLowerCase().includes('offline')) {
-        return { success: false, error: 'Failed to fetch data: The client is offline or unable to reach Firestore.' };
+    let detailedError = error.message || 'Unknown error during Firestore get.';
+    if (error.code === 'unavailable') {
+        detailedError = `Failed to fetch data: The client is offline or unable to reach Firestore. (Code: ${error.code})`;
+    } else if (error.code) {
+        detailedError = `Firestore error: ${error.message} (Code: ${error.code})`;
     }
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error during Firestore get.' };
+    return { success: false, error: detailedError };
   }
 }
 
 
 export async function uploadFileToStorage(
   userId: string,
-  file: File | string, // File object or base64 data URI string
-  documentPath: string // e.g., "offer_letter/my_offer.pdf" or "id_documents/pan_card.jpg"
+  file: File | string, 
+  documentPath: string 
 ): Promise<{success: boolean, downloadURL?: string, error?: string}> {
   const { storage: currentStorage, firebaseApp: currentApp } = ensureFirebaseInitialized();
   if (!currentStorage || !currentApp) {
@@ -292,37 +286,35 @@ export async function uploadFileToStorage(
     let uploadTask;
     if (typeof file === 'string') { 
       const mimeTypeMatch = file.match(/^data:(.+?);base64,/);
-      const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'application/octet-stream'; // Default MIME type if not found
+      const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'application/octet-stream'; 
       const base64String = file.substring(file.indexOf(',') + 1);
 
       if(!base64String || base64String.trim() === '') {
         console.error("[Firebase Service] Invalid or empty data URI provided for uploadString for path:", documentPath);
         return { success: false, error: "Invalid data URI provided for upload." };
       }
-      // console.log(`[Firebase Service] Uploading data URI as ${mimeType} for path: ${documentPath}`);
       uploadTask = uploadString(fileStorageRefObj, base64String, 'base64', { contentType: mimeType });
     } else { 
-      // console.log(`[Firebase Service] Uploading File object: ${file.name}, type: ${file.type} for path: ${documentPath}`);
       uploadTask = uploadBytesResumable(fileStorageRefObj, file);
     }
 
-    // Await the upload task completion
     await uploadTask; 
     
-    // Get the download URL
     const downloadURL = await getDownloadURL(fileStorageRefObj);
     console.log(`[Firebase Service] File ${documentPath} uploaded successfully. Download URL: ${downloadURL}`);
     return { success: true, downloadURL };
 
   } catch (error: any) {
     console.error(`[Firebase Service] Error uploading file ${documentPath}:`, `"${error.code}"`, `"${error.message}"`, error);
+    let detailedError = error.message || 'Unknown error during file upload.';
     if (error.code && (error.code.includes('storage/unauthorized') || error.code.includes('storage/object-not-found') || error.code.includes('storage/canceled') || error.code.includes('storage/unknown'))) {
-      console.error("[Firebase Service] Storage Error Details: Check Firebase Storage security rules for the path:", filePath, "and network connectivity.");
+      detailedError = `Storage Error: ${error.message}. Check Firebase Storage security rules for path: ${filePath} and network connectivity. (Code: ${error.code})`;
+    } else if (error.code === 'unavailable') {
+         detailedError = `Failed to upload file: The client is offline or unable to reach Firebase Storage. (Code: ${error.code})`;
+    } else if (error.code) {
+        detailedError = `Storage error: ${error.message} (Code: ${error.code})`;
     }
-    if (error.code === 'unavailable' || error.message.toLowerCase().includes('offline')){
-         return { success: false, error: 'Failed to upload file: The client is offline or unable to reach Firebase Storage.' };
-    }
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error during file upload.' };
+    return { success: false, error: detailedError };
   }
 }
 
@@ -352,27 +344,23 @@ export async function checkUserExistsByMobile(mobileNumber: string, countryCodeV
     return { success: true, exists: false };
   } catch (error: any) {
     console.error(`[Firebase Service] Error checking user by mobile ${mobileNumber}:`, `"${error.code}"`, `"${error.message}"`, error);
-     if (error.code === 'unavailable' || error.message.toLowerCase().includes('offline')) {
-        return { success: false, exists: false, error: 'Failed to check user: The client is offline or unable to reach Firestore.' };
+    let detailedError = error.message || 'Unknown error during user check by mobile.';
+     if (error.code === 'unavailable') {
+        detailedError = `Failed to check user: The client is offline or unable to reach Firestore. (Code: ${error.code})`;
+    } else if (error.code) {
+        detailedError = `Firestore error: ${error.message} (Code: ${error.code})`;
     }
-    return { success: false, exists: false, error: error instanceof Error ? error.message : 'Unknown error during user check by mobile.' };
+    return { success: false, exists: false, error: detailedError };
   }
 }
 
 
 // --- Conceptual Admin functions (for future use, likely with Admin SDK) ---
 export async function upsertUniversity(universityId: string, data: any): Promise<void> {
-  // const { db: currentDb } = ensureFirebaseInitialized();
-  // if (!currentDb) throw new Error("Firestore not initialized for upsertUniversity.");
   console.log(`[Firebase Service] Placeholder: Upserting university ${universityId}`);
-  // await setDoc(doc(db, 'universities', universityId), data, { merge: true });
 }
 
 export async function getAllUniversities(): Promise<any[]> {
-  // const { db: currentDb } = ensureFirebaseInitialized();
-  // if (!currentDb) throw new Error("Firestore not initialized for getAllUniversities.");
   console.log(`[Firebase Service] Placeholder: Fetching all universities`);
-  // const snapshot = await getDocs(collection(db, 'universities'));
-  // return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   return [{id: 'uni1', name: 'Placeholder University', courses: [{name: 'CS'}]}];
 }

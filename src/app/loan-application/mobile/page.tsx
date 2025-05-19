@@ -24,7 +24,7 @@ import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar
 import { loanAppSteps } from '@/lib/loan-steps';
 import { saveUserApplicationData } from '@/services/firebase-service';
 import { getOrGenerateUserId } from '@/lib/user-utils';
-
+import { serverTimestamp } from 'firebase/firestore'; // Import serverTimestamp
 
 interface CountryInfo {
   value: string;
@@ -109,12 +109,16 @@ export default function MobileVerificationPage() {
 
     const initialData = {
       userId: userId,
-      mobileNumber: mobileNumber,
+      mobileNumber: mobileNumber.trim(),
       countryCode: selectedCountry?.dialCode,
       countryShortName: selectedCountry?.countryShortName,
+      createdAt: serverTimestamp(), // Add createdAt for the initial save
     };
 
+    // This is where the Firebase save operation happens
     const result = await saveUserApplicationData(userId, initialData);
+
+    setIsSaving(false);
 
     if (result.success) {
         toast({
@@ -122,17 +126,16 @@ export default function MobileVerificationPage() {
             description: "Proceeding to the next step.",
         });
         if (typeof window !== 'undefined') {
-          localStorage.setItem('selectedCountryValue', countryCode); // Used by Personal KYC
+          localStorage.setItem('selectedCountryValue', countryCode); 
         }
         router.push('/loan-application/admission-kyc');
     } else {
         toast({
             title: "Save Failed",
-            description: result.error || "Could not save mobile verification details.",
+            description: result.error || "Could not save mobile verification details. Please check console for more info.",
             variant: "destructive",
         });
     }
-    setIsSaving(false);
   };
 
   const handleGoBackToMobileEntry = () => {
@@ -149,7 +152,7 @@ export default function MobileVerificationPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
 
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
