@@ -24,7 +24,7 @@ import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar
 import { loanAppSteps } from '@/lib/loan-steps';
 import { saveUserApplicationData } from '@/services/firebase-service';
 import { getOrGenerateUserId } from '@/lib/user-utils';
-import { serverTimestamp } from 'firebase/firestore'; // Import serverTimestamp
+import { serverTimestamp } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 
 interface CountryInfo {
@@ -67,7 +67,9 @@ export default function MobileVerificationPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    setUserId(getOrGenerateUserId());
+    const id = getOrGenerateUserId();
+    setUserId(id);
+    console.log(`[Mobile Page] User ID set: ${id}`);
     const timer = setTimeout(() => {
       setAvekaMessageVisible(true);
     }, 500);
@@ -113,13 +115,12 @@ export default function MobileVerificationPage() {
       mobileNumber: mobileNumber.trim(),
       countryCode: selectedCountryInfo?.dialCode,
       countryShortName: selectedCountryInfo?.countryShortName,
-      createdAt: serverTimestamp(), 
+      createdAt: serverTimestamp(),
     };
 
-    console.log("[Mobile Page] Attempting to save initial data to Firestore:", initialData);
+    console.log("[Mobile Page] Attempting to save initial data to Firestore:", JSON.parse(JSON.stringify(initialData)));
     const result = await saveUserApplicationData(userId, initialData);
     console.log("[Mobile Page] Firestore save result:", result);
-    setIsSaving(false);
 
     if (result.success) {
         toast({
@@ -127,26 +128,32 @@ export default function MobileVerificationPage() {
             description: "Proceeding to the next step.",
         });
         if (typeof window !== 'undefined') {
-          localStorage.setItem('selectedCountryValue', countryCode); 
+          localStorage.setItem('selectedCountryValue', countryCode);
         }
-        console.log("[Mobile Page] Save successful. Attempting to navigate to /loan-application/admission-kyc");
-        try {
-          router.push('/loan-application/admission-kyc');
-          console.log("[Mobile Page] router.push called successfully.");
-        } catch (navError) {
-          console.error("[Mobile Page] Error during router.push:", navError);
-          toast({
-            title: "Navigation Error",
-            description: "Could not navigate to the next page. Please try again or check the console.",
-            variant: "destructive",
-          });
-        }
+        console.log("[Mobile Page] Save successful. Attempting to navigate to /loan-application/admission-kyc in 100ms");
+        // Slight delay before navigating, to potentially help with Studio preview issues
+        setTimeout(() => {
+            try {
+              router.push('/loan-application/admission-kyc');
+              console.log("[Mobile Page] router.push called successfully after delay.");
+            } catch (navError) {
+              console.error("[Mobile Page] Error during router.push (after delay):", navError);
+              toast({
+                title: "Navigation Error",
+                description: "Could not navigate to the next page. Please try again or check the console.",
+                variant: "destructive",
+              });
+            } finally {
+               setIsSaving(false); // Ensure isSaving is set to false even if navigation errors
+            }
+        }, 100);
     } else {
         toast({
             title: "Save Failed",
             description: result.error || "Could not save mobile verification details. Please check console for more info.",
             variant: "destructive",
         });
+        setIsSaving(false);
     }
   };
 
@@ -158,7 +165,7 @@ export default function MobileVerificationPage() {
   return (
     <div className="flex flex-col items-center">
       <section
-        className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] pt-[5px] px-6 pb-6 md:px-8 md:pb-8 overflow-hidden shadow-lg"
+        className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] pt-[5px] px-6 pb-6 md:px-8 md:pb-8 overflow-hidden shadow-[5px_5px_10px_hsl(0,0%,0%/0.2)] shadow-[inset_0_0_2px_hsl(var(--primary)/0.8)]"
         style={{
           backgroundImage:
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
@@ -167,7 +174,8 @@ export default function MobileVerificationPage() {
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
 
         <div className="relative z-10">
-          <div className="flex justify-between items-center py-4">
+          <LoanProgressBar steps={loanAppSteps} />
+          <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -200,7 +208,6 @@ export default function MobileVerificationPage() {
             </div>
           </div>
 
-          <LoanProgressBar steps={loanAppSteps} />
 
           <div className="py-8">
             <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-lg mx-auto">
@@ -234,7 +241,7 @@ export default function MobileVerificationPage() {
                     <div className="grid grid-cols-[auto_1fr] gap-4 items-end">
                       <div>
                         <Label htmlFor="countryCode" className="block text-sm font-medium text-left mb-1 text-white">Code</Label>
-                        <Select value={countryCode} onValueChange={setCountryCode}>
+                        <Select value={countryCode} onValueChange={setCountryCode} disabled={isSaving}>
                           <SelectTrigger id="countryCode" className="w-auto bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring">
                             <SelectValue placeholder="Select code" />
                           </SelectTrigger>
@@ -334,3 +341,5 @@ export default function MobileVerificationPage() {
     </div>
   );
 }
+
+    
