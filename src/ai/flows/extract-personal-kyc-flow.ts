@@ -14,13 +14,27 @@ import { z } from 'genkit';
 const ExtractPersonalKycInputSchema = z.object({
   idDocumentImageUri: z
     .string()
+    .nullable()
     .describe(
-      "An image of the PAN Card or National ID, as a data URI. Expected format: 'data:<mimetype>;base64,<encoded_data>'. For best results, ensure the image is clear and legible."
+      "An image of the PAN Card or National ID (JPG, PNG, or even PDF/DOC as data URI), as a data URI. Clear images work best."
+    ),
+  idDocumentTextContent: z
+    .string()
+    .nullable()
+    .describe(
+        "Plain text content extracted from the ID document, if it was a .txt file."
     ),
   passportImageUri: z
     .string()
+    .nullable()
     .describe(
-      "An image of the Passport, as a data URI. Expected format: 'data:<mimetype>;base64,<encoded_data>'. For best results, ensure the image is clear and legible."
+      "An image of the Passport (JPG, PNG, or even PDF/DOC as data URI), as a data URI. Clear images work best."
+    ),
+  passportTextContent: z
+    .string()
+    .nullable()
+    .describe(
+        "Plain text content extracted from the Passport, if it was a .txt file."
     ),
   idDocumentType: z.enum(["PAN Card", "National ID"]).describe("The type of the primary ID document provided ('PAN Card' or 'National ID')."),
 });
@@ -47,16 +61,33 @@ const extractKycPrompt = ai.definePrompt({
   input: { schema: ExtractPersonalKycInputSchema },
   output: { schema: ExtractPersonalKycOutputSchema },
   prompt: `You are an expert AI assistant specializing in extracting information from personal identification documents.
-You will be provided with two images: one is a {{idDocumentType}} and the other is a Passport.
-Analyze both documents carefully. Extract the following details and structure your response according to the defined output schema:
+You will be provided with content for two documents: one is a {{idDocumentType}} and the other is a Passport.
+The content could be an image, a document data URI, or plain text. Prioritize text content for a document if available.
+Analyze both documents carefully.
 
 Primary ID Document ({{idDocumentType}}):
+{{#if idDocumentTextContent}}
+ID Document Text:
+{{{idDocumentTextContent}}}
+{{else if idDocumentImageUri}}
+ID Document Image/File (could be JPG, PNG, PDF, DOC data URI):
 {{media url=idDocumentImageUri}}
+{{else}}
+No ID document content provided.
+{{/if}}
 
 Passport Document:
+{{#if passportTextContent}}
+Passport Text:
+{{{passportTextContent}}}
+{{else if passportImageUri}}
+Passport Image/File (could be JPG, PNG, PDF, DOC data URI):
 {{media url=passportImageUri}}
+{{else}}
+No Passport content provided.
+{{/if}}
 
-Extraction Fields:
+Extract the following details and structure your response according to the defined output schema:
 1.  **ID Number**: The primary identification number from the {{idDocumentType}}.
 2.  **ID Type**: Confirm the type as '{{idDocumentType}}'.
 3.  **Passport Number**: The main number on the passport.
@@ -72,6 +103,7 @@ Extraction Fields:
 Ensure all extracted text is accurate. If a specific piece of information cannot be found on EITHER document, use "Not Specified" for that field, unless a default is mentioned above.
 Prioritize information from the Passport for fields like Name, DOB, and Country if available on both.
 For dates, if the format is different, convert to YYYY-MM-DD. If only year is present, use YYYY-01-01. If month and year, use YYYY-MM-01.
+If no content was provided for a document, assume its details are "Not Specified".
 `,
 });
 
@@ -82,11 +114,20 @@ const extractPersonalKycFlow = ai.defineFlow(
     outputSchema: ExtractPersonalKycOutputSchema,
   },
   async (input) => {
+     if ((!input.idDocumentImageUri && !input.idDocumentTextContent) || (!input.passportImageUri && !input.passportTextContent)) {
+      // If content for either document is missing, return default "Not Specified"
+      return {
+        idNumber: "Not Specified", idType: input.idDocumentType, passportNumber: "Not Specified",
+        mothersName: "Not Specified", fathersName: "Not Specified",
+        passportExpiryDate: "Not Specified", passportIssueDate: "Not Specified",
+        nameOnPassport: "Not Specified", countryOfUser: "Not Specified",
+        dateOfBirth: "Not Specified", permanentAddress: "Not Specified",
+      };
+    }
     const { output } = await extractKycPrompt(input);
     if (!output) {
         throw new Error("AI failed to process the KYC documents or return valid data.");
     }
-    // Ensure optional fields are present, defaulting to "Not Specified" if AI omits them
     const ensuredOutput: ExtractPersonalKycOutput = {
         ...output,
         mothersName: output.mothersName || "Not Specified",
@@ -99,3 +140,5 @@ const extractPersonalKycFlow = ai.defineFlow(
 export async function extractPersonalKycDetails(input: ExtractPersonalKycInput): Promise<ExtractPersonalKycOutput> {
   return extractPersonalKycFlow(input);
 }
+
+    

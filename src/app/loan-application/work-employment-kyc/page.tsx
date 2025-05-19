@@ -24,8 +24,8 @@ import { extractProfessionalProfileDetails, type ExtractProfessionalProfileInput
 import { getOrGenerateUserId } from '@/lib/user-utils';
 import { saveUserApplicationData, uploadFileToStorage } from '@/services/firebase-service';
 
-const yearOptions = Array.from({ length: 26 }, (_, i) => String(i)); 
-const monthOptions = Array.from({ length: 12 }, (_, i) => String(i)); 
+const yearOptions = Array.from({ length: 26 }, (_, i) => String(i));
+const monthOptions = Array.from({ length: 12 }, (_, i) => String(i));
 const currencyOptions = ["USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY", "Other"];
 
 interface WorkEmploymentDataToSave {
@@ -33,7 +33,8 @@ interface WorkEmploymentDataToSave {
   workExperienceYears?: string;
   workExperienceMonths?: string;
   workExperienceProofType?: 'resume' | 'linkedin' | null;
-  resumeUrl?: string | null; 
+  resumeUrl?: string | null; // Firebase Storage URL for the resume file
+  // Data URIs or text content for AI are handled locally, not saved to Firestore directly
   linkedInUrl?: string | null;
   isCurrentlyWorking?: 'yes' | 'no' | null;
   monthlySalary?: string | null;
@@ -55,17 +56,20 @@ export default function WorkEmploymentKYCPage() {
   const { toast } = useToast();
   const userId = getOrGenerateUserId();
 
-  const [avekaMessage, setAvekaMessage] = useState("Co-signatory details noted (or understood). Now, let's discuss your work experience. Please provide your industry and years of experience. Sharing your resume or LinkedIn is optional but can help us process your application faster.");
+  const [avekaMessage, setAvekaMessage] = useState("Co-signatory details noted (or understood). Now, let's discuss your work experience. Please provide your industry and years of experience. Sharing your resume (image, PDF, DOC, TXT) or LinkedIn is optional but can help us process your application faster.");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
 
   const [workExperienceIndustry, setWorkExperienceIndustry] = useState('');
   const [workExperienceYears, setWorkExperienceYears] = useState<string | undefined>();
   const [workExperienceMonths, setWorkExperienceMonths] = useState<string | undefined>();
   const [workExperienceProofType, setWorkExperienceProofType] = useState<'resume' | 'linkedin' | null>(null);
-  const [resumeFile, setResumeFile] = useState<File | null>(null); 
-  const [resumePreview, setResumePreview] = useState<string | null>(null); 
+
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumePreview, setResumePreview] = useState<string | null>(null); // data URI for image, PDF, DOC
+  const [resumeTextContent, setResumeTextContent] = useState<string | null>(null); // For .txt content
+
   const [linkedInUrl, setLinkedInUrl] = useState('');
-  
+
   const [isProcessingProfile, setIsProcessingProfile] = useState(false);
   const [extractedProfileData, setExtractedProfileData] = useState<Partial<ExtractProfessionalProfileOutput>>({});
   const [editingProfileField, setEditingProfileField] = useState<keyof ExtractProfessionalProfileOutput | null>(null);
@@ -92,7 +96,7 @@ export default function WorkEmploymentKYCPage() {
     const timer = setTimeout(() => setAvekaMessageVisible(true), 500);
     return () => clearTimeout(timer);
   }, []);
-  
+
   useEffect(() => {
     setCurrentTime(new Date().toLocaleString());
     const timerId = setInterval(() => setCurrentTime(new Date().toLocaleString()), 1000);
@@ -106,25 +110,53 @@ export default function WorkEmploymentKYCPage() {
   useEffect(() => {
     if (isWorkExperienceCoreComplete() && !showEmploymentStatus) {
       setShowEmploymentStatus(true);
-      setAvekaMessage("Work experience details look good. Finally, let's confirm your current employment status.");
+      setAvekaMessage("Work experience details look good. Sharing a resume or LinkedIn is optional. Finally, let's confirm your current employment status.");
     }
   }, [workExperienceIndustry, workExperienceYears, workExperienceMonths, showEmploymentStatus]);
 
 
-  const processProfile = async (source: ExtractProfessionalProfileInput['profileDataSource'], type: ExtractProfessionalProfileInput['sourceType']) => {
-    if (!source || !userId) {
-      toast({ title: "Missing Information", description: `Cannot process ${type} without data.`, variant: "destructive"});
+  const processProfile = async () => {
+    let sourceForAI: string | null = null;
+    let typeForAI: ExtractProfessionalProfileInput['sourceType'] | null = null;
+    let textContentForAI: string | null = null;
+
+    if (workExperienceProofType === 'resume') {
+      if (resumePreview) { // Data URI for image, PDF, DOC
+        sourceForAI = resumePreview;
+        typeForAI = 'resumeImage'; // Treat PDF/DOC as image for current Genkit flow
+      } else if (resumeTextContent) { // TXT file content
+        textContentForAI = resumeTextContent;
+        typeForAI = 'resumeText';
+      }
+    } else if (workExperienceProofType === 'linkedin' && linkedInUrl) {
+      if (!/linkedin\.com\/in\//.test(linkedInUrl)) {
+        toast({ title: "Invalid LinkedIn URL", description: "Please enter a valid LinkedIn profile URL.", variant: "destructive" });
+        return;
+      }
+      sourceForAI = linkedInUrl;
+      typeForAI = 'linkedinUrl';
+    }
+
+    if (!typeForAI || (!sourceForAI && !textContentForAI)) {
+      // Don't show error if it's optional and nothing provided
+      // toast({ title: "Missing Information", description: `Cannot process ${workExperienceProofType} without data.`, variant: "destructive"});
       return;
     }
+
     setIsProcessingProfile(true);
-    setAvekaMessage(`Analyzing your ${type === 'resumeImage' ? 'resume' : 'LinkedIn profile'}... This might take a moment.`);
+    setAvekaMessage(`Analyzing your ${workExperienceProofType}... This might take a moment.`);
     try {
-      const result = await extractProfessionalProfileDetails({ profileDataSource: source, sourceType: type });
+      const input: ExtractProfessionalProfileInput = {
+        profileDataSource: sourceForAI,
+        sourceType: typeForAI,
+        resumeTextContent: textContentForAI,
+      };
+      const result = await extractProfessionalProfileDetails(input);
       setExtractedProfileData(result);
       setAvekaMessage("I've extracted some details from your professional profile. Please review them below. You can edit if needed.");
       toast({ title: "Profile Details Extracted", description: "Review the details below." });
     } catch (error: any) {
-      console.error(`Error processing ${type}:`, error);
+      console.error(`Error processing ${typeForAI}:`, error);
       setExtractedProfileData({ yearsOfExperience: "Error - Check Manually", gapInLast3YearsMonths: "Error - Check Manually", currentOrLastIndustry: "Error - Check Manually", currentOrLastJobRole: "Error - Check Manually" });
       toast({ title: "Profile Extraction Failed", description: error.message || "Could not extract details. Please verify manually.", variant: "destructive" });
       setAvekaMessage("I had trouble analyzing your profile. Please review and fill in the details manually.");
@@ -136,31 +168,49 @@ export default function WorkEmploymentKYCPage() {
   const handleResumeFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setResumeFile(file); 
+      setResumeFile(file);
+      setResumePreview(null);
+      setResumeTextContent(null);
+      setExtractedProfileData({}); // Reset on new file
+
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onloadend = () => {
           const dataUrl = reader.result as string;
-          setResumePreview(dataUrl); 
-          processProfile(dataUrl, 'resumeImage');
+          setResumePreview(dataUrl);
+          // processProfile will be called by useEffect
         };
         reader.readAsDataURL(file);
-      } else if (file.type === 'application/pdf' || file.type.startsWith('application/vnd.openxmlformats-officedocument.wordprocessingml.document') || file.type === 'application/msword') {
-        setResumePreview(null); // Non-image files won't have a direct image preview for AI
-        toast({ title: "Resume Uploaded", description: `${file.name} uploaded. AI extraction for non-image resumes may not provide visual details but will attempt text analysis.`, variant: "default" });
-        // Potentially still try to process if backend flow can handle text from PDF/DOC
-        // For now, we rely on image previews for the current AI flow.
-        // If you want to try Genkit with non-image files, the flow would need to be designed for that.
-        setExtractedProfileData({ yearsOfExperience: "Manual review needed for non-image resume.", gapInLast3YearsMonths: "N/A", currentOrLastIndustry: "N/A", currentOrLastJobRole: "N/A" });
-
+      } else if (file.type === 'text/plain') {
+         const reader = new FileReader();
+        reader.onloadend = () => {
+          setResumeTextContent(reader.result as string);
+          // processProfile will be called by useEffect
+        };
+        reader.readAsText(file);
+      } else if (file.type === 'application/pdf' || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setResumePreview(reader.result as string); // Pass data URI for PDF/DOC
+          // processProfile will be called by useEffect
+        };
+        reader.readAsDataURL(file);
+        toast({ title: "Document Uploaded", description: `${file.name} uploaded. AI will attempt to process it. Clear images work best.` });
       } else {
-        setResumePreview(null); 
-        toast({ title: "Resume Uploaded", description: `${file.name} uploaded. AI extraction works best with images.`});
-        setExtractedProfileData({ yearsOfExperience: "Manual review needed for this file type.", gapInLast3YearsMonths: "N/A", currentOrLastIndustry: "N/A", currentOrLastJobRole: "N/A" });
+        toast({ title: "Unsupported File", description: "Please upload an image, PDF, DOC, or TXT file.", variant: "destructive"});
+        setResumeFile(null);
       }
     }
   };
-  
+
+  useEffect(() => {
+    if (workExperienceProofType === 'resume' && (resumePreview || resumeTextContent) && Object.keys(extractedProfileData).length === 0 && !isProcessingProfile) {
+        processProfile();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumePreview, resumeTextContent, workExperienceProofType]); // Added workExperienceProofType
+
+
   const dataURLtoBlob = (dataurl: string) => {
     const arr = dataurl.split(',');
     const mimeMatch = arr[0].match(/:(.*?);/);
@@ -186,20 +236,13 @@ export default function WorkEmploymentKYCPage() {
         const capturedFile = new File([dataURLtoBlob(dataUrl)], "resume_capture.png", { type: "image/png" });
         setResumeFile(capturedFile);
         setResumePreview(dataUrl);
+        setResumeTextContent(null);
         setShowCameraForResume(false);
-        processProfile(dataUrl, 'resumeImage'); 
+        // processProfile() will be called by useEffect watching resumePreview
       }
     }
   };
 
-  const handleAnalyzeLinkedIn = () => {
-    if (linkedInUrl && /linkedin\.com\/in\//.test(linkedInUrl)) {
-      processProfile(linkedInUrl, 'linkedinUrl');
-    } else {
-      toast({ title: "Invalid LinkedIn URL", description: "Please enter a valid LinkedIn profile URL (e.g., https://linkedin.com/in/yourprofile).", variant: "destructive" });
-    }
-  };
-  
   const handleEditProfileField = (field: keyof ExtractProfessionalProfileOutput, currentValue: string | undefined) => {
     setEditingProfileField(field);
     setEditProfileValue(currentValue || '');
@@ -219,7 +262,7 @@ export default function WorkEmploymentKYCPage() {
     if (isCurrentlyWorking === 'no') return familyMonthlySalary.trim() !== '' && familySalaryCurrency !== undefined;
     return false;
   };
-  
+
   const isFormCompleteForSave = () => {
     return isWorkExperienceCoreComplete() && isEmploymentStatusComplete() && consentChecked && !isProcessingProfile;
   };
@@ -240,11 +283,11 @@ export default function WorkEmploymentKYCPage() {
 
     setIsSaving(true);
 
-    let uploadedResumeUrl: string | undefined = undefined;
+    let uploadedResumeFirebaseUrl: string | undefined = undefined;
     if (workExperienceProofType === 'resume' && resumeFile) {
       const uploadResult = await uploadFileToStorage(userId, resumeFile, `resume/${resumeFile.name}`);
       if (uploadResult.success && uploadResult.downloadURL) {
-        uploadedResumeUrl = uploadResult.downloadURL;
+        uploadedResumeFirebaseUrl = uploadResult.downloadURL;
       } else {
         toast({ title: "Resume Upload Failed", description: uploadResult.error || "Could not upload resume.", variant: "destructive" });
         setIsSaving(false);
@@ -257,7 +300,7 @@ export default function WorkEmploymentKYCPage() {
       workExperienceYears,
       workExperienceMonths,
       workExperienceProofType,
-      resumeUrl: uploadedResumeUrl,
+      resumeUrl: uploadedResumeFirebaseUrl,
       linkedInUrl: workExperienceProofType === 'linkedin' ? linkedInUrl : null,
       isCurrentlyWorking,
       monthlySalary: isCurrentlyWorking === 'yes' ? monthlySalary : null,
@@ -271,9 +314,9 @@ export default function WorkEmploymentKYCPage() {
       consentTimestamp: currentTime,
     };
 
-    const result = await saveUserApplicationData(userId, { 
-      professionalKyc: { 
-        workEmployment: workEmploymentDataToSave 
+    const result = await saveUserApplicationData(userId, {
+      professionalKyc: {
+        workEmployment: workEmploymentDataToSave
       }
     });
     setIsSaving(false);
@@ -311,8 +354,8 @@ export default function WorkEmploymentKYCPage() {
 
   const renderProfileTable = () => {
     if (!extractedProfileData || Object.keys(extractedProfileData).length === 0 || isProcessingProfile) return null;
-    
-    const validEntries = Object.entries(extractedProfileData).filter(([_, value]) => value !== undefined && value !== null);
+
+    const validEntries = Object.entries(extractedProfileData).filter(([_, value]) => value !== undefined && value !== null && String(value).trim() !== '' && String(value).trim() !== 'Not Specified');
     if (validEntries.length === 0) return null;
     const dataEntries = validEntries as [keyof ExtractProfessionalProfileOutput, string][];
 
@@ -392,11 +435,11 @@ export default function WorkEmploymentKYCPage() {
               <div className="flex flex-col items-center text-center mb-6">
                 <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                   <div className="flex-shrink-0 mb-3 md:mb-0">
-                    <Image 
-                      src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png" 
-                      alt="Aveka, GlobCred's Smart AI" 
-                      width={50} height={50} className="rounded-full border-2 border-white shadow-md" 
-                      data-ai-hint="robot avatar" 
+                    <Image
+                      src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
+                      alt="Aveka, GlobCred's Smart AI"
+                      width={50} height={50} className="rounded-full border-2 border-white shadow-md"
+                      data-ai-hint="robot avatar"
                     />
                   </div>
                   <div className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow transform transition-all duration-500 ease-out w-full ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
@@ -431,21 +474,26 @@ export default function WorkEmploymentKYCPage() {
                   </div>
                 </div>
                 <div>
-                  <Label className="text-white">Provide professional proof (Optional):</Label>
-                  <RadioGroup value={workExperienceProofType || ''} onValueChange={(value) => { setWorkExperienceProofType(value as 'resume' | 'linkedin' | null); setExtractedProfileData({}); setResumeFile(null); setResumePreview(null); setLinkedInUrl(''); if (value === 'resume') { setAvekaMessage("Okay, please upload your resume (image or PDF).");} else if (value === 'linkedin') {setAvekaMessage("Great, please paste your LinkedIn profile URL.");} }} className="flex space-x-4 text-white mt-1" >
+                  <Label className="text-white">Provide professional proof (Optional - Image, PDF, DOC, TXT):</Label>
+                  <RadioGroup value={workExperienceProofType || ''} onValueChange={(value) => { setWorkExperienceProofType(value as 'resume' | 'linkedin' | null); setExtractedProfileData({}); setResumeFile(null); setResumePreview(null); setResumeTextContent(null); setLinkedInUrl(''); if (value === 'resume') { setAvekaMessage("Okay, please upload your resume. Clear images work best for AI!");} else if (value === 'linkedin') {setAvekaMessage("Great, please paste your LinkedIn profile URL.");} }} className="flex space-x-4 text-white mt-1" >
                     <div className="flex items-center space-x-2"><RadioGroupItem value="resume" id="proof-resume" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving || isProcessingProfile}/><Label htmlFor="proof-resume">Upload Resume</Label></div>
                     <div className="flex items-center space-x-2"><RadioGroupItem value="linkedin" id="proof-linkedin" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving || isProcessingProfile}/><Label htmlFor="proof-linkedin">Share LinkedIn Link</Label></div>
                   </RadioGroup>
                 </div>
                 {workExperienceProofType === 'resume' && (
                   <div className="space-y-2 mt-2 border-t border-gray-600/20 pt-4">
-                    <Label className="text-white">Upload Resume (Image or PDF Recommended)</Label>
+                    <Label className="text-white">Upload Resume (Image, PDF, DOC, TXT)</Label>
                     <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-                      <Button onClick={() => resumeFileInputRef.current?.click()} className="gradient-border-button w-auto" disabled={isProcessingProfile || isSaving}><UploadCloud className="mr-2 h-5 w-5" /> Upload Resume</Button>
-                      <input type="file" ref={resumeFileInputRef} onChange={handleResumeFileChange} className="hidden" accept="image/*,.pdf,.doc,.docx" />
-                      <Button onClick={() => setShowCameraForResume(true)} className="gradient-border-button w-auto" disabled={isProcessingProfile || isSaving}><Camera className="mr-2 h-5 w-5" /> Take Picture (Resume)</Button>
+                      <Button onClick={() => resumeFileInputRef.current?.click()} className="gradient-border-button" disabled={isProcessingProfile || isSaving}><UploadCloud className="mr-2 h-5 w-5" /> Upload Resume</Button>
+                      <input type="file" ref={resumeFileInputRef} onChange={handleResumeFileChange} className="hidden" accept="image/jpeg,image/png,.pdf,.doc,.docx,.txt" />
+                      <Button onClick={() => setShowCameraForResume(true)} className="gradient-border-button" disabled={isProcessingProfile || isSaving}><Camera className="mr-2 h-5 w-5" /> Take Picture (Resume)</Button>
                     </div>
-                    {resumeFile && (<div className="text-center mt-2">{resumePreview ? <Image src={resumePreview} alt="Resume Preview" width={150} height={200} className="rounded-md mx-auto object-contain max-h-48" data-ai-hint="resume document" /> : <p className="text-sm text-gray-300">Uploaded: {resumeFile.name}</p>}</div>)}
+                    {resumeFile && (<div className="text-center mt-2">
+                        {resumePreview && resumeFile.type.startsWith('image/') ? <Image src={resumePreview} alt="Resume Preview" width={150} height={200} className="rounded-md mx-auto object-contain max-h-48" data-ai-hint="resume document" />
+                        : resumePreview && !resumeFile.type.startsWith('image/') && resumeFile.type !== 'text/plain' ? <p className="text-sm text-gray-300">Uploaded: {resumeFile.name} (Preview N/A)</p>
+                        : resumeTextContent ? <div className="bg-gray-800 p-2 rounded-md max-h-32 overflow-y-auto mt-2"><p className="text-xs text-gray-300 whitespace-pre-wrap">{resumeTextContent.substring(0,300)}{resumeTextContent.length > 300 ? "..." : ""}</p></div>
+                        : <p className="text-sm text-gray-300">Uploaded: {resumeFile.name}</p>}
+                    </div>)}
                     {isProcessingProfile && workExperienceProofType === 'resume' && <div className="text-center text-white"><Loader2 className="inline-block mr-2 h-5 w-5 animate-spin" /> Processing Resume...</div>}
                   </div>
                 )}
@@ -453,7 +501,7 @@ export default function WorkEmploymentKYCPage() {
                   <div className="mt-2 border-t border-gray-600/20 pt-4 space-y-2">
                     <Label htmlFor="linkedInUrl" className="text-white">LinkedIn Profile URL</Label>
                     <Input id="linkedInUrl" value={linkedInUrl} onChange={(e) => setLinkedInUrl(e.target.value)} className="bg-white/80 text-black" placeholder="https://linkedin.com/in/yourprofile" disabled={isProcessingProfile || isSaving}/>
-                    <Button onClick={handleAnalyzeLinkedIn} className="gradient-border-button w-auto" disabled={isProcessingProfile || isSaving || !linkedInUrl}><Sparkles className="mr-2 h-4 w-4" /> Analyze LinkedIn</Button>
+                    <Button onClick={processProfile} className="gradient-border-button" disabled={isProcessingProfile || isSaving || !linkedInUrl}><Sparkles className="mr-2 h-4 w-4" /> Analyze LinkedIn</Button>
                     {isProcessingProfile && workExperienceProofType === 'linkedin' && <div className="text-center text-white"><Loader2 className="inline-block mr-2 h-5 w-5 animate-spin" /> Processing LinkedIn...</div>}
                   </div>
                 )}
@@ -482,7 +530,7 @@ export default function WorkEmploymentKYCPage() {
                   )}
                 </div>
               )}
-              
+
               <div className="mt-8 space-y-4 border-t border-gray-500/50 pt-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox id="workEmploymentConsent" checked={consentChecked} onCheckedChange={(checked) => setConsentChecked(checked as boolean)} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving}/>
@@ -495,7 +543,7 @@ export default function WorkEmploymentKYCPage() {
 
               <div className="mt-8 flex justify-center">
                 <Button onClick={handleSaveAndContinue} size="lg" className="gradient-border-button" disabled={!isFormCompleteForSave() || isSaving || isProcessingProfile }>
-                   {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...</> : 'Save & Continue'}
+                   {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...</> : 'Save & Continue to Review'}
                 </Button>
               </div>
             </div>
@@ -522,3 +570,5 @@ export default function WorkEmploymentKYCPage() {
     </div>
   );
 }
+
+    

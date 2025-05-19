@@ -31,13 +31,15 @@ export default function AdmissionKYCPage() {
   const userId = getOrGenerateUserId();
 
 
-  const [avekaMessage, setAvekaMessage] = useState("Let's start with your admission details. Do you have your academic offer letter handy? For best results with AI extraction, please upload a clear IMAGE (JPG, PNG). PDFs are accepted but AI works best with images.");
+  const [avekaMessage, setAvekaMessage] = useState("Let's start with your admission details. Do you have your academic offer letter handy? For best results with AI extraction, please upload a clear IMAGE (JPG, PNG). Other formats (PDF, DOC, TXT) are accepted, but AI works best with images.");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
   const [studentFirstName, setStudentFirstName] = useState<string | null>(null);
 
   const [hasOfferLetter, setHasOfferLetter] = useState<boolean | null>(null);
   const [offerLetterFile, setOfferLetterFile] = useState<File | null>(null);
-  const [offerLetterPreview, setOfferLetterPreview] = useState<string | null>(null); 
+  const [offerLetterPreview, setOfferLetterPreview] = useState<string | null>(null); // For image, PDF, DOC data URI
+  const [offerLetterTextContent, setOfferLetterTextContent] = useState<string | null>(null); // For TXT content
+
 
   const [isProcessingLetter, setIsProcessingLetter] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -100,26 +102,44 @@ export default function AdmissionKYCPage() {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setOfferLetterFile(file); 
+      setOfferLetterFile(file);
+      setOfferLetterPreview(null);
+      setOfferLetterTextContent(null);
+      setExtractedData(null); // Reset extracted data on new file
+
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onloadend = () => {
-          setOfferLetterPreview(reader.result as string); 
+          setOfferLetterPreview(reader.result as string);
         };
         reader.readAsDataURL(file);
+      } else if (file.type === 'text/plain') {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setOfferLetterTextContent(reader.result as string);
+        };
+        reader.readAsText(file);
+        toast({ title: "Text File Selected", description: `${file.name} uploaded. AI will process its content.` });
+      } else if (file.type === 'application/pdf' || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setOfferLetterPreview(reader.result as string); // Pass data URI for PDF/DOC
+        };
+        reader.readAsDataURL(file);
+        toast({ title: `${file.type.toUpperCase()} Selected`, description: `${file.name} uploaded. AI will attempt to process it. For best results, use clear images.` });
       } else {
-        setOfferLetterPreview(null); 
-        toast({ title: "Document Selected", description: `${file.name} is ready. AI extraction works best with clear images. PDF details might need manual verification.` });
-        setExtractedData({ 
+        toast({ title: "Unsupported File", description: "Please upload an image, PDF, DOC, or TXT file.", variant: "destructive"});
+        setOfferLetterFile(null);
+        setExtractedData({
           studentName: "Not Specified", universityName: "Not Specified", courseName: "Not Specified",
           admissionLevel: "Not Specified", admissionFees: "Not Specified", courseStartDate: "Not Specified",
           offerLetterType: "Not Specified"
         });
-        setAvekaMessage("Thanks for the document. Since it's not an image, please review and fill in the details below manually.");
+        setAvekaMessage("Please review and fill in the offer letter details manually below, or upload an image/text file for AI processing.");
       }
     }
   };
-  
+
   const dataURLtoBlob = (dataurl: string) => {
     const arr = dataurl.split(',');
     const mimeMatch = arr[0].match(/:(.*?);/);
@@ -142,16 +162,17 @@ export default function AdmissionKYCPage() {
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/png');
-        setOfferLetterPreview(dataUrl); 
-        setOfferLetterFile(new File([dataURLtoBlob(dataUrl)], "offer_letter_capture.png", { type: "image/png" })); 
+        setOfferLetterPreview(dataUrl);
+        setOfferLetterTextContent(null);
+        setOfferLetterFile(new File([dataURLtoBlob(dataUrl)], "offer_letter_capture.png", { type: "image/png" }));
         setShowCamera(false);
       }
     }
   };
 
   const processOfferLetterAI = async () => {
-    if (!offerLetterPreview) { 
-      toast({ title: "AI Extraction Skipped", description: "AI extraction works best with clear images. Please review and fill details manually.", variant: "default" });
+    if (!offerLetterPreview && !offerLetterTextContent) {
+      toast({ title: "AI Extraction Skipped", description: "No image or text content to process. Please review and fill details manually.", variant: "default" });
       setExtractedData({
           studentName: "Not Specified", universityName: "Not Specified", courseName: "Not Specified",
           admissionLevel: "Not Specified", admissionFees: "Not Specified", courseStartDate: "Not Specified",
@@ -162,12 +183,15 @@ export default function AdmissionKYCPage() {
     }
     setIsProcessingLetter(true);
     setExtractedData(null);
-    setAvekaMessage("Great! I'm currently analyzing your offer letter image. This might take a few moments...");
+    setAvekaMessage("Great! I'm currently analyzing your offer letter. This might take a few moments...");
     try {
-      const input: ExtractOfferLetterInput = { offerLetterImageUri: offerLetterPreview };
+      const input: ExtractOfferLetterInput = {
+        offerLetterImageUri: offerLetterPreview, // Can be image data URI or PDF/DOC data URI
+        offerLetterTextContent: offerLetterTextContent,
+      };
       const result = await extractOfferLetterDetails(input);
       setExtractedData(result);
-      if (result && typeof result.studentName === 'string' && result.studentName.trim() !== '') {
+      if (result && typeof result.studentName === 'string' && result.studentName.trim() !== '' && result.studentName !== "Not Specified") {
         setStudentFirstName(result.studentName.split(' ')[0]);
       } else {
         setStudentFirstName(null);
@@ -175,8 +199,8 @@ export default function AdmissionKYCPage() {
       toast({ title: "Information Extracted", description: "Please review the details below." });
     } catch (error) {
       console.error("Error processing offer letter:", error);
-      toast({ title: "Extraction Failed", description: "Could not extract details. Please ensure it's a clear image or try re-uploading.", variant: "destructive" });
-      setAvekaMessage("I had trouble extracting details from the image. Please review the fields and fill them manually if needed.");
+      toast({ title: "Extraction Failed", description: "Could not extract details. Please ensure it's a clear image/document or try re-uploading.", variant: "destructive" });
+      setAvekaMessage("I had trouble extracting details. Please review the fields and fill them manually if needed.");
       setExtractedData({
         studentName: "Not Specified", universityName: "Not Specified", courseName: "Not Specified",
         admissionLevel: "Not Specified", admissionFees: "Not Specified", courseStartDate: "Not Specified",
@@ -188,11 +212,11 @@ export default function AdmissionKYCPage() {
   };
 
   useEffect(() => {
-    if (offerLetterFile && offerLetterPreview && !extractedData && !isProcessingLetter) { 
+    if (offerLetterFile && (offerLetterPreview || offerLetterTextContent) && !extractedData && !isProcessingLetter) {
       processOfferLetterAI();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offerLetterPreview, offerLetterFile]); 
+  }, [offerLetterPreview, offerLetterTextContent, offerLetterFile]);
 
   const handleEditField = (field: keyof ExtractOfferLetterOutput, currentValue: string) => {
     setEditingField(field);
@@ -203,7 +227,7 @@ export default function AdmissionKYCPage() {
     if (extractedData && editingField) {
       const newData = { ...extractedData, [editingField]: editValue };
       setExtractedData(newData);
-      if (editingField === 'studentName' && typeof editValue === 'string' && editValue.trim() !== '') {
+      if (editingField === 'studentName' && typeof editValue === 'string' && editValue.trim() !== '' && editValue !== "Not Specified") {
         setStudentFirstName(editValue.split(' ')[0]);
       }
       setEditingField(null);
@@ -228,7 +252,7 @@ export default function AdmissionKYCPage() {
     setIsUploading(true);
     let uploadedOfferLetterUrl: string | null = null;
 
-    if (offerLetterFile) { 
+    if (offerLetterFile) {
         const uploadResult = await uploadFileToStorage(userId, offerLetterFile, `offer_letter/${offerLetterFile.name}`);
         if (uploadResult.success && uploadResult.downloadURL) {
             uploadedOfferLetterUrl = uploadResult.downloadURL;
@@ -238,23 +262,23 @@ export default function AdmissionKYCPage() {
             return;
         }
     }
-    
+
     const admissionDataToSave = {
       ...extractedData,
       offerLetterUrl: uploadedOfferLetterUrl,
       consentTimestamp: currentTime,
     };
 
-    const result = await saveUserApplicationData(userId, { 
-        admissionKyc: admissionDataToSave, 
-        hasOfferLetter: true 
+    const result = await saveUserApplicationData(userId, {
+        admissionKyc: admissionDataToSave,
+        hasOfferLetter: true
     });
     setIsUploading(false);
 
     if (result.success) {
         localStorage.setItem('hasOfferLetterStatus', 'true');
         toast({ title: "Admission Details Saved!", description: "Moving to Preferences." });
-        router.push('/loan-application/preferences'); 
+        router.push('/loan-application/preferences');
     } else {
         toast({ title: "Save Failed", description: result.error || "Could not save admission details.", variant: "destructive"});
     }
@@ -266,14 +290,14 @@ export default function AdmissionKYCPage() {
       toast({ title: "Error", description: "User session not found. Please restart.", variant: "destructive" });
       return;
     }
-    setIsUploading(true); 
+    setIsUploading(true);
     const result = await saveUserApplicationData(userId, { hasOfferLetter: false });
     setIsUploading(false);
     if (result.success) {
         localStorage.setItem('hasOfferLetterStatus', 'false');
-        localStorage.removeItem('admissionKycData'); 
+        localStorage.removeItem('admissionKycData');
         toast({ title: "Okay", description: "Proceeding to Personal KYC." });
-        router.push('/loan-application/personal-kyc'); 
+        router.push('/loan-application/personal-kyc');
     } else {
          toast({ title: "Save Failed", description: result.error || "Could not update status.", variant: "destructive"});
     }
@@ -282,7 +306,7 @@ export default function AdmissionKYCPage() {
   const renderInitialQuestion = () => (
     <div className="text-center">
       <div className="flex justify-center space-x-4">
-        <Button onClick={() => {setHasOfferLetter(true); setAvekaMessage("Excellent! Please upload a clear IMAGE (JPG, PNG) of your offer letter or take a picture of it for the best AI extraction results. PDFs are accepted too, but AI works best on images.");}} size="lg" className="gradient-border-button" disabled={isUploading}>Yes, I have it</Button>
+        <Button onClick={() => {setHasOfferLetter(true); setAvekaMessage("Excellent! Please upload a clear IMAGE (JPG, PNG) of your offer letter or take a picture of it for the best AI extraction results. Other document types like PDF, DOC, or TXT are also accepted.");}} size="lg" className="gradient-border-button" disabled={isUploading}>Yes, I have it</Button>
         <Button onClick={handleNoOfferLetter} size="lg" variant="outline" className="bg-white text-black hover:bg-gray-100" disabled={isUploading}>No, not yet</Button>
       </div>
     </div>
@@ -294,18 +318,24 @@ export default function AdmissionKYCPage() {
         <Button onClick={() => fileInputRef.current?.click()} size="lg" className="gradient-border-button w-full sm:w-auto" disabled={isUploading || isProcessingLetter}>
           <UploadCloud className="mr-2 h-5 w-5" /> Upload Document
         </Button>
-        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,.pdf,.doc,.docx" />
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/jpeg,image/png,.pdf,.doc,.docx,.txt" />
         <Button onClick={() => setShowCamera(true)} size="lg" className="gradient-border-button w-full sm:w-auto" disabled={isUploading || isProcessingLetter}>
           <Camera className="mr-2 h-5 w-5" /> Take Picture
         </Button>
       </div>
       {offerLetterFile && (
         <div className="mt-6 p-4 border border-gray-600 rounded-lg bg-gray-700/30 max-w-md mx-auto">
-          <h3 className="font-semibold mb-2 text-center text-white">Preview:</h3>
-          {offerLetterPreview ? ( 
-            <Image src={offerLetterPreview} alt="Offer Letter Preview" width={400} height={500} className="rounded-md mx-auto max-h-[500px] object-contain" />
+          <h3 className="font-semibold mb-2 text-center text-white">Preview/Status:</h3>
+          {offerLetterPreview && offerLetterFile.type.startsWith('image/') ? (
+            <Image src={offerLetterPreview} alt="Offer Letter Preview" width={400} height={500} className="rounded-md mx-auto max-h-[500px] object-contain" data-ai-hint="document offer letter" />
+          ) : offerLetterPreview && !offerLetterFile.type.startsWith('image/') && offerLetterFile.type !== 'text/plain' ? (
+            <p className="text-center text-sm text-white">Uploaded: {offerLetterFile?.name} (Preview not available for this type)</p>
+          ) : offerLetterTextContent ? (
+            <div className="bg-gray-800 p-3 rounded-md max-h-60 overflow-y-auto">
+                <p className="text-xs text-gray-300 whitespace-pre-wrap">{offerLetterTextContent.substring(0,500)}{offerLetterTextContent.length > 500 ? "..." : ""}</p>
+            </div>
           ) : (
-            <p className="text-center text-sm text-white">Uploaded: {offerLetterFile?.name}</p>
+            <p className="text-center text-sm text-white">Uploaded: {offerLetterFile?.name} ({offerLetterFile?.type})</p>
           )}
         </div>
       )}
@@ -479,7 +509,7 @@ export default function AdmissionKYCPage() {
                         <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
                         <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                         <p className="text-base text-white">
-                          {(studentFirstName && typeof studentFirstName === 'string' && studentFirstName.trim() !== '' && extractedData) ? 
+                          {(studentFirstName && typeof studentFirstName === 'string' && studentFirstName.trim() !== '' && extractedData) ?
                            `Thanks, ${studentFirstName}! I've extracted the following details from your offer letter. Please review them carefully.`
                            : avekaMessage }
                         </p>
@@ -498,3 +528,5 @@ export default function AdmissionKYCPage() {
     </div>
   );
 }
+
+    

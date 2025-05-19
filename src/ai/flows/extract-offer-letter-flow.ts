@@ -14,8 +14,15 @@ import { z } from 'genkit'; // Genkit re-exports z
 const ExtractOfferLetterInputSchema = z.object({
   offerLetterImageUri: z
     .string()
+    .nullable()
     .describe(
-      "An image of the academic offer letter, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'. For best results, ensure the image is clear and legible."
+      "An image of the academic offer letter (JPG, PNG, or even PDF/DOC as data URI), as a data URI. Expected format: 'data:<mimetype>;base64,<encoded_data>'. Clear images work best."
+    ),
+  offerLetterTextContent: z
+    .string()
+    .nullable()
+    .describe(
+      "Plain text content extracted from the offer letter, if it was a .txt file."
     ),
 });
 export type ExtractOfferLetterInput = z.infer<typeof ExtractOfferLetterInputSchema>;
@@ -37,7 +44,18 @@ const extractPrompt = ai.definePrompt({
   input: { schema: ExtractOfferLetterInputSchema },
   output: { schema: ExtractOfferLetterOutputSchema },
   prompt: `You are an expert AI assistant specializing in extracting information from academic offer letters.
-Analyze the provided image of the offer letter carefully.
+Analyze the provided offer letter content carefully. It could be an image, a document data URI, or plain text. Prioritize text content if available.
+
+{{#if offerLetterTextContent}}
+Offer Letter Text:
+{{{offerLetterTextContent}}}
+{{else if offerLetterImageUri}}
+Offer Letter Document/Image (could be JPG, PNG, PDF, DOC data URI):
+{{media url=offerLetterImageUri}}
+{{else}}
+No offer letter content provided.
+{{/if}}
+
 Extract the following details and structure your response according to the defined output schema:
 
 1.  **Student's Full Name**: The complete name of the applicant.
@@ -49,9 +67,7 @@ Extract the following details and structure your response according to the defin
 7.  **Offer Letter Type**: Determine if the offer is 'Conditional' or 'Unconditional'. If it's not clearly stated or ambiguously worded, assume 'Not Specified'.
 
 Ensure all extracted text is accurate and matches the letter. If a specific piece of information cannot be found, use "Not Specified" for that field.
-
-Offer Letter Image:
-{{media url=offerLetterImageUri}}
+If no content was provided, return "Not Specified" for all fields.
 `,
 });
 
@@ -63,6 +79,18 @@ const extractOfferLetterFlow = ai.defineFlow(
     outputSchema: ExtractOfferLetterOutputSchema,
   },
   async (input) => {
+    if (!input.offerLetterImageUri && !input.offerLetterTextContent) {
+      // If no input is provided at all, return default "Not Specified"
+      return {
+        studentName: "Not Specified",
+        universityName: "Not Specified",
+        courseName: "Not Specified",
+        admissionLevel: "Not Specified",
+        admissionFees: "Not Specified",
+        courseStartDate: "Not Specified",
+        offerLetterType: "Not Specified",
+      };
+    }
     const { output } = await extractPrompt(input);
     if (!output) {
         throw new Error("AI failed to process the offer letter or return valid data.");
@@ -74,3 +102,5 @@ const extractOfferLetterFlow = ai.defineFlow(
 export async function extractOfferLetterDetails(input: ExtractOfferLetterInput): Promise<ExtractOfferLetterOutput> {
   return extractOfferLetterFlow(input);
 }
+
+    
