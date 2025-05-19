@@ -48,21 +48,23 @@ const getFirebaseConfig = () => {
   };
 
   if (!config.projectId || !config.apiKey) {
-    console.error("[Firebase Service] Firebase config not found or incomplete in environment variables. Ensure .env.local is set up correctly with NEXT_PUBLIC_ prefixed variables.");
+    console.error("[Firebase Service] Firebase config not found or incomplete in environment variables. Ensure .env.local is set up correctly with NEXT_PUBLIC_ prefixed variables using your Project ID:", config.projectId || "UNKNOWN_PROJECT_ID");
     return null;
   }
+  console.log("[Firebase Service] Loaded Firebase config for Project ID:", config.projectId);
   return config;
 };
 
 export const initializeFirebaseClientSDK = (): { firebaseApp: FirebaseApp | null, db: Firestore | null, storage: FirebaseStorage | null } => {
   if (firebaseApp && db && storage) {
-    // Check if the existing db instance is for the correct database ID
-    // @ts-ignore // Accessing private _databaseId for logging, not for production use
+    // @ts-ignore
     if (db && db._databaseId && db._databaseId.database === DATABASE_ID) {
        console.log(`[Firebase Service] Firebase already initialized for DATABASE_ID: "${DATABASE_ID}" (Project ID: ${firebaseApp.options.projectId}). Returning existing instances.`);
        return { firebaseApp, db, storage };
     } else {
-        console.warn(`[Firebase Service] Firebase was initialized, but for a different DB_ID or db instance is null. Re-initializing for DATABASE_ID: "${DATABASE_ID}".`);
+        // @ts-ignore
+        const currentDbId = db?._databaseId?.database || 'null db';
+        console.warn(`[Firebase Service] Firebase was initialized, but for a different DB_ID ("${currentDbId}") or db instance is null. Re-initializing for DATABASE_ID: "${DATABASE_ID}".`);
     }
   }
 
@@ -84,29 +86,30 @@ export const initializeFirebaseClientSDK = (): { firebaseApp: FirebaseApp | null
     }
   } else {
     firebaseApp = getApps()[0];
-    if (firebaseApp.options.projectId !== config.projectId) {
+     if (firebaseApp.options.projectId !== config.projectId) {
          console.warn(`[Firebase Service] Mismatch: An app for project ${firebaseApp.options.projectId} is already initialized. Attempting to initialize for ${config.projectId} as a secondary app (this might not be ideal).`);
          try {
-            firebaseApp = initializeApp(config, `app-${config.projectId?.replace(/-/g, '')}`);
+            firebaseApp = initializeApp(config, `app-${config.projectId?.replace(/-/g, '')}`); // Unique app name
             console.log("[Firebase Service] Firebase App re-initialized as named instance for project:", config.projectId);
          } catch (error) {
              console.error("[Firebase Service] Error re-initializing Firebase App as named instance:", error);
              return { firebaseApp: null, db: null, storage: null };
          }
+    } else {
+      console.log("[Firebase Service] Using existing Firebase App instance for project:", config.projectId);
     }
   }
 
   try {
-    db = getFirestore(firebaseApp, DATABASE_ID); // Explicitly use the DATABASE_ID
-    // @ts-ignore - Accessing private _databaseId for logging
+    db = getFirestore(firebaseApp, DATABASE_ID); 
+    // @ts-ignore 
     const actualDbId = db?._databaseId?.database || 'unknown';
     console.log(`[Firebase Service] Firestore CURENTLY INITIALIZED for DATABASE_ID: "${actualDbId}". Expected: "${DATABASE_ID}"`);
-    if (actualDbId !== DATABASE_ID && actualDbId !== '(default)') { // (default) can sometimes be the internal representation before specific ID is applied
-        console.warn(`[Firebase Service] Firestore initialized with DB ID "${actualDbId}" but expected "${DATABASE_ID}". This might lead to issues.`);
-    } else if (actualDbId === DATABASE_ID) {
+    if (actualDbId !== DATABASE_ID) { 
+        console.error(`[Firebase Service] CRITICAL MISMATCH: Firestore initialized with DB ID "${actualDbId}" but expected "${DATABASE_ID}". This WILL cause issues. Check Firebase project setup and if the database named "${DATABASE_ID}" exists and is the intended target.`);
+    } else {
         console.log(`[Firebase Service] Firestore successfully targeting DATABASE_ID: "${DATABASE_ID}".`);
     }
-
   } catch (error) {
     console.error(`[Firebase Service] Error initializing Firestore for DATABASE_ID "${DATABASE_ID}":`, error);
     db = null; 
@@ -178,32 +181,35 @@ export interface UserApplicationData {
   };
   academicKyc?: any; 
   professionalKyc?: {
-    coSignatoryChoice?: string | null;
-    coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null;
-    coSignatoryIdUrl?: string | null; 
-    coSignatoryRelationship?: string | null;
-    coSignatoryIdNumber?: string; 
-    coSignatoryIdType?: string;   
-    coSignatoryNameOnId?: string; 
-
-    workExperienceIndustry?: string;
-    workExperienceYears?: string;
-    workExperienceMonths?: string;
-    workExperienceProofType?: 'resume' | 'linkedin' | null;
-    resumeUrl?: string | null; 
-    linkedInUrl?: string | null;
-    
-    extractedYearsOfExperience?: string; 
-    extractedGapInLast3YearsMonths?: string; 
-    extractedCurrentOrLastIndustry?: string; 
-    extractedCurrentOrLastJobRole?: string; 
-    
-    isCurrentlyWorking?: 'yes' | 'no' | null;
-    monthlySalary?: string | null;
-    salaryCurrency?: string | null;
-    familyMonthlySalary?: string | null;
-    familySalaryCurrency?: string | null;
-    consentTimestamp?: string;
+    coSignatory?: {
+      coSignatoryChoice?: string | null;
+      coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null;
+      coSignatoryIdUrl?: string | null; 
+      coSignatoryRelationship?: string | null;
+      idNumber?: string; 
+      idType?: string;   
+      nameOnId?: string; 
+      consentTimestamp?: string;
+    },
+    workEmployment?: {
+      workExperienceIndustry?: string;
+      workExperienceYears?: string;
+      workExperienceMonths?: string;
+      workExperienceProofType?: 'resume' | 'linkedin' | null;
+      resumeUrl?: string | null; 
+      linkedInUrl?: string | null;
+      extractedYearsOfExperience?: string; 
+      extractedGapInLast3YearsMonths?: string; 
+      extractedCurrentOrLastIndustry?: string; 
+      extractedCurrentOrLastJobRole?: string; 
+      isCurrentlyWorking?: 'yes' | 'no' | null;
+      monthlySalary?: string | null;
+      salaryCurrency?: string | null;
+      familyMonthlySalary?: string | null;
+      familySalaryCurrency?: string | null;
+      consentTimestamp?: string;
+    },
+    reviewedTimestamp?: string;
   };
   preferences?: any; 
   lenderRecommendations?: any; 
@@ -220,29 +226,30 @@ export async function saveUserApplicationData(userId: string, data: Partial<User
     console.error(errorMsg);
     return { success: false, error: "Firestore not initialized. Cannot save data." };
   }
+  
   // @ts-ignore
   const currentDbId = currentDb?._databaseId?.database;
   if (currentDbId !== DATABASE_ID) {
-      const errorMsg = `[Firebase Service] CRITICAL: saveUserApplicationData attempting to write to DB ID "${currentDbId}" but expected "${DATABASE_ID}". Aborting.`;
+      const errorMsg = `[Firebase Service] CRITICAL: saveUserApplicationData attempting to write to DB ID "${currentDbId}" but expected "${DATABASE_ID}". Aborting. Project: ${currentApp.options.projectId}`;
       console.error(errorMsg);
       return { success: false, error: `Internal configuration error: Attempting to write to wrong database instance (${currentDbId}). Expected ${DATABASE_ID}.` };
   }
   
-  const dataToSet: any = { // Use 'any' for dataToSet temporarily for easier field management
+  const userDocRef = doc(currentDb, CUSTOMER_COLLECTION, userId);
+  const dataToSet: any = { 
     ...data, 
-    userId, 
+    userId, // Ensure userId is always part of the data being set
     updatedAt: serverTimestamp(),
   };
 
-  // Add createdAt only if it's the initial save (i.e., if 'createdAt' is provided in the 'data' argument)
+  // Add createdAt only if it's the initial save (i.e., if 'createdAt' is explicitly passed, as from the mobile page)
   if (data.createdAt) {
     dataToSet.createdAt = data.createdAt;
   }
   
-  console.log(`[Firebase Service] Saving data for user ${userId} to collection '${CUSTOMER_COLLECTION}' in DATABASE_ID '${currentDbId}', project '${currentApp.options.projectId}'. Data being merged:`, JSON.parse(JSON.stringify(dataToSet)));
+  console.log(`[Firebase Service] Saving data for user ${userId} to collection '${CUSTOMER_COLLECTION}', path '${userDocRef.path}' in DATABASE_ID '${currentDbId}', project '${currentApp.options.projectId}'. Data being merged:`, JSON.parse(JSON.stringify(dataToSet)));
   
   try {
-    const userDocRef = doc(currentDb, CUSTOMER_COLLECTION, userId);
     await setDoc(userDocRef, dataToSet, { merge: true });
     console.log(`[Firebase Service] Data for user ${userId} saved successfully to collection '${CUSTOMER_COLLECTION}' in DATABASE_ID '${currentDbId}'.`);
     return { success: true };
@@ -253,6 +260,8 @@ export async function saveUserApplicationData(userId: string, data: Partial<User
         detailedError = `Failed to save data: The client is offline or unable to reach Firestore. (Code: ${error.code})`;
     } else if (error.code === 'failed-precondition' && error.message.includes('database') && error.message.includes('not found')) {
         detailedError = `Firestore error: Database '${DATABASE_ID}' not found or not accessible. Please check database name and project configuration. (Code: ${error.code})`;
+    } else if (error.code === 'permission-denied') {
+        detailedError = `Firestore error: Permission denied. Check security rules for path '${userDocRef.path}'. (Code: ${error.code})`;
     } else if (error.code) {
         detailedError = `Firestore error: ${error.message} (Code: ${error.code})`;
     }
@@ -262,15 +271,15 @@ export async function saveUserApplicationData(userId: string, data: Partial<User
 
 
 export async function getUserApplicationData(userId: string): Promise<{success: boolean, data?: UserApplicationData, error?: string}> {
-  const { db: currentDb } = ensureFirebaseInitialized();
-  if (!currentDb) {
+  const { db: currentDb, firebaseApp: currentApp } = ensureFirebaseInitialized();
+  if (!currentDb || !currentApp) {
      const errorMsg = "[Firebase Service] Firestore not initialized. Cannot get data for user: " + userId;
      console.error(errorMsg);
      return { success: false, error: "Firestore not initialized. Cannot get data." };
   }
   // @ts-ignore
   const currentDbId = currentDb?._databaseId?.database;
-  console.log(`[Firebase Service] Fetching data for user ${userId} from collection '${CUSTOMER_COLLECTION}' in DATABASE_ID '${currentDbId}'`);
+  console.log(`[Firebase Service] Fetching data for user ${userId} from collection '${CUSTOMER_COLLECTION}' in DATABASE_ID '${currentDbId}', project '${currentApp.options.projectId}'`);
   try {
     const docRef = doc(currentDb, CUSTOMER_COLLECTION, userId);
     const docSnap = await getDoc(docRef);
@@ -318,7 +327,7 @@ export async function uploadFileToStorage(
 
   try {
     let uploadTask;
-    if (typeof file === 'string') { 
+    if (typeof file === 'string' && file.startsWith('data:')) { 
       const mimeTypeMatch = file.match(/^data:(.+?);base64,/);
       const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'application/octet-stream'; 
       const base64String = file.substring(file.indexOf(',') + 1);
@@ -327,9 +336,14 @@ export async function uploadFileToStorage(
         console.error("[Firebase Service] Invalid or empty data URI provided for uploadString for path:", documentPath);
         return { success: false, error: "Invalid data URI provided for upload." };
       }
+      console.log(`[Firebase Service] Uploading data URI as base64. MimeType: ${mimeType}`);
       uploadTask = uploadString(fileStorageRefObj, base64String, 'base64', { contentType: mimeType });
-    } else { 
+    } else if (file instanceof File) { 
+      console.log(`[Firebase Service] Uploading File object. Name: ${file.name}, Type: ${file.type}`);
       uploadTask = uploadBytesResumable(fileStorageRefObj, file);
+    } else {
+      console.error("[Firebase Service] Invalid file type provided for upload. Must be File object or data URI string.");
+      return { success: false, error: "Invalid file type provided for upload." };
     }
 
     await uploadTask; 
@@ -345,6 +359,8 @@ export async function uploadFileToStorage(
       detailedError = `Storage Error: ${error.message}. Check Firebase Storage security rules for path: ${filePath} and network connectivity. (Code: ${error.code})`;
     } else if (error.code === 'unavailable') {
          detailedError = `Failed to upload file: The client is offline or unable to reach Firebase Storage. (Code: ${error.code})`;
+    } else if (error.code === 'permission-denied') {
+        detailedError = `Storage error: Permission denied. Check Storage security rules for path '${filePath}'. (Code: ${error.code})`;
     } else if (error.code) {
         detailedError = `Storage error: ${error.message} (Code: ${error.code})`;
     }
@@ -355,8 +371,8 @@ export async function uploadFileToStorage(
 
 
 export async function checkUserExistsByMobile(mobileNumber: string, countryCodeVal: string): Promise<{success: boolean, exists: boolean, userId?: string, data?: UserApplicationData, error?: string}> {
-  const { db: currentDb } = ensureFirebaseInitialized();
-  if (!currentDb) {
+  const { db: currentDb, firebaseApp: currentApp } = ensureFirebaseInitialized();
+  if (!currentDb || !currentApp) {
     console.error("[Firebase Service] Firestore not initialized. Cannot check user by mobile:", mobileNumber);
     return { success: false, exists: false, error: "Firestore not initialized. Cannot check user." };
   }
@@ -364,7 +380,7 @@ export async function checkUserExistsByMobile(mobileNumber: string, countryCodeV
   const formattedCountryCode = countryCodeVal.startsWith('+') ? countryCodeVal : `+${countryCodeVal}`;
    // @ts-ignore
   const currentDbId = currentDb?._databaseId?.database;
-  console.log(`[Firebase Service] Checking if user exists with mobile ${mobileNumber} (country code ${formattedCountryCode}) in collection '${CUSTOMER_COLLECTION}' in DATABASE_ID '${currentDbId}'`);
+  console.log(`[Firebase Service] Checking if user exists with mobile ${mobileNumber} (country code ${formattedCountryCode}) in collection '${CUSTOMER_COLLECTION}' in DATABASE_ID '${currentDbId}', project '${currentApp.options.projectId}'`);
 
   try {
     const usersRef = collection(currentDb, CUSTOMER_COLLECTION);
@@ -385,6 +401,8 @@ export async function checkUserExistsByMobile(mobileNumber: string, countryCodeV
         detailedError = `Failed to check user: The client is offline or unable to reach Firestore. (Code: ${error.code})`;
     } else if (error.code === 'failed-precondition' && error.message.includes('database') && error.message.includes('not found')) {
         detailedError = `Firestore error: Database '${DATABASE_ID}' not found or not accessible. Please check database name and project configuration. (Code: ${error.code})`;
+    } else if (error.code === 'permission-denied') {
+        detailedError = `Firestore error: Permission denied for query. Check security rules. (Code: ${error.code})`;
     } else if (error.code) {
         detailedError = `Firestore error: ${error.message} (Code: ${error.code})`;
     }
@@ -402,4 +420,3 @@ export async function getAllUniversities(): Promise<any[]> {
   console.log(`[Firebase Service] Placeholder: Fetching all universities`);
   return [{id: 'uni1', name: 'Placeholder University', courses: [{name: 'CS'}]}];
 }
-

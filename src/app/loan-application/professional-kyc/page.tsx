@@ -21,23 +21,28 @@ import { Loader2, UploadCloud, Camera, Edit3, Save, AlertCircle, ArrowLeft } fro
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
 import { extractCoSignatoryIdDetails, type ExtractCoSignatoryIdInput, type ExtractCoSignatoryIdOutput } from '@/ai/flows/extract-co-signatory-id-flow';
+import { getOrGenerateUserId } from '@/lib/user-utils';
+import { saveUserApplicationData, uploadFileToStorage } from '@/services/firebase-service';
 
-interface CoSignatoryKycData {
+interface CoSignatoryKycDataToSave {
   coSignatoryChoice: string | null;
   coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null;
   coSignatoryRelationship?: string | null;
-  // AI Extracted for Co-Signatory
+  coSignatoryIdUrl?: string | null; // Firebase Storage URL
+  // AI Extracted
   idNumber?: string;
-  idType?: string; // Extracted ID type
+  idType?: string; 
   nameOnId?: string;
+  consentTimestamp?: string;
 }
 
 
-export default function CoSignatoryKYCPage() {
+export default function CoSignatoryKYCPage() { // Renamed for clarity
   const [activeNavItem, setActiveNavItem] = useState('Loan');
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const router = useRouter();
   const { toast } = useToast();
+  const userId = getOrGenerateUserId();
 
   const [avekaMessage, setAvekaMessage] = useState("Let's start with co-signatory details. Adding a co-signatory can often improve loan approval chances!");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
@@ -45,8 +50,8 @@ export default function CoSignatoryKYCPage() {
   const [coSignatoryChoice, setCoSignatoryChoice] = useState<string | null>(null);
   const [isIndia, setIsIndia] = useState<boolean | null>(null);
   const [coSignatoryIdDocumentType, setCoSignatoryIdDocumentType] = useState<"PAN Card" | "National ID">("National ID");
-  const [coSignatoryIdFile, setCoSignatoryIdFile] = useState<File | null>(null);
-  const [coSignatoryIdPreview, setCoSignatoryIdPreview] = useState<string | null>(null);
+  const [coSignatoryIdFile, setCoSignatoryIdFile] = useState<File | null>(null); // For actual file upload
+  const [coSignatoryIdPreview, setCoSignatoryIdPreview] = useState<string | null>(null); // For data URI preview & AI
   const [coSignatoryRelationship, setCoSignatoryRelationship] = useState<string | null>(null);
   
   const [isProcessingCoSignatoryId, setIsProcessingCoSignatoryId] = useState(false);
@@ -56,6 +61,7 @@ export default function CoSignatoryKYCPage() {
 
   const [consentChecked, setConsentChecked] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const coSignatoryIdFileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -85,27 +91,30 @@ export default function CoSignatoryKYCPage() {
       processCoSignatoryId();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coSignatoryIdPreview, coSignatoryIdDocumentType, coSignatoryChoice]);
+  }, [coSignatoryIdPreview, coSignatoryIdDocumentType, coSignatoryChoice]); // Removed extractedCoSignatoryData from deps to avoid re-triggering if user edits
 
 
   const processCoSignatoryId = async () => {
-    if (!coSignatoryIdPreview || !coSignatoryIdDocumentType) return;
+    if (!coSignatoryIdPreview || !coSignatoryIdDocumentType || !userId) {
+      toast({ title: "Missing Information", description: "Cannot process ID without image or type.", variant: "destructive"});
+      return;
+    }
 
     setIsProcessingCoSignatoryId(true);
     setAvekaMessage(`Processing your co-signatory's ${coSignatoryIdDocumentType}... This might take a moment.`);
     try {
       const input: ExtractCoSignatoryIdInput = { 
-        coSignatoryIdImageUri: coSignatoryIdPreview,
+        coSignatoryIdImageUri: coSignatoryIdPreview, // Send data URI to AI flow
         idDocumentType: coSignatoryIdDocumentType
       };
       const result = await extractCoSignatoryIdDetails(input);
       setExtractedCoSignatoryData(result);
-      setAvekaMessage("I've extracted details from the co-signatory's ID. Please review them below.");
+      setAvekaMessage("I've extracted details from the co-signatory's ID. Please review them below. You can edit them if needed.");
       toast({ title: "Co-Signatory ID Processed", description: "Please review the extracted details." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error processing co-signatory ID:", error);
       setExtractedCoSignatoryData({ idNumber: "Error - Check Manually", idType: coSignatoryIdDocumentType, nameOnId: "Error - Check Manually"});
-      toast({ title: "Co-Signatory ID Extraction Failed", description: "Could not extract details. Please verify manually.", variant: "destructive" });
+      toast({ title: "Co-Signatory ID Extraction Failed", description: error.message || "Could not extract details. Please verify manually.", variant: "destructive" });
       setAvekaMessage("I encountered an issue processing the ID. Please review and fill the details manually if needed.");
     } finally {
       setIsProcessingCoSignatoryId(false);
@@ -115,10 +124,10 @@ export default function CoSignatoryKYCPage() {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setCoSignatoryIdFile(file);
+      setCoSignatoryIdFile(file); // Store the actual File object
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCoSignatoryIdPreview(reader.result as string);
+        setCoSignatoryIdPreview(reader.result as string); // Data URI for preview and AI
         toast({ title: `${coSignatoryIdDocumentType} Uploaded!` });
       };
       reader.readAsDataURL(file);
@@ -168,30 +177,69 @@ export default function CoSignatoryKYCPage() {
     }
   };
 
-  const isCoSignatoryDataComplete = () => {
+  const isCoSignatoryDataCompleteForSave = () => {
     if (coSignatoryChoice === 'yes') {
-      return coSignatoryIdPreview && coSignatoryRelationship && consentChecked && 
-             (!isProcessingCoSignatoryId && Object.keys(extractedCoSignatoryData).length > 0);
+      return coSignatoryIdFile && coSignatoryRelationship && consentChecked && 
+             !isProcessingCoSignatoryId && Object.keys(extractedCoSignatoryData).length > 0 && extractedCoSignatoryData.nameOnId !== "Error - Check Manually";
     }
     return consentChecked; // For 'no' or 'addLater', only consent is needed to proceed.
   };
 
-  const handleSaveAndContinue = () => {
-    const coSignatoryDataToSave: CoSignatoryKycData = {
+  const handleSaveAndContinue = async () => {
+    if (!userId) {
+      toast({ title: "Error", description: "User ID not found. Please refresh.", variant: "destructive" });
+      return;
+    }
+    if (!consentChecked) {
+      toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
+      return;
+    }
+    setIsSaving(true);
+
+    let coSignatoryIdUrl: string | undefined = undefined;
+
+    if (coSignatoryChoice === 'yes' && (coSignatoryIdFile || coSignatoryIdPreview)) {
+      // Prefer coSignatoryIdFile for upload if available, otherwise use coSignatoryIdPreview (data URI from camera)
+      const fileToUpload = coSignatoryIdFile || coSignatoryIdPreview; 
+      if (fileToUpload) {
+        const uploadResult = await uploadFileToStorage(userId, fileToUpload, `co_signatory_id/${coSignatoryIdFile?.name || 'co_signatory_id_capture.png'}`);
+        if (uploadResult.success && uploadResult.downloadURL) {
+          coSignatoryIdUrl = uploadResult.downloadURL;
+        } else {
+          toast({ title: "Co-Signatory ID Upload Failed", description: uploadResult.error || "Could not upload ID.", variant: "destructive" });
+          setIsSaving(false);
+          return;
+        }
+      }
+    }
+
+    const coSignatoryDataToSave: CoSignatoryKycDataToSave = {
       coSignatoryChoice,
       coSignatoryIdDocumentType: coSignatoryChoice === 'yes' ? coSignatoryIdDocumentType : null,
       coSignatoryRelationship: coSignatoryChoice === 'yes' ? coSignatoryRelationship : null,
-      idNumber: extractedCoSignatoryData?.idNumber,
-      idType: extractedCoSignatoryData?.idType,
-      nameOnId: extractedCoSignatoryData?.nameOnId,
+      coSignatoryIdUrl: coSignatoryIdUrl,
+      idNumber: coSignatoryChoice === 'yes' ? extractedCoSignatoryData?.idNumber : undefined,
+      idType: coSignatoryChoice === 'yes' ? extractedCoSignatoryData?.idType : undefined,
+      nameOnId: coSignatoryChoice === 'yes' ? extractedCoSignatoryData?.nameOnId : undefined,
+      consentTimestamp: currentTime,
     };
+    
+    const result = await saveUserApplicationData(userId, { 
+      professionalKyc: { 
+        // @ts-ignore // Spreading undefined is fine here for merge
+        ...(await getUserApplicationData(userId).then(res => res.data?.professionalKyc || {})), // Preserve other professionalKyc parts
+        coSignatory: coSignatoryDataToSave 
+      } 
+    });
+    
+    setIsSaving(false);
 
-    localStorage.setItem('coSignatoryKycData', JSON.stringify(coSignatoryDataToSave));
-    // Note: Large coSignatoryIdPreview is NOT saved to localStorage here. It's processed on this page.
-    localStorage.removeItem('coSignatoryIdDataUriForReview'); // Clean up old potential item
-
-    toast({ title: "Co-Signatory Details Saved!", description: "Proceeding to Work & Employment Details." });
-    router.push('/loan-application/work-employment-kyc');
+    if(result.success) {
+        toast({ title: "Co-Signatory Details Saved!", description: "Proceeding to Work & Employment Details." });
+        router.push('/loan-application/work-employment-kyc');
+    } else {
+        toast({ title: "Save Failed", description: result.error || "Could not save co-signatory details.", variant: "destructive"});
+    }
   };
 
   useEffect(() => {
@@ -219,8 +267,14 @@ export default function CoSignatoryKYCPage() {
   
 
   const renderCoSignatoryIDTable = () => {
-    if (!extractedCoSignatoryData || Object.keys(extractedCoSignatoryData).length === 0 || isProcessingCoSignatoryId) return null;
-    const dataEntries = Object.entries(extractedCoSignatoryData) as [keyof ExtractCoSignatoryIdOutput, string][];
+    if (!extractedCoSignatoryData || Object.keys(extractedCoSignatoryData).length === 0 || isProcessingCoSignatoryId || coSignatoryChoice !== 'yes') return null;
+    
+    // Filter out entries where value is undefined or null
+    const validEntries = Object.entries(extractedCoSignatoryData).filter(([_, value]) => value !== undefined && value !== null);
+    if (validEntries.length === 0) return null;
+
+    const dataEntries = validEntries as [keyof ExtractCoSignatoryIdOutput, string][];
+
 
     return (
       <div className="mt-6 space-y-4 p-4 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs">
@@ -265,7 +319,7 @@ export default function CoSignatoryKYCPage() {
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
@@ -297,7 +351,12 @@ export default function CoSignatoryKYCPage() {
               <div className="flex flex-col items-center text-center mb-6">
                 <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                   <div className="flex-shrink-0 mb-3 md:mb-0">
-                    <Image src="https://placehold.co/50x50.png" alt="Aveka" width={50} height={50} className="rounded-full border-2 border-white shadow-md" data-ai-hint="robot avatar" />
+                    <Image 
+                      src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png" 
+                      alt="Aveka, GlobCred's Smart AI" 
+                      width={50} height={50} className="rounded-full border-2 border-white shadow-md" 
+                      data-ai-hint="robot avatar" 
+                    />
                   </div>
                   <div className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow transform transition-all duration-500 ease-out w-full ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                     <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
@@ -310,7 +369,7 @@ export default function CoSignatoryKYCPage() {
               <div className="space-y-6 p-4 border-0 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
                 <h3 className="font-semibold text-lg text-center text-white">Co-Signatory Details</h3>
                 <Label className="text-white">Do you want to add a co-signatory? <span className="text-red-400">*</span></Label>
-                <RadioGroup value={coSignatoryChoice || ''} onValueChange={(value) => { setCoSignatoryChoice(value); if (value !== 'yes') setExtractedCoSignatoryData({}); }} className="flex flex-wrap gap-x-4 gap-y-2 text-white">
+                <RadioGroup value={coSignatoryChoice || ''} onValueChange={(value) => { setCoSignatoryChoice(value); if (value !== 'yes') { setExtractedCoSignatoryData({}); setCoSignatoryIdFile(null); setCoSignatoryIdPreview(null); setCoSignatoryRelationship(null); setAvekaMessage("Understood. We'll proceed without co-signatory details for now. You can always add them later if needed."); } else { setAvekaMessage(`Great! Please provide your co-signatory's ${isIndia ? "PAN Card" : "National ID"} and their relationship to you.`);} }} className="flex flex-wrap gap-x-4 gap-y-2 text-white">
                   {["yes", "no", "addLater"].map(opt => (
                     <div key={`cosign-${opt}`} className="flex items-center space-x-2">
                       <RadioGroupItem value={opt} id={`cosign-${opt}`} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" />
@@ -323,11 +382,11 @@ export default function CoSignatoryKYCPage() {
                   <div className="space-y-4 mt-4 border-t border-gray-600/20 pt-4">
                     <Label className="text-white">{`Upload Co-signatory's ${coSignatoryIdDocumentType}`} <span className="text-red-400">*</span></Label>
                     <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-                      <Button onClick={() => coSignatoryIdFileInputRef.current?.click()} className="gradient-border-button w-auto" disabled={isProcessingCoSignatoryId}>
+                      <Button onClick={() => coSignatoryIdFileInputRef.current?.click()} className="gradient-border-button w-auto" disabled={isProcessingCoSignatoryId || isSaving}>
                         <UploadCloud className="mr-2 h-5 w-5" /> Upload {coSignatoryIdDocumentType}
                       </Button>
                       <input type="file" ref={coSignatoryIdFileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,.pdf" />
-                      <Button onClick={() => setShowCamera(true)} className="gradient-border-button w-auto" disabled={isProcessingCoSignatoryId}>
+                      <Button onClick={() => setShowCamera(true)} className="gradient-border-button w-auto" disabled={isProcessingCoSignatoryId || isSaving}>
                         <Camera className="mr-2 h-5 w-5" /> Take Picture
                       </Button>
                     </div>
@@ -342,7 +401,7 @@ export default function CoSignatoryKYCPage() {
 
                     <div>
                       <Label htmlFor="coSignatoryRelationship" className="text-white">Relationship with Co-signatory <span className="text-red-400">*</span></Label>
-                      <Select value={coSignatoryRelationship || ''} onValueChange={setCoSignatoryRelationship}>
+                      <Select value={coSignatoryRelationship || ''} onValueChange={setCoSignatoryRelationship} disabled={isSaving}>
                         <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Select relationship" /></SelectTrigger>
                         <SelectContent className="bg-white text-black">
                           {["Parent", "Sibling", "Spouse", "Family Member", "Friend"].map(rel => (
@@ -355,10 +414,9 @@ export default function CoSignatoryKYCPage() {
                 )}
               </div>
               
-              {/* Consent Section for Co-Signatory */}
               <div className="mt-8 space-y-4 border-t border-gray-500/50 pt-4">
                 <div className="flex items-center space-x-2">
-                    <Checkbox id="coSignatoryConsent" checked={consentChecked} onCheckedChange={(checked) => setConsentChecked(checked as boolean)} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" />
+                    <Checkbox id="coSignatoryConsent" checked={consentChecked} onCheckedChange={(checked) => setConsentChecked(checked as boolean)} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving}/>
                     <Label htmlFor="coSignatoryConsent" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-300">
                         I confirm the co-signatory details (if provided) are correct or I choose not to add one at this time.
                     </Label>
@@ -367,8 +425,8 @@ export default function CoSignatoryKYCPage() {
               </div>
 
               <div className="mt-8 flex justify-center">
-                <Button onClick={handleSaveAndContinue} size="lg" className="gradient-border-button" disabled={!isCoSignatoryDataComplete() || isProcessingCoSignatoryId}>
-                  Save & Continue
+                <Button onClick={handleSaveAndContinue} size="lg" className="gradient-border-button" disabled={!isCoSignatoryDataCompleteForSave() || isProcessingCoSignatoryId || isSaving}>
+                  {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...</> : 'Save & Continue'}
                 </Button>
               </div>
             </div>

@@ -21,17 +21,19 @@ import { Loader2, UploadCloud, Camera, Edit3, Save, AlertCircle, ArrowLeft, Spar
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
 import { extractProfessionalProfileDetails, type ExtractProfessionalProfileInput, type ExtractProfessionalProfileOutput } from '@/ai/flows/extract-professional-profile-flow';
+import { getOrGenerateUserId } from '@/lib/user-utils';
+import { saveUserApplicationData, uploadFileToStorage, getUserApplicationData } from '@/services/firebase-service';
 
 const yearOptions = Array.from({ length: 26 }, (_, i) => String(i)); // 0-25 years
 const monthOptions = Array.from({ length: 12 }, (_, i) => String(i)); // 0-11 months
 const currencyOptions = ["USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY", "Other"];
 
-interface WorkEmploymentData {
+interface WorkEmploymentDataToSave {
   workExperienceIndustry?: string;
   workExperienceYears?: string;
   workExperienceMonths?: string;
   workExperienceProofType?: 'resume' | 'linkedin' | null;
-  resumeFileName?: string | null; // Store filename for non-image resumes
+  resumeUrl?: string | null; // Firebase Storage URL for resume
   linkedInUrl?: string | null;
   isCurrentlyWorking?: 'yes' | 'no' | null;
   monthlySalary?: string | null;
@@ -43,6 +45,7 @@ interface WorkEmploymentData {
   extractedGapInLast3YearsMonths?: string;
   extractedCurrentOrLastIndustry?: string;
   extractedCurrentOrLastJobRole?: string;
+  consentTimestamp?: string;
 }
 
 
@@ -51,16 +54,17 @@ export default function WorkEmploymentKYCPage() {
   const navMenuItems = ['Loan', 'Study', 'Work'];
   const router = useRouter();
   const { toast } = useToast();
+  const userId = getOrGenerateUserId();
 
-  const [avekaMessage, setAvekaMessage] = useState("Great! Now, let's talk about your work experience.");
+  const [avekaMessage, setAvekaMessage] = useState("Great! Now, let's talk about your work experience. Please provide your industry and years of experience. Sharing your resume or LinkedIn is optional but can help.");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
 
   const [workExperienceIndustry, setWorkExperienceIndustry] = useState('');
   const [workExperienceYears, setWorkExperienceYears] = useState<string | undefined>();
   const [workExperienceMonths, setWorkExperienceMonths] = useState<string | undefined>();
   const [workExperienceProofType, setWorkExperienceProofType] = useState<'resume' | 'linkedin' | null>(null);
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [resumePreview, setResumePreview] = useState<string | null>(null); // For image resumes (data URI)
+  const [resumeFile, setResumeFile] = useState<File | null>(null); // For actual file upload
+  const [resumePreview, setResumePreview] = useState<string | null>(null); // For image resume data URI preview & AI
   const [linkedInUrl, setLinkedInUrl] = useState('');
   
   const [isProcessingProfile, setIsProcessingProfile] = useState(false);
@@ -68,6 +72,7 @@ export default function WorkEmploymentKYCPage() {
   const [editingProfileField, setEditingProfileField] = useState<keyof ExtractProfessionalProfileOutput | null>(null);
   const [editProfileValue, setEditProfileValue] = useState('');
 
+  const [showEmploymentStatus, setShowEmploymentStatus] = useState(false);
   const [isCurrentlyWorking, setIsCurrentlyWorking] = useState<string | null>(null);
   const [monthlySalary, setMonthlySalary] = useState('');
   const [salaryCurrency, setSalaryCurrency] = useState<string | undefined>();
@@ -76,6 +81,7 @@ export default function WorkEmploymentKYCPage() {
 
   const [consentChecked, setConsentChecked] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const resumeFileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -94,19 +100,34 @@ export default function WorkEmploymentKYCPage() {
     return () => clearInterval(timerId);
   }, []);
 
+  const isWorkExperienceCoreComplete = () => {
+    return workExperienceIndustry.trim() !== '' && workExperienceYears !== undefined && workExperienceMonths !== undefined;
+  };
+
+  useEffect(() => {
+    if (isWorkExperienceCoreComplete() && !showEmploymentStatus) {
+      setShowEmploymentStatus(true);
+      setAvekaMessage("Work experience details look good. Finally, let's confirm your current employment status.");
+    }
+  }, [workExperienceIndustry, workExperienceYears, workExperienceMonths, showEmploymentStatus]);
+
+
   const processProfile = async (source: ExtractProfessionalProfileInput['profileDataSource'], type: ExtractProfessionalProfileInput['sourceType']) => {
-    if (!source) return;
+    if (!source || !userId) {
+      toast({ title: "Missing Information", description: `Cannot process ${type} without data.`, variant: "destructive"});
+      return;
+    }
     setIsProcessingProfile(true);
     setAvekaMessage(`Analyzing your ${type === 'resumeImage' ? 'resume' : 'LinkedIn profile'}...`);
     try {
       const result = await extractProfessionalProfileDetails({ profileDataSource: source, sourceType: type });
       setExtractedProfileData(result);
-      setAvekaMessage("I've extracted some details from your professional profile. Please review them.");
+      setAvekaMessage("I've extracted some details from your professional profile. Please review them below. You can edit if needed.");
       toast({ title: "Profile Details Extracted", description: "Review the details below." });
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error processing ${type}:`, error);
-      setExtractedProfileData({ yearsOfExperience: "Error", gapInLast3YearsMonths: "Error", currentOrLastIndustry: "Error", currentOrLastJobRole: "Error" });
-      toast({ title: "Profile Extraction Failed", description: "Could not extract details. Please verify manually.", variant: "destructive" });
+      setExtractedProfileData({ yearsOfExperience: "Error - Check Manually", gapInLast3YearsMonths: "Error - Check Manually", currentOrLastIndustry: "Error - Check Manually", currentOrLastJobRole: "Error - Check Manually" });
+      toast({ title: "Profile Extraction Failed", description: error.message || "Could not extract details. Please verify manually.", variant: "destructive" });
       setAvekaMessage("I had trouble analyzing your profile. Please review and fill in the details manually.");
     } finally {
       setIsProcessingProfile(false);
@@ -116,16 +137,16 @@ export default function WorkEmploymentKYCPage() {
   const handleResumeFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setResumeFile(file);
+      setResumeFile(file); // Store actual File object
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
         if (file.type.startsWith('image/')) {
-          setResumePreview(dataUrl);
+          setResumePreview(dataUrl); // Data URI for preview and AI
           processProfile(dataUrl, 'resumeImage');
         } else {
-          setResumePreview(null); // No preview for PDF/DOC
-          toast({ title: "Resume Uploaded", description: "PDF/DOC resumes are not automatically processed by AI here. Please ensure details are accurate."});
+          setResumePreview(null); 
+          toast({ title: "Resume Uploaded", description: `${file.name} uploaded. Non-image resumes are not automatically processed by AI for preview here.`});
         }
       };
       reader.readAsDataURL(file);
@@ -157,16 +178,16 @@ export default function WorkEmploymentKYCPage() {
         setResumeFile(new File([dataURLtoBlob(dataUrl)], "resume_capture.png", { type: "image/png" }));
         setResumePreview(dataUrl);
         setShowCameraForResume(false);
-        processProfile(dataUrl, 'resumeImage');
+        processProfile(dataUrl, 'resumeImage'); // Process captured image
       }
     }
   };
 
   const handleAnalyzeLinkedIn = () => {
-    if (linkedInUrl) {
+    if (linkedInUrl && /linkedin\.com\/in\//.test(linkedInUrl)) {
       processProfile(linkedInUrl, 'linkedinUrl');
     } else {
-      toast({ title: "LinkedIn URL Missing", description: "Please enter your LinkedIn profile URL.", variant: "destructive" });
+      toast({ title: "Invalid LinkedIn URL", description: "Please enter a valid LinkedIn profile URL (e.g., https://linkedin.com/in/yourprofile).", variant: "destructive" });
     }
   };
   
@@ -183,20 +204,46 @@ export default function WorkEmploymentKYCPage() {
     }
   };
 
-  const isFormComplete = () => {
-    const workExpOk = workExperienceIndustry && workExperienceYears !== undefined && workExperienceMonths !== undefined;
-    const employmentOk = isCurrentlyWorking && 
-                         (isCurrentlyWorking === 'yes' ? (monthlySalary && salaryCurrency) : (familyMonthlySalary && familySalaryCurrency));
-    return workExpOk && employmentOk && consentChecked && !isProcessingProfile;
+  const isEmploymentStatusComplete = () => {
+    if (!isCurrentlyWorking) return false;
+    if (isCurrentlyWorking === 'yes') return monthlySalary.trim() !== '' && salaryCurrency !== undefined;
+    if (isCurrentlyWorking === 'no') return familyMonthlySalary.trim() !== '' && familySalaryCurrency !== undefined;
+    return false;
+  };
+  
+  const isFormCompleteForSave = () => {
+    return isWorkExperienceCoreComplete() && isEmploymentStatusComplete() && consentChecked && !isProcessingProfile;
   };
 
-  const handleSaveAndContinue = () => {
-    const workEmploymentData: WorkEmploymentData = {
+  const handleSaveAndContinue = async () => {
+     if (!userId) {
+      toast({ title: "Error", description: "User ID not found. Please refresh.", variant: "destructive" });
+      return;
+    }
+    if (!consentChecked) {
+      toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
+      return;
+    }
+    setIsSaving(true);
+
+    let resumeFirebaseUrl: string | undefined = undefined;
+    if (workExperienceProofType === 'resume' && resumeFile) {
+      const uploadResult = await uploadFileToStorage(userId, resumeFile, `resume/${resumeFile.name}`);
+      if (uploadResult.success && uploadResult.downloadURL) {
+        resumeFirebaseUrl = uploadResult.downloadURL;
+      } else {
+        toast({ title: "Resume Upload Failed", description: uploadResult.error || "Could not upload resume.", variant: "destructive" });
+        setIsSaving(false);
+        return;
+      }
+    }
+
+    const workEmploymentDataToSave: WorkEmploymentDataToSave = {
       workExperienceIndustry,
       workExperienceYears,
       workExperienceMonths,
       workExperienceProofType,
-      resumeFileName: workExperienceProofType === 'resume' && resumeFile && !resumePreview ? resumeFile.name : null,
+      resumeUrl: resumeFirebaseUrl,
       linkedInUrl: workExperienceProofType === 'linkedin' ? linkedInUrl : null,
       isCurrentlyWorking,
       monthlySalary: isCurrentlyWorking === 'yes' ? monthlySalary : null,
@@ -207,13 +254,24 @@ export default function WorkEmploymentKYCPage() {
       extractedGapInLast3YearsMonths: extractedProfileData?.gapInLast3YearsMonths,
       extractedCurrentOrLastIndustry: extractedProfileData?.currentOrLastIndustry,
       extractedCurrentOrLastJobRole: extractedProfileData?.currentOrLastJobRole,
+      consentTimestamp: currentTime,
     };
-    localStorage.setItem('workEmploymentKycData', JSON.stringify(workEmploymentData));
-    // Large resumePreview (image data URI) is NOT saved to localStorage.
-    localStorage.removeItem('resumeDataUriForReview'); // Clean up old item
 
-    toast({ title: "Work & Employment Details Saved!", description: "Proceeding to review all professional details." });
-    router.push('/loan-application/review-professional-kyc');
+    const result = await saveUserApplicationData(userId, { 
+      professionalKyc: { 
+        // @ts-ignore
+        ...(await getUserApplicationData(userId).then(res => res.data?.professionalKyc || {})),
+        workEmployment: workEmploymentDataToSave 
+      }
+    });
+    setIsSaving(false);
+
+    if(result.success) {
+        toast({ title: "Work & Employment Details Saved!", description: "Proceeding to review all professional details." });
+        router.push('/loan-application/review-professional-kyc');
+    } else {
+        toast({ title: "Save Failed", description: result.error || "Could not save work/employment details.", variant: "destructive"});
+    }
   };
 
   useEffect(() => {
@@ -241,11 +299,15 @@ export default function WorkEmploymentKYCPage() {
 
   const renderProfileTable = () => {
     if (!extractedProfileData || Object.keys(extractedProfileData).length === 0 || isProcessingProfile) return null;
-    const dataEntries = Object.entries(extractedProfileData) as [keyof ExtractProfessionalProfileOutput, string][];
+    
+    const validEntries = Object.entries(extractedProfileData).filter(([_, value]) => value !== undefined && value !== null);
+    if (validEntries.length === 0) return null;
+    const dataEntries = validEntries as [keyof ExtractProfessionalProfileOutput, string][];
+
 
     return (
       <div className="mt-4 space-y-2 p-3 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.10)] backdrop-blur-xs">
-        <h4 className="font-semibold text-sm text-center text-white">Extracted Profile Details:</h4>
+        <h4 className="font-semibold text-sm text-center text-white">Extracted Profile Details (from Resume/LinkedIn):</h4>
         <Table className="bg-white/5 rounded-md text-xs">
           <TableHeader>
             <TableRow>
@@ -286,7 +348,7 @@ export default function WorkEmploymentKYCPage() {
           backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
@@ -318,7 +380,12 @@ export default function WorkEmploymentKYCPage() {
               <div className="flex flex-col items-center text-center mb-6">
                 <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                   <div className="flex-shrink-0 mb-3 md:mb-0">
-                    <Image src="https://placehold.co/50x50.png" alt="Aveka" width={50} height={50} className="rounded-full border-2 border-white shadow-md" data-ai-hint="robot avatar" />
+                    <Image 
+                      src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png" 
+                      alt="Aveka, GlobCred's Smart AI" 
+                      width={50} height={50} className="rounded-full border-2 border-white shadow-md" 
+                      data-ai-hint="robot avatar" 
+                    />
                   </div>
                   <div className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow transform transition-all duration-500 ease-out w-full ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                     <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
@@ -333,19 +400,19 @@ export default function WorkEmploymentKYCPage() {
                 <h3 className="font-semibold text-lg text-center text-white">Work Experience</h3>
                 <div>
                   <Label htmlFor="workExperienceIndustry" className="text-white">Industry you are working in <span className="text-red-400">*</span></Label>
-                  <Input id="workExperienceIndustry" value={workExperienceIndustry} onChange={(e) => setWorkExperienceIndustry(e.target.value)} className="bg-white/80 text-black" placeholder="E.g., Information Technology"/>
+                  <Input id="workExperienceIndustry" value={workExperienceIndustry} onChange={(e) => setWorkExperienceIndustry(e.target.value)} className="bg-white/80 text-black" placeholder="E.g., Information Technology" disabled={isSaving}/>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-white">Experience in Years <span className="text-red-400">*</span></Label>
-                    <Select value={workExperienceYears} onValueChange={setWorkExperienceYears}>
+                    <Select value={workExperienceYears} onValueChange={setWorkExperienceYears} disabled={isSaving}>
                       <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Years" /></SelectTrigger>
                       <SelectContent className="bg-white text-black">{yearOptions.map(y => <SelectItem key={`exp-year-${y}`} value={y} className="hover:bg-gray-100">{y}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label className="text-white">Experience in Months <span className="text-red-400">*</span></Label>
-                    <Select value={workExperienceMonths} onValueChange={setWorkExperienceMonths}>
+                    <Select value={workExperienceMonths} onValueChange={setWorkExperienceMonths} disabled={isSaving}>
                       <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Months" /></SelectTrigger>
                       <SelectContent className="bg-white text-black">{monthOptions.map(m => <SelectItem key={`exp-month-${m}`} value={m} className="hover:bg-gray-100">{m}</SelectItem>)}</SelectContent>
                     </Select>
@@ -353,18 +420,18 @@ export default function WorkEmploymentKYCPage() {
                 </div>
                 <div>
                   <Label className="text-white">Provide professional proof (Optional):</Label>
-                  <RadioGroup value={workExperienceProofType || ''} onValueChange={setWorkExperienceProofType} className="flex space-x-4 text-white mt-1">
-                    <div className="flex items-center space-x-2"><RadioGroupItem value="resume" id="proof-resume" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" /><Label htmlFor="proof-resume">Upload Resume</Label></div>
-                    <div className="flex items-center space-x-2"><RadioGroupItem value="linkedin" id="proof-linkedin" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" /><Label htmlFor="proof-linkedin">Share LinkedIn Link</Label></div>
+                  <RadioGroup value={workExperienceProofType || ''} onValueChange={(value) => { setWorkExperienceProofType(value as 'resume' | 'linkedin' | null); setExtractedProfileData({}); setResumeFile(null); setResumePreview(null); setLinkedInUrl(''); }} className="flex space-x-4 text-white mt-1" >
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="resume" id="proof-resume" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving || isProcessingProfile}/><Label htmlFor="proof-resume">Upload Resume</Label></div>
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="linkedin" id="proof-linkedin" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving || isProcessingProfile}/><Label htmlFor="proof-linkedin">Share LinkedIn Link</Label></div>
                   </RadioGroup>
                 </div>
                 {workExperienceProofType === 'resume' && (
                   <div className="space-y-2 mt-2 border-t border-gray-600/20 pt-4">
                     <Label className="text-white">Upload Resume (Image, PDF, or DOC)</Label>
                     <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-                      <Button onClick={() => resumeFileInputRef.current?.click()} className="gradient-border-button w-auto" disabled={isProcessingProfile}><UploadCloud className="mr-2 h-5 w-5" /> Upload Resume</Button>
+                      <Button onClick={() => resumeFileInputRef.current?.click()} className="gradient-border-button w-auto" disabled={isProcessingProfile || isSaving}><UploadCloud className="mr-2 h-5 w-5" /> Upload Resume</Button>
                       <input type="file" ref={resumeFileInputRef} onChange={handleResumeFileChange} className="hidden" accept="image/*,.pdf,.doc,.docx" />
-                      <Button onClick={() => setShowCameraForResume(true)} className="gradient-border-button w-auto" disabled={isProcessingProfile}><Camera className="mr-2 h-5 w-5" /> Take Picture (Resume)</Button>
+                      <Button onClick={() => setShowCameraForResume(true)} className="gradient-border-button w-auto" disabled={isProcessingProfile || isSaving}><Camera className="mr-2 h-5 w-5" /> Take Picture (Resume)</Button>
                     </div>
                     {resumeFile && (<div className="text-center mt-2">{resumePreview ? <Image src={resumePreview} alt="Resume Preview" width={150} height={200} className="rounded-md mx-auto object-contain max-h-48" data-ai-hint="resume document" /> : <p className="text-sm text-gray-300">Uploaded: {resumeFile.name}</p>}</div>)}
                     {isProcessingProfile && workExperienceProofType === 'resume' && <div className="text-center text-white"><Loader2 className="inline-block mr-2 h-5 w-5 animate-spin" /> Processing Resume...</div>}
@@ -373,40 +440,40 @@ export default function WorkEmploymentKYCPage() {
                 {workExperienceProofType === 'linkedin' && (
                   <div className="mt-2 border-t border-gray-600/20 pt-4 space-y-2">
                     <Label htmlFor="linkedInUrl" className="text-white">LinkedIn Profile URL</Label>
-                    <Input id="linkedInUrl" value={linkedInUrl} onChange={(e) => setLinkedInUrl(e.target.value)} className="bg-white/80 text-black" placeholder="https://linkedin.com/in/yourprofile" />
-                    <Button onClick={handleAnalyzeLinkedIn} className="gradient-border-button w-auto" disabled={isProcessingProfile}><Sparkles className="mr-2 h-4 w-4" /> Analyze LinkedIn</Button>
+                    <Input id="linkedInUrl" value={linkedInUrl} onChange={(e) => setLinkedInUrl(e.target.value)} className="bg-white/80 text-black" placeholder="https://linkedin.com/in/yourprofile" disabled={isProcessingProfile || isSaving}/>
+                    <Button onClick={handleAnalyzeLinkedIn} className="gradient-border-button w-auto" disabled={isProcessingProfile || isSaving || !linkedInUrl}><Sparkles className="mr-2 h-4 w-4" /> Analyze LinkedIn</Button>
                     {isProcessingProfile && workExperienceProofType === 'linkedin' && <div className="text-center text-white"><Loader2 className="inline-block mr-2 h-5 w-5 animate-spin" /> Processing LinkedIn...</div>}
                   </div>
                 )}
                 {renderProfileTable()}
               </div>
 
-              {/* Current Employment Status Section */}
-              <div className="space-y-6 p-4 border-0 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
-                <h3 className="font-semibold text-lg text-center text-white">Current Employment Status</h3>
-                <Label className="text-white">Are you currently working? <span className="text-red-400">*</span></Label>
-                <RadioGroup value={isCurrentlyWorking || ''} onValueChange={setIsCurrentlyWorking} className="flex space-x-4 text-white">
-                  <div className="flex items-center space-x-2"><RadioGroupItem value="yes" id="working-yes" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" /><Label htmlFor="working-yes">Yes</Label></div>
-                  <div className="flex items-center space-x-2"><RadioGroupItem value="no" id="working-no" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" /><Label htmlFor="working-no">No</Label></div>
-                </RadioGroup>
-                {isCurrentlyWorking === 'yes' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 border-t border-gray-600/20 pt-4">
-                    <div><Label htmlFor="monthlySalary" className="text-white">Your Monthly Salary <span className="text-red-400">*</span></Label><Input id="monthlySalary" type="number" value={monthlySalary} onChange={(e) => setMonthlySalary(e.target.value)} className="bg-white/80 text-black" placeholder="E.g., 5000" /></div>
-                    <div><Label htmlFor="salaryCurrency" className="text-white">Salary Currency <span className="text-red-400">*</span></Label><Select value={salaryCurrency} onValueChange={setSalaryCurrency}><SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Currency" /></SelectTrigger><SelectContent className="bg-white text-black">{currencyOptions.map(c => <SelectItem key={`curr-${c}`} value={c} className="hover:bg-gray-100">{c}</SelectItem>)}</SelectContent></Select></div>
-                  </div>
-                )}
-                {isCurrentlyWorking === 'no' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 border-t border-gray-600/20 pt-4">
-                    <div><Label htmlFor="familyMonthlySalary" className="text-white">Estimated Family's Monthly Salary <span className="text-red-400">*</span></Label><Input id="familyMonthlySalary" type="number" value={familyMonthlySalary} onChange={(e) => setFamilyMonthlySalary(e.target.value)} className="bg-white/80 text-black" placeholder="E.g., 8000" /></div>
-                    <div><Label htmlFor="familySalaryCurrency" className="text-white">Salary Currency <span className="text-red-400">*</span></Label><Select value={familySalaryCurrency} onValueChange={setFamilySalaryCurrency}><SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Currency" /></SelectTrigger><SelectContent className="bg-white text-black">{currencyOptions.map(c => <SelectItem key={`fam-curr-${c}`} value={c} className="hover:bg-gray-100">{c}</SelectItem>)}</SelectContent></Select></div>
-                  </div>
-                )}
-              </div>
+              {showEmploymentStatus && (
+                <div className="space-y-6 p-4 border-0 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
+                  <h3 className="font-semibold text-lg text-center text-white">Current Employment Status</h3>
+                  <Label className="text-white">Are you currently working? <span className="text-red-400">*</span></Label>
+                  <RadioGroup value={isCurrentlyWorking || ''} onValueChange={setIsCurrentlyWorking} className="flex space-x-4 text-white" >
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="yes" id="working-yes" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving}/><Label htmlFor="working-yes">Yes</Label></div>
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="no" id="working-no" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving}/><Label htmlFor="working-no">No</Label></div>
+                  </RadioGroup>
+                  {isCurrentlyWorking === 'yes' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 border-t border-gray-600/20 pt-4">
+                      <div><Label htmlFor="monthlySalary" className="text-white">Your Monthly Salary <span className="text-red-400">*</span></Label><Input id="monthlySalary" type="number" value={monthlySalary} onChange={(e) => setMonthlySalary(e.target.value)} className="bg-white/80 text-black" placeholder="E.g., 5000" disabled={isSaving}/></div>
+                      <div><Label htmlFor="salaryCurrency" className="text-white">Salary Currency <span className="text-red-400">*</span></Label><Select value={salaryCurrency} onValueChange={setSalaryCurrency} disabled={isSaving}><SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Currency" /></SelectTrigger><SelectContent className="bg-white text-black">{currencyOptions.map(c => <SelectItem key={`curr-${c}`} value={c} className="hover:bg-gray-100">{c}</SelectItem>)}</SelectContent></Select></div>
+                    </div>
+                  )}
+                  {isCurrentlyWorking === 'no' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 border-t border-gray-600/20 pt-4">
+                      <div><Label htmlFor="familyMonthlySalary" className="text-white">Estimated Family's Monthly Salary <span className="text-red-400">*</span></Label><Input id="familyMonthlySalary" type="number" value={familyMonthlySalary} onChange={(e) => setFamilyMonthlySalary(e.target.value)} className="bg-white/80 text-black" placeholder="E.g., 8000" disabled={isSaving}/></div>
+                      <div><Label htmlFor="familySalaryCurrency" className="text-white">Salary Currency <span className="text-red-400">*</span></Label><Select value={familySalaryCurrency} onValueChange={setFamilySalaryCurrency} disabled={isSaving}><SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Currency" /></SelectTrigger><SelectContent className="bg-white text-black">{currencyOptions.map(c => <SelectItem key={`fam-curr-${c}`} value={c} className="hover:bg-gray-100">{c}</SelectItem>)}</SelectContent></Select></div>
+                    </div>
+                  )}
+                </div>
+              )}
               
-              {/* Consent Section */}
               <div className="mt-8 space-y-4 border-t border-gray-500/50 pt-4">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="workEmploymentConsent" checked={consentChecked} onCheckedChange={(checked) => setConsentChecked(checked as boolean)} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" />
+                  <Checkbox id="workEmploymentConsent" checked={consentChecked} onCheckedChange={(checked) => setConsentChecked(checked as boolean)} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving}/>
                   <Label htmlFor="workEmploymentConsent" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-300">
                     I confirm all work and employment details are correct.
                   </Label>
@@ -415,8 +482,8 @@ export default function WorkEmploymentKYCPage() {
               </div>
 
               <div className="mt-8 flex justify-center">
-                <Button onClick={handleSaveAndContinue} size="lg" className="gradient-border-button" disabled={!isFormComplete() || isProcessingProfile}>
-                  Save & Continue
+                <Button onClick={handleSaveAndContinue} size="lg" className="gradient-border-button" disabled={!isFormCompleteForSave() || isSaving || isProcessingProfile }>
+                   {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...</> : 'Save & Continue'}
                 </Button>
               </div>
             </div>
