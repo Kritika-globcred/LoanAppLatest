@@ -116,7 +116,7 @@ export default function LenderRecommendationsPage() {
   };
 
   useEffect(() => {
-    if (userInputForFlow && !isLoadingRecommendations) { // Only fetch if input is ready and not already loading
+    if (userInputForFlow && !isLoadingRecommendations) { 
       fetchLenderRecs();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -183,8 +183,7 @@ export default function LenderRecommendationsPage() {
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         
         <div className="relative z-10">
-         <LoanProgressBar steps={loanAppSteps} />
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -212,8 +211,7 @@ export default function LenderRecommendationsPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          
-
+          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/review-professional-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back

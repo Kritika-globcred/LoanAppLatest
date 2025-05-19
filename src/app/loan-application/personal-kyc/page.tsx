@@ -45,6 +45,8 @@ export default function PersonalKYCPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showCameraFor, setShowCameraFor] = useState<'id' | 'passport' | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [backPath, setBackPath] = useState('/loan-application/admission-kyc');
+
 
   useEffect(() => {
     const timer = setTimeout(() => setAvekaMessageVisible(true), 500);
@@ -54,7 +56,14 @@ export default function PersonalKYCPage() {
       setIsIndia(isFromIndia);
       const docType = isFromIndia ? "PAN Card" : "National ID";
       setIdDocumentType(docType);
-      setAvekaMessage(`Next, I need your ${docType}. Please upload a clear image or take a picture. For best results, ensure the image is in JPG or PNG format.`);
+      setAvekaMessage(`Next, I need your ${docType}. Please upload a clear image or take a picture. For best results, ensure the image is in JPG or PNG format. PDFs are also accepted.`);
+      
+      const offerLetterStatus = localStorage.getItem('hasOfferLetterStatus');
+      if (offerLetterStatus === 'false') {
+        setBackPath('/loan-application/admission-kyc'); // No offer letter, came from Admission KYC
+      } else {
+        setBackPath('/loan-application/preferences'); // Had offer letter, came from Preferences
+      }
     }
     return () => clearTimeout(timer);
   }, []);
@@ -107,7 +116,7 @@ export default function PersonalKYCPage() {
           setIdDocumentFile(file);
           setIdDocumentPreview(reader.result as string);
           setShowPassportSection(true);
-          setAvekaMessage(`Thanks for the ${idDocumentType}!`); // Main Aveka message update
+          setAvekaMessage(`Thanks for the ${idDocumentType}!`); 
           toast({ title: `${idDocumentType} Uploaded`, description: `The Passport section is now visible below. Please upload your Passport.` });
         } else {
           setPassportFile(file);
@@ -136,7 +145,7 @@ export default function PersonalKYCPage() {
           setIdDocumentFile(capturedFile);
           setIdDocumentPreview(dataUrl);
           setShowPassportSection(true);
-          setAvekaMessage(`Thanks for the ${idDocumentType}!`); // Main Aveka message update
+          setAvekaMessage(`Thanks for the ${idDocumentType}!`); 
           toast({ title: `${idDocumentType} Captured`, description: "The Passport section is now visible below. Please upload your Passport." });
         } else if (showCameraFor === 'passport') {
           setPassportFile(capturedFile);
@@ -195,8 +204,8 @@ export default function PersonalKYCPage() {
     }
 
     localStorage.setItem('personalDocsForReview', JSON.stringify({
-        idDocumentDataUri: idDocUrl, // Storing Firebase URL
-        passportDataUri: passportDocUrl, // Storing Firebase URL
+        idDocumentDataUri: idDocUrl, 
+        passportDataUri: passportDocUrl, 
         idDocumentType: idDocumentType
     }));
     
@@ -250,7 +259,7 @@ export default function PersonalKYCPage() {
         <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
         <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
         <p className="text-base text-white">
-          Thanks! Now, please upload or take a picture of your Passport. Clear JPG or PNG images work best!
+          Thanks! Now, please upload or take a picture of your Passport. Clear JPG, PNG, or PDF documents work best!
         </p>
       </div>
     </div>
@@ -272,7 +281,7 @@ export default function PersonalKYCPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => docType === 'id' ? (setIdDocumentFile(null), setIdDocumentPreview(null), setShowPassportSection(false), setAvekaPassportPromptVisible(false), setAvekaMessage(`Next, I need your ${idDocumentType}. Please upload a clear image...`)) : (setPassportFile(null), setPassportPreview(null), setAvekaMessage("Got it. Now please upload your passport again or take a picture."))}
+            onClick={() => docType === 'id' ? (setIdDocumentFile(null), setIdDocumentPreview(null), setShowPassportSection(false), setAvekaPassportPromptVisible(false), setAvekaMessage(`Next, I need your ${idDocumentType}. Please upload a clear image or PDF...`)) : (setPassportFile(null), setPassportPreview(null), setAvekaMessage("Got it. Now please upload your passport again or take a picture."))}
             className="mt-2 bg-white/20 hover:bg-white/30 text-white"
             disabled={isUploading}
           >
@@ -311,7 +320,7 @@ export default function PersonalKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
@@ -347,9 +356,8 @@ export default function PersonalKYCPage() {
             </div>
           </div>
           <LoanProgressBar steps={loanAppSteps} />
-
           <div className="flex items-center mb-6 mt-4"> 
-            <Button variant="outline" size="sm" onClick={() => router.push(localStorage.getItem('hasOfferLetterStatus') === 'false' ? '/loan-application/preferences' : '/loan-application/admission-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
+            <Button variant="outline" size="sm" onClick={() => router.push(backPath)} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
           </div>
@@ -381,7 +389,7 @@ export default function PersonalKYCPage() {
                       passportFile,
                       passportPreview,
                       passportFileInputRef,
-                      !idDocumentFile // Disable passport upload if ID is not yet uploaded
+                      !idDocumentFile 
                     )}
                   </div>
                 )}

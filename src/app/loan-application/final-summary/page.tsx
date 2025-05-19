@@ -27,11 +27,10 @@ export default function FinalSummaryPage() {
   useEffect(() => {
     const hasOfferLetter = localStorage.getItem('hasOfferLetterStatus');
     if (hasOfferLetter === 'false') { 
-      setPreviousPage('/loan-application/recommendations'); // If no offer, they came from Recommendations (which followed Preferences)
+      setPreviousPage('/loan-application/recommendations'); 
     } else if (hasOfferLetter === 'true') { 
       setPreviousPage('/loan-application/lender-recommendations');
     } else { 
-      // Fallback if status is not set, default to a logical prior step
       setPreviousPage('/loan-application/review-professional-kyc'); 
     }
   }, []);
@@ -46,7 +45,7 @@ export default function FinalSummaryPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
@@ -81,7 +80,6 @@ export default function FinalSummaryPage() {
             </div>
           </div>
           <LoanProgressBar steps={loanAppSteps} />
-
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push(previousPage)} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back

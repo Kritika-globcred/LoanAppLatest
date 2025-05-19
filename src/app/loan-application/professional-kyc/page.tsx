@@ -28,7 +28,7 @@ interface CoSignatoryDataToSave {
   coSignatoryChoice?: string | null;
   coSignatoryIdDocumentType?: "PAN Card" | "National ID" | null;
   coSignatoryRelationship?: string | null;
-  coSignatoryIdUrl?: string | null; // Firebase Storage URL
+  coSignatoryIdUrl?: string | null; 
   idNumber?: string;
   idType?: string; 
   nameOnId?: string;
@@ -131,9 +131,13 @@ export default function CoSignatoryKYCPage() {
         };
         reader.readAsDataURL(file);
         toast({ title: `${coSignatoryIdDocumentType} Image Uploaded!` });
+      } else if (file.type === 'application/pdf') {
+        setCoSignatoryIdPreview(null); // PDFs can't be directly previewed as images for AI.
+        toast({ title: "PDF Uploaded", description: `${file.name}. AI extraction may not work on PDFs. Please verify details manually.`, variant: "default" });
+        setExtractedCoSignatoryData({ idNumber: "Not Specified", idType: coSignatoryIdDocumentType, nameOnId: "Not Specified"});
       } else {
-        setCoSignatoryIdPreview(null); // Not an image
-        toast({title: "Document Selected", description: `${file.name}. AI extraction requires an image. Please verify details manually if this is not an image.`, variant: "default"});
+        setCoSignatoryIdPreview(null);
+        toast({title: "Document Selected", description: `${file.name}. AI extraction requires an image. Please verify details manually.`, variant: "default"});
         setExtractedCoSignatoryData({ idNumber: "Not Specified", idType: coSignatoryIdDocumentType, nameOnId: "Not Specified"});
       }
     }
@@ -184,14 +188,15 @@ export default function CoSignatoryKYCPage() {
 
   const isCoSignatoryDataCompleteForSave = () => {
     if (coSignatoryChoice === 'yes') {
-      return (coSignatoryIdFile || coSignatoryIdPreview) && // ensure some document data is present
+      return (coSignatoryIdFile || coSignatoryIdPreview) && 
              coSignatoryRelationship && 
              consentChecked && 
              !isProcessingCoSignatoryId && 
              extractedCoSignatoryData.nameOnId !== undefined && 
              extractedCoSignatoryData.nameOnId !== "Error - Check Manually";
     }
-    return consentChecked; 
+    // For "no" or "addLater", only consent is needed on this page
+    return coSignatoryChoice === 'no' || coSignatoryChoice === 'addLater'; 
   };
 
   const handleSaveAndContinue = async () => {
@@ -199,8 +204,8 @@ export default function CoSignatoryKYCPage() {
       toast({ title: "Error", description: "User ID not found. Please refresh.", variant: "destructive" });
       return;
     }
-    if (!consentChecked) {
-      toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
+    if (coSignatoryChoice === 'yes' && !consentChecked) {
+      toast({ title: "Consent Required", description: "Please provide your consent for co-signatory details to proceed.", variant: "destructive" });
       return;
     }
     setIsSaving(true);
@@ -229,7 +234,7 @@ export default function CoSignatoryKYCPage() {
       idNumber: coSignatoryChoice === 'yes' ? extractedCoSignatoryData?.idNumber : undefined,
       idType: coSignatoryChoice === 'yes' ? extractedCoSignatoryData?.idType : undefined,
       nameOnId: coSignatoryChoice === 'yes' ? extractedCoSignatoryData?.nameOnId : undefined,
-      consentTimestamp: currentTime,
+      consentTimestamp: coSignatoryChoice === 'yes' ? currentTime : undefined, // Only save consent if "yes"
     };
     
     const result = await saveUserApplicationData(userId, { 
@@ -325,8 +330,7 @@ export default function CoSignatoryKYCPage() {
       >
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
-         <LoanProgressBar steps={loanAppSteps} />
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -344,7 +348,7 @@ export default function CoSignatoryKYCPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          
+           <LoanProgressBar steps={loanAppSteps} />
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/review-academic-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -385,7 +389,7 @@ export default function CoSignatoryKYCPage() {
 
                 {coSignatoryChoice === 'yes' && (
                   <div className="space-y-4 mt-4 border-t border-gray-600/20 pt-4">
-                    <Label className="text-white">{`Upload Co-signatory's ${coSignatoryIdDocumentType}`} (Image Recommended) <span className="text-red-400">*</span></Label>
+                    <Label className="text-white">{`Upload Co-signatory's ${coSignatoryIdDocumentType}`} (Image/PDF) <span className="text-red-400">*</span></Label>
                     <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
                       <Button onClick={() => coSignatoryIdFileInputRef.current?.click()} className="gradient-border-button w-auto" disabled={isProcessingCoSignatoryId || isSaving}>
                         <UploadCloud className="mr-2 h-5 w-5" /> Upload {coSignatoryIdDocumentType}
@@ -395,10 +399,14 @@ export default function CoSignatoryKYCPage() {
                         <Camera className="mr-2 h-5 w-5" /> Take Picture
                       </Button>
                     </div>
-                    {coSignatoryIdPreview && (
-                      <div className="text-center mt-2">
-                        <Image src={coSignatoryIdPreview} alt={`${coSignatoryIdDocumentType} Preview`} width={150} height={90} className="rounded-md mx-auto object-contain max-h-32" data-ai-hint="ID document" />
-                      </div>
+                    {coSignatoryIdFile && (
+                       <div className="text-center mt-2">
+                         {coSignatoryIdPreview ? (
+                           <Image src={coSignatoryIdPreview} alt={`${coSignatoryIdDocumentType} Preview`} width={150} height={90} className="rounded-md mx-auto object-contain max-h-32" data-ai-hint="ID document" />
+                         ) : (
+                           <p className="text-sm text-gray-300">Uploaded: {coSignatoryIdFile.name}</p>
+                         )}
+                       </div>
                     )}
                     {isProcessingCoSignatoryId && <div className="text-center text-white"><Loader2 className="inline-block mr-2 h-5 w-5 animate-spin" /> Processing ID...</div>}
                     
@@ -419,15 +427,17 @@ export default function CoSignatoryKYCPage() {
                 )}
               </div>
               
-              <div className="mt-8 space-y-4 border-t border-gray-500/50 pt-4">
-                <div className="flex items-center space-x-2">
-                    <Checkbox id="coSignatoryConsent" checked={consentChecked} onCheckedChange={(checked) => setConsentChecked(checked as boolean)} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving}/>
-                    <Label htmlFor="coSignatoryConsent" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-300">
-                        I confirm the co-signatory details (if provided) are correct or I choose not to add one at this time.
-                    </Label>
+              {(coSignatoryChoice === 'yes') && (
+                <div className="mt-8 space-y-4 border-t border-gray-500/50 pt-4">
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="coSignatoryConsent" checked={consentChecked} onCheckedChange={(checked) => setConsentChecked(checked as boolean)} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving}/>
+                        <Label htmlFor="coSignatoryConsent" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-300">
+                            I confirm the co-signatory details provided are correct and I have their consent.
+                        </Label>
+                    </div>
+                    <p className="text-xs text-gray-400">Consent captured at: {currentTime}</p>
                 </div>
-                <p className="text-xs text-gray-400">Consent captured at: {currentTime}</p>
-              </div>
+              )}
 
               <div className="mt-8 flex justify-center">
                 <Button onClick={handleSaveAndContinue} size="lg" className="gradient-border-button" disabled={!isCoSignatoryDataCompleteForSave() || isProcessingCoSignatoryId || isSaving}>

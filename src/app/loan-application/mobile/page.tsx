@@ -107,6 +107,7 @@ export default function MobileVerificationPage() {
         return;
     }
     setIsSaving(true);
+    console.log("[Mobile Page] Attempting to save initial data to Firestore...");
 
     const selectedCountryInfo = [...defaultCountryCodes, ...globalCountryCodesSample].find(c => c.value === countryCode);
 
@@ -118,7 +119,6 @@ export default function MobileVerificationPage() {
       createdAt: serverTimestamp(),
     };
 
-    console.log("[Mobile Page] Attempting to save initial data to Firestore:", JSON.parse(JSON.stringify(initialData)));
     const result = await saveUserApplicationData(userId, initialData);
     console.log("[Mobile Page] Firestore save result:", result);
 
@@ -131,7 +131,6 @@ export default function MobileVerificationPage() {
           localStorage.setItem('selectedCountryValue', countryCode);
         }
         console.log("[Mobile Page] Save successful. Attempting to navigate to /loan-application/admission-kyc in 100ms");
-        // Slight delay before navigating, to potentially help with Studio preview issues
         setTimeout(() => {
             try {
               router.push('/loan-application/admission-kyc');
@@ -144,7 +143,7 @@ export default function MobileVerificationPage() {
                 variant: "destructive",
               });
             } finally {
-               setIsSaving(false); // Ensure isSaving is set to false even if navigation errors
+               setIsSaving(false);
             }
         }, 100);
     } else {
@@ -174,8 +173,7 @@ export default function MobileVerificationPage() {
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0 backdrop-blur-lg"></div>
 
         <div className="relative z-10">
-          <LoanProgressBar steps={loanAppSteps} />
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -207,7 +205,7 @@ export default function MobileVerificationPage() {
               </Link>
             </div>
           </div>
-
+          <LoanProgressBar steps={loanAppSteps} />
 
           <div className="py-8">
             <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-lg mx-auto">
@@ -341,5 +339,3 @@ export default function MobileVerificationPage() {
     </div>
   );
 }
-
-    

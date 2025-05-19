@@ -22,7 +22,7 @@ import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar
 import { loanAppSteps } from '@/lib/loan-steps';
 import { extractProfessionalProfileDetails, type ExtractProfessionalProfileInput, type ExtractProfessionalProfileOutput } from '@/ai/flows/extract-professional-profile-flow';
 import { getOrGenerateUserId } from '@/lib/user-utils';
-import { saveUserApplicationData, uploadFileToStorage, getUserApplicationData } from '@/services/firebase-service';
+import { saveUserApplicationData, uploadFileToStorage } from '@/services/firebase-service';
 
 const yearOptions = Array.from({ length: 26 }, (_, i) => String(i)); 
 const monthOptions = Array.from({ length: 12 }, (_, i) => String(i)); 
@@ -40,7 +40,6 @@ interface WorkEmploymentDataToSave {
   salaryCurrency?: string | null;
   familyMonthlySalary?: string | null;
   familySalaryCurrency?: string | null;
-  // AI Extracted for Profile
   extractedYearsOfExperience?: string;
   extractedGapInLast3YearsMonths?: string;
   extractedCurrentOrLastIndustry?: string;
@@ -56,7 +55,7 @@ export default function WorkEmploymentKYCPage() {
   const { toast } = useToast();
   const userId = getOrGenerateUserId();
 
-  const [avekaMessage, setAvekaMessage] = useState("Great! Now, let's talk about your work experience. Please provide your industry and years of experience. Sharing your resume or LinkedIn is optional but can help.");
+  const [avekaMessage, setAvekaMessage] = useState("Co-signatory details noted (or understood). Now, let's discuss your work experience. Please provide your industry and years of experience. Sharing your resume or LinkedIn is optional but can help us process your application faster.");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
 
   const [workExperienceIndustry, setWorkExperienceIndustry] = useState('');
@@ -107,7 +106,7 @@ export default function WorkEmploymentKYCPage() {
   useEffect(() => {
     if (isWorkExperienceCoreComplete() && !showEmploymentStatus) {
       setShowEmploymentStatus(true);
-      setAvekaMessage("Work experience details noted. Please provide your professional proof (optional), then confirm your current employment status below.");
+      setAvekaMessage("Work experience details look good. Finally, let's confirm your current employment status.");
     }
   }, [workExperienceIndustry, workExperienceYears, workExperienceMonths, showEmploymentStatus]);
 
@@ -146,9 +145,18 @@ export default function WorkEmploymentKYCPage() {
           processProfile(dataUrl, 'resumeImage');
         };
         reader.readAsDataURL(file);
+      } else if (file.type === 'application/pdf' || file.type.startsWith('application/vnd.openxmlformats-officedocument.wordprocessingml.document') || file.type === 'application/msword') {
+        setResumePreview(null); // Non-image files won't have a direct image preview for AI
+        toast({ title: "Resume Uploaded", description: `${file.name} uploaded. AI extraction for non-image resumes may not provide visual details but will attempt text analysis.`, variant: "default" });
+        // Potentially still try to process if backend flow can handle text from PDF/DOC
+        // For now, we rely on image previews for the current AI flow.
+        // If you want to try Genkit with non-image files, the flow would need to be designed for that.
+        setExtractedProfileData({ yearsOfExperience: "Manual review needed for non-image resume.", gapInLast3YearsMonths: "N/A", currentOrLastIndustry: "N/A", currentOrLastJobRole: "N/A" });
+
       } else {
         setResumePreview(null); 
-        toast({ title: "Resume Uploaded", description: `${file.name} uploaded. Non-image resumes are not automatically processed by AI for preview here.`});
+        toast({ title: "Resume Uploaded", description: `${file.name} uploaded. AI extraction works best with images.`});
+        setExtractedProfileData({ yearsOfExperience: "Manual review needed for this file type.", gapInLast3YearsMonths: "N/A", currentOrLastIndustry: "N/A", currentOrLastJobRole: "N/A" });
       }
     }
   };
@@ -354,8 +362,7 @@ export default function WorkEmploymentKYCPage() {
       >
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
-         <LoanProgressBar steps={loanAppSteps} />
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -373,7 +380,7 @@ export default function WorkEmploymentKYCPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          
+          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/professional-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -425,14 +432,14 @@ export default function WorkEmploymentKYCPage() {
                 </div>
                 <div>
                   <Label className="text-white">Provide professional proof (Optional):</Label>
-                  <RadioGroup value={workExperienceProofType || ''} onValueChange={(value) => { setWorkExperienceProofType(value as 'resume' | 'linkedin' | null); setExtractedProfileData({}); setResumeFile(null); setResumePreview(null); setLinkedInUrl(''); if (value === 'resume') { setAvekaMessage("Okay, please upload your resume (image preferred for AI).");} else if (value === 'linkedin') {setAvekaMessage("Great, please paste your LinkedIn profile URL.");} }} className="flex space-x-4 text-white mt-1" >
+                  <RadioGroup value={workExperienceProofType || ''} onValueChange={(value) => { setWorkExperienceProofType(value as 'resume' | 'linkedin' | null); setExtractedProfileData({}); setResumeFile(null); setResumePreview(null); setLinkedInUrl(''); if (value === 'resume') { setAvekaMessage("Okay, please upload your resume (image or PDF).");} else if (value === 'linkedin') {setAvekaMessage("Great, please paste your LinkedIn profile URL.");} }} className="flex space-x-4 text-white mt-1" >
                     <div className="flex items-center space-x-2"><RadioGroupItem value="resume" id="proof-resume" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving || isProcessingProfile}/><Label htmlFor="proof-resume">Upload Resume</Label></div>
                     <div className="flex items-center space-x-2"><RadioGroupItem value="linkedin" id="proof-linkedin" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving || isProcessingProfile}/><Label htmlFor="proof-linkedin">Share LinkedIn Link</Label></div>
                   </RadioGroup>
                 </div>
                 {workExperienceProofType === 'resume' && (
                   <div className="space-y-2 mt-2 border-t border-gray-600/20 pt-4">
-                    <Label className="text-white">Upload Resume (Image, PDF, or DOC)</Label>
+                    <Label className="text-white">Upload Resume (Image or PDF Recommended)</Label>
                     <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
                       <Button onClick={() => resumeFileInputRef.current?.click()} className="gradient-border-button w-auto" disabled={isProcessingProfile || isSaving}><UploadCloud className="mr-2 h-5 w-5" /> Upload Resume</Button>
                       <input type="file" ref={resumeFileInputRef} onChange={handleResumeFileChange} className="hidden" accept="image/*,.pdf,.doc,.docx" />

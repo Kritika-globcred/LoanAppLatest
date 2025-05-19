@@ -31,13 +31,13 @@ export default function AdmissionKYCPage() {
   const userId = getOrGenerateUserId();
 
 
-  const [avekaMessage, setAvekaMessage] = useState("Let's start with your admission details. Do you have your academic offer letter handy? For best results with AI extraction, please upload a clear IMAGE (JPG, PNG).");
+  const [avekaMessage, setAvekaMessage] = useState("Let's start with your admission details. Do you have your academic offer letter handy? For best results with AI extraction, please upload a clear IMAGE (JPG, PNG). PDFs are accepted but AI works best with images.");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
   const [studentFirstName, setStudentFirstName] = useState<string | null>(null);
 
   const [hasOfferLetter, setHasOfferLetter] = useState<boolean | null>(null);
   const [offerLetterFile, setOfferLetterFile] = useState<File | null>(null);
-  const [offerLetterPreview, setOfferLetterPreview] = useState<string | null>(null); // Data URI for image preview & AI
+  const [offerLetterPreview, setOfferLetterPreview] = useState<string | null>(null); 
 
   const [isProcessingLetter, setIsProcessingLetter] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -108,9 +108,9 @@ export default function AdmissionKYCPage() {
         };
         reader.readAsDataURL(file);
       } else {
-        setOfferLetterPreview(null); // Not an image, so no preview for AI
-        toast({ title: "Document Selected", description: `${file.name} is ready. Note: AI extraction works best with clear images.` });
-        setExtractedData({ // Pre-fill with "Not Specified"
+        setOfferLetterPreview(null); 
+        toast({ title: "Document Selected", description: `${file.name} is ready. AI extraction works best with clear images. PDF details might need manual verification.` });
+        setExtractedData({ 
           studentName: "Not Specified", universityName: "Not Specified", courseName: "Not Specified",
           admissionLevel: "Not Specified", admissionFees: "Not Specified", courseStartDate: "Not Specified",
           offerLetterType: "Not Specified"
@@ -150,7 +150,7 @@ export default function AdmissionKYCPage() {
   };
 
   const processOfferLetterAI = async () => {
-    if (!offerLetterPreview) { // Only process if it's an image data URI
+    if (!offerLetterPreview) { 
       toast({ title: "AI Extraction Skipped", description: "AI extraction works best with clear images. Please review and fill details manually.", variant: "default" });
       setExtractedData({
           studentName: "Not Specified", universityName: "Not Specified", courseName: "Not Specified",
@@ -169,7 +169,6 @@ export default function AdmissionKYCPage() {
       setExtractedData(result);
       if (result && typeof result.studentName === 'string' && result.studentName.trim() !== '') {
         setStudentFirstName(result.studentName.split(' ')[0]);
-        // Aveka message is updated in the main Aveka component now
       } else {
         setStudentFirstName(null);
       }
@@ -189,11 +188,11 @@ export default function AdmissionKYCPage() {
   };
 
   useEffect(() => {
-    if (offerLetterFile && offerLetterPreview && !extractedData && !isProcessingLetter) { // only trigger if offerLetterPreview (image) is available
+    if (offerLetterFile && offerLetterPreview && !extractedData && !isProcessingLetter) { 
       processOfferLetterAI();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offerLetterPreview]); // Depend on offerLetterPreview (image URI)
+  }, [offerLetterPreview, offerLetterFile]); 
 
   const handleEditField = (field: keyof ExtractOfferLetterOutput, currentValue: string) => {
     setEditingField(field);
@@ -226,7 +225,6 @@ export default function AdmissionKYCPage() {
       return;
     }
 
-
     setIsUploading(true);
     let uploadedOfferLetterUrl: string | null = null;
 
@@ -255,8 +253,8 @@ export default function AdmissionKYCPage() {
 
     if (result.success) {
         localStorage.setItem('hasOfferLetterStatus', 'true');
-        toast({ title: "Admission Details Saved!", description: "Moving to Personal KYC." });
-        router.push('/loan-application/preferences'); // "Yes" Offer Letter flow
+        toast({ title: "Admission Details Saved!", description: "Moving to Preferences." });
+        router.push('/loan-application/preferences'); 
     } else {
         toast({ title: "Save Failed", description: result.error || "Could not save admission details.", variant: "destructive"});
     }
@@ -268,14 +266,14 @@ export default function AdmissionKYCPage() {
       toast({ title: "Error", description: "User session not found. Please restart.", variant: "destructive" });
       return;
     }
-    setIsUploading(true); // To disable buttons
+    setIsUploading(true); 
     const result = await saveUserApplicationData(userId, { hasOfferLetter: false });
     setIsUploading(false);
     if (result.success) {
         localStorage.setItem('hasOfferLetterStatus', 'false');
         localStorage.removeItem('admissionKycData'); 
         toast({ title: "Okay", description: "Proceeding to Personal KYC." });
-        router.push('/loan-application/personal-kyc'); // "No" Offer Letter flow
+        router.push('/loan-application/personal-kyc'); 
     } else {
          toast({ title: "Save Failed", description: result.error || "Could not update status.", variant: "destructive"});
     }
@@ -284,7 +282,7 @@ export default function AdmissionKYCPage() {
   const renderInitialQuestion = () => (
     <div className="text-center">
       <div className="flex justify-center space-x-4">
-        <Button onClick={() => {setHasOfferLetter(true); setAvekaMessage("Excellent! Please upload a clear IMAGE (JPG, PNG) of your offer letter or take a picture of it for the best AI extraction results.");}} size="lg" className="gradient-border-button" disabled={isUploading}>Yes, I have it</Button>
+        <Button onClick={() => {setHasOfferLetter(true); setAvekaMessage("Excellent! Please upload a clear IMAGE (JPG, PNG) of your offer letter or take a picture of it for the best AI extraction results. PDFs are accepted too, but AI works best on images.");}} size="lg" className="gradient-border-button" disabled={isUploading}>Yes, I have it</Button>
         <Button onClick={handleNoOfferLetter} size="lg" variant="outline" className="bg-white text-black hover:bg-gray-100" disabled={isUploading}>No, not yet</Button>
       </div>
     </div>
@@ -304,7 +302,7 @@ export default function AdmissionKYCPage() {
       {offerLetterFile && (
         <div className="mt-6 p-4 border border-gray-600 rounded-lg bg-gray-700/30 max-w-md mx-auto">
           <h3 className="font-semibold mb-2 text-center text-white">Preview:</h3>
-          {offerLetterPreview ? ( // Only show image if offerLetterPreview (image data URI) exists
+          {offerLetterPreview ? ( 
             <Image src={offerLetterPreview} alt="Offer Letter Preview" width={400} height={500} className="rounded-md mx-auto max-h-[500px] object-contain" />
           ) : (
             <p className="text-center text-sm text-white">Uploaded: {offerLetterFile?.name}</p>
@@ -420,8 +418,7 @@ export default function AdmissionKYCPage() {
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
 
         <div className="relative z-10">
-         <LoanProgressBar steps={loanAppSteps} />
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -453,8 +450,7 @@ export default function AdmissionKYCPage() {
               </Link>
             </div>
           </div>
-         
-
+          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/mobile')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -502,4 +498,3 @@ export default function AdmissionKYCPage() {
     </div>
   );
 }
-

@@ -270,8 +270,7 @@ export default function ReviewPersonalKYCPage() {
       >
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
-         <LoanProgressBar steps={loanAppSteps} />
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
              <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -303,8 +302,7 @@ export default function ReviewPersonalKYCPage() {
               </Link>
             </div>
           </div>
-          
-
+          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex items-center mb-6 mt-4"> 
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/personal-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back

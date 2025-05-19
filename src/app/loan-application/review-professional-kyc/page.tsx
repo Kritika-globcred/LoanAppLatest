@@ -110,7 +110,6 @@ export default function ReviewProfessionalKYCPage() {
     }
     setIsSaving(true);
     
-    // Reconstruct the professionalKyc object with potentially edited data
     const professionalKycToSave: UserApplicationData['professionalKyc'] = {
         coSignatory: {},
         workEmployment: {},
@@ -122,11 +121,9 @@ export default function ReviewProfessionalKYCPage() {
 
     for (const key in combinedData) {
         if (coSignatoryFields.includes(key as any)) {
-            // @ts-ignore
-            professionalKycToSave.coSignatory[key] = combinedData[key];
+            professionalKycToSave.coSignatory![key as keyof CoSignatoryData] = combinedData[key as keyof CoSignatoryData];
         } else if (workEmploymentFields.includes(key as any)) {
-            // @ts-ignore
-            professionalKycToSave.workEmployment[key] = combinedData[key];
+            professionalKycToSave.workEmployment![key as keyof WorkEmploymentData] = combinedData[key as keyof WorkEmploymentData];
         }
     }
     
@@ -178,13 +175,9 @@ export default function ReviewProfessionalKYCPage() {
     if (!data) return [];
     
     const orderedFields: EditableCombinedDataKey[] = [
-      // Co-Signatory
       'coSignatoryChoice', 'coSignatoryIdDocumentType', 'coSignatoryRelationship', 'idNumber', 'idType', 'nameOnId', 'coSignatoryIdUrl',
-      // Work Experience
       'workExperienceIndustry', 'workExperienceYears', 'workExperienceMonths', 'workExperienceProofType', 'resumeUrl', 'linkedInUrl',
-      // AI Extracted Profile
       'extractedYearsOfExperience', 'extractedGapInLast3YearsMonths', 'extractedCurrentOrLastIndustry', 'extractedCurrentOrLastJobRole',
-      // Employment Status
       'isCurrentlyWorking', 'monthlySalary', 'salaryCurrency', 'familyMonthlySalary', 'familySalaryCurrency'
     ];
     
@@ -222,7 +215,7 @@ export default function ReviewProfessionalKYCPage() {
             {fieldsToDisplay.map((key) => {
               const value = combinedData[key as keyof CombinedProfessionalData];
               const fieldLabel = displayLabels[key as string] || String(key).replace(/([A-Z])/g, ' $1').trim();
-              let displayValue = String(value !== undefined && value !== null && String(value).trim() !== '' ? value : 'Not Specified');
+              let displayValue: React.ReactNode = String(value !== undefined && value !== null && String(value).trim() !== '' ? value : 'Not Specified');
 
               if (key === 'coSignatoryChoice') {
                 displayValue = value === 'yes' ? 'Yes' : value === 'no' ? 'No' : value === 'addLater' ? 'Add Later' : 'Not Specified';
@@ -290,8 +283,7 @@ export default function ReviewProfessionalKYCPage() {
       >
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
-         <LoanProgressBar steps={loanAppSteps} />
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
              <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -309,8 +301,7 @@ export default function ReviewProfessionalKYCPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          
-
+          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex items-center mb-6 mt-4"> 
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/work-employment-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back

@@ -145,13 +145,13 @@ export default function AcademicKYCPage() {
       return languageTestDay && languageTestMonth && languageTestYear;
     }
     if (languageTestGiven === 'yes') {
-      if (isAsianCountry) { // Asian countries
+      if (isAsianCountry) { 
         if (languageTestType === 'IELTS') return ieltsAbove65 !== null;
         if (languageTestType === 'Other') return languageTestOtherName.trim() !== '' && languageTestScore.trim() !== '';
-      } else { // Non-Asian countries
-        if (!languageTestType) return false; // Main test type (TOEFL, PTE, Duolingo, Other)
-        if (languageTestType === 'Other Test') return languageTestOtherName.trim() !== '' && languageTestScore.trim() !== ''; // If 'Other Test' from dropdown
-        return languageTestScore.trim() !== ''; // For TOEFL, PTE, Duolingo directly
+      } else { 
+        if (!languageTestType) return false; 
+        if (languageTestType === 'Other Test') return languageTestOtherName.trim() !== '' && languageTestScore.trim() !== ''; 
+        return languageTestScore.trim() !== ''; 
       }
     }
     return false;
@@ -166,7 +166,7 @@ export default function AcademicKYCPage() {
     if (courseTestGiven === 'yes') {
       if (!courseTestType) return false;
       if (courseTestType === 'Other') return courseTestOtherName.trim() !== '' && courseTestScore.trim() !== '';
-      return courseTestScore.trim() !== ''; // For GMAT, GRE
+      return courseTestScore.trim() !== ''; 
     }
     return false;
   };
@@ -413,7 +413,7 @@ export default function AcademicKYCPage() {
         {languageTestGiven === 'yes' && (
           <div className="space-y-4">
             {isAsianCountry === null && <p className="text-white text-sm">Loading country information...</p>}
-            {isAsianCountry === true && ( // Asian Path
+            {isAsianCountry === true && ( 
               <>
                 <Label className="text-white">Which test have you appeared for?</Label>
                 <RadioGroup value={languageTestType || ''} onValueChange={(value) => { setLanguageTestType(value); setLanguageTestOtherName(''); setLanguageTestScore(''); setIeltsAbove65(null); }} className="flex space-x-4 text-white">
@@ -430,7 +430,7 @@ export default function AcademicKYCPage() {
                     </RadioGroup>
                   </div>
                 )}
-                {languageTestType === 'Other' && ( // This 'Other' is for Asian context radio button
+                {languageTestType === 'Other' && ( 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                     <div>
                         <Label htmlFor="languageTestOtherNameAsian" className="text-white">Specify Test Name</Label>
@@ -444,7 +444,7 @@ export default function AcademicKYCPage() {
                 )}
               </>
             )}
-            {isAsianCountry === false && ( // Non-Asian Path
+            {isAsianCountry === false && ( 
               <>
                 <Label className="text-white">Which test have you appeared for?</Label>
                  <Select value={languageTestType || ''} onValueChange={(value) => {setLanguageTestType(value); if (value !== 'Other Test') {setLanguageTestOtherName('');} setLanguageTestScore(''); }}>
@@ -467,7 +467,7 @@ export default function AcademicKYCPage() {
                   </div>
                 )}
                 {(languageTestType && languageTestType !== '' && languageTestType !== 'Other Test') && ( 
-                    <div className="mt-4"> {/* Score input for TOEFL, PTE, Duolingo */}
+                    <div className="mt-4"> 
                         <Label htmlFor="languageTestScoreNonAsianDirect" className="text-white">Your Score for {languageTestType}</Label>
                         <Input id="languageTestScoreNonAsianDirect" value={languageTestScore} onChange={(e) => setLanguageTestScore(e.target.value)} className="bg-white/80 text-black w-full md:w-1/2" />
                     </div>
@@ -562,7 +562,7 @@ export default function AcademicKYCPage() {
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
         }}
       >
-        <div className="absolute inset-0 bg-[hsl(var(--primary)/0.50)] rounded-2xl z-0 backdrop-blur-lg"></div>
+        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />

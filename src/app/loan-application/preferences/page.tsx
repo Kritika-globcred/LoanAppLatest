@@ -37,7 +37,6 @@ import { ArrowLeft, Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import { getOrGenerateUserId } from '@/lib/user-utils';
 import { saveUserApplicationData } from '@/services/firebase-service';
 
-// Sample country list - in a real app, this would be comprehensive
 const globalCountryList = [
   { value: 'US', label: 'United States' }, { value: 'CA', label: 'Canada' },
   { value: 'GB', label: 'United Kingdom' }, { value: 'AU', label: 'Australia' },
@@ -171,8 +170,7 @@ export default function PreferencesPage() {
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
         
         <div className="relative z-10">
-         <LoanProgressBar steps={loanAppSteps} />
-          <div className="flex justify-between items-center py-4 mb-6">
+          <div className="flex justify-between items-center py-4">
             <Logo />
             <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
@@ -200,8 +198,7 @@ export default function PreferencesPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          
-
+          <LoanProgressBar steps={loanAppSteps} />
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/review-professional-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
