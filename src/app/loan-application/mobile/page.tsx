@@ -25,6 +25,7 @@ import { loanAppSteps } from '@/lib/loan-steps';
 import { saveUserApplicationData } from '@/services/firebase-service';
 import { getOrGenerateUserId } from '@/lib/user-utils';
 import { serverTimestamp } from 'firebase/firestore'; // Import serverTimestamp
+import { Loader2 } from 'lucide-react';
 
 interface CountryInfo {
   value: string;
@@ -105,19 +106,19 @@ export default function MobileVerificationPage() {
     }
     setIsSaving(true);
 
-    const selectedCountry = [...defaultCountryCodes, ...globalCountryCodesSample].find(c => c.value === countryCode);
+    const selectedCountryInfo = [...defaultCountryCodes, ...globalCountryCodesSample].find(c => c.value === countryCode);
 
     const initialData = {
       userId: userId,
       mobileNumber: mobileNumber.trim(),
-      countryCode: selectedCountry?.dialCode,
-      countryShortName: selectedCountry?.countryShortName,
-      createdAt: serverTimestamp(), // Add createdAt for the initial save
+      countryCode: selectedCountryInfo?.dialCode,
+      countryShortName: selectedCountryInfo?.countryShortName,
+      createdAt: serverTimestamp(), 
     };
 
-    // This is where the Firebase save operation happens
+    console.log("[Mobile Page] Attempting to save initial data to Firestore:", initialData);
     const result = await saveUserApplicationData(userId, initialData);
-
+    console.log("[Mobile Page] Firestore save result:", result);
     setIsSaving(false);
 
     if (result.success) {
@@ -128,7 +129,18 @@ export default function MobileVerificationPage() {
         if (typeof window !== 'undefined') {
           localStorage.setItem('selectedCountryValue', countryCode); 
         }
-        router.push('/loan-application/admission-kyc');
+        console.log("[Mobile Page] Save successful. Attempting to navigate to /loan-application/admission-kyc");
+        try {
+          router.push('/loan-application/admission-kyc');
+          console.log("[Mobile Page] router.push called successfully.");
+        } catch (navError) {
+          console.error("[Mobile Page] Error during router.push:", navError);
+          toast({
+            title: "Navigation Error",
+            description: "Could not navigate to the next page. Please try again or check the console.",
+            variant: "destructive",
+          });
+        }
     } else {
         toast({
             title: "Save Failed",
@@ -146,7 +158,7 @@ export default function MobileVerificationPage() {
   return (
     <div className="flex flex-col items-center">
       <section
-        className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] pt-[5px] px-6 pb-6 md:px-8 md:pb-8 overflow-hidden shadow-[5px_5px_10px_hsl(0,0%,0%/0.2)] shadow-[inset_0_0_2px_hsl(var(--primary)/0.8)]"
+        className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] pt-[5px] px-6 pb-6 md:px-8 md:pb-8 overflow-hidden shadow-lg"
         style={{
           backgroundImage:
             "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
@@ -260,6 +272,7 @@ export default function MobileVerificationPage() {
                           onChange={(e) => setMobileNumber(e.target.value)}
                           className="w-[70%] bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring"
                           maxLength={15}
+                          disabled={isSaving}
                         />
                       </div>
                     </div>
@@ -287,6 +300,7 @@ export default function MobileVerificationPage() {
                         onChange={(e) => setEnteredOtp(e.target.value)}
                         className="w-1/2 mx-auto bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring text-center tracking-[0.5em]"
                         maxLength={4}
+                        disabled={isSaving}
                       />
                        <p className="text-xs text-gray-300 mt-2">Default OTP is 9999 for testing.</p>
                     </div>
@@ -307,7 +321,7 @@ export default function MobileVerificationPage() {
                           className="gradient-border-button w-auto"
                           disabled={isSaving}
                         >
-                          {isSaving ? 'Saving...' : 'Save & Continue'}
+                          {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save & Continue'}
                         </Button>
                     </div>
                   </div>
