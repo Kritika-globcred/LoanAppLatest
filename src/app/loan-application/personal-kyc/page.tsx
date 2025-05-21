@@ -74,17 +74,37 @@ export default function PersonalKYCPage() {
   }, []);
 
    useEffect(() => {
+    let shouldUpdate = true;
+    
     if (idDocumentFile || idDocumentPreview || idDocumentTextContent) {
-      if (!showPassportSection) { // Only trigger if not already shown
+      if (!showPassportSection) {
+        console.log('Showing passport section and Aveka message');
         setShowPassportSection(true);
-        const timer = setTimeout(() => setAvekaPassportPromptVisible(true), 300);
-        return () => clearTimeout(timer);
+        setAvekaMessage(`Thanks for the ${idDocumentType}! Now, please upload your Passport.`);
+        // Use a small timeout to ensure state updates are batched
+        const timer = setTimeout(() => {
+          if (shouldUpdate) {
+            setAvekaPassportPromptVisible(true);
+          }
+        }, 0);
+        return () => {
+          shouldUpdate = false;
+          clearTimeout(timer);
+        };
       }
     } else {
-        setShowPassportSection(false); // Hide passport section if ID doc is removed
+      if (showPassportSection) {
+        console.log('Hiding passport section and Aveka message');
+        setShowPassportSection(false);
         setAvekaPassportPromptVisible(false);
+        setAvekaMessage(`Next, I need your ${idDocumentType}. For best AI results, please upload a clear IMAGE (JPG, PNG). Other formats like PDF, DOC or TXT are also accepted.`);
+      }
     }
-  }, [idDocumentFile, idDocumentPreview, idDocumentTextContent, showPassportSection]);
+    
+    return () => {
+      shouldUpdate = false;
+    };
+  }, [idDocumentFile, idDocumentPreview, idDocumentTextContent, showPassportSection, idDocumentType]);
 
 
   useEffect(() => {
@@ -256,11 +276,11 @@ export default function PersonalKYCPage() {
 
       // Store data URIs for AI if they exist (image/pdf/doc), or text content for TXT
       localStorage.setItem('personalDocsForReview', JSON.stringify({
-          idDocumentDataUriForAI: idDocumentFile?.type === 'text/plain' ? null : idDocumentPreview, 
-          idDocumentTextContentForAI: idDocumentTextContent,
-          passportDataUriForAI: passportFile?.type === 'text/plain' ? null : passportPreview,
-          passportTextContentForAI: passportTextContent,
-          idDocumentTypeForAI: idDocumentType,
+          idDocumentDataUri: idDocumentFile?.type === 'text/plain' ? null : idDocumentPreview, 
+          idDocumentTextContent: idDocumentTextContent,
+          passportDataUri: passportFile?.type === 'text/plain' ? null : passportPreview,
+          passportTextContent: passportTextContent,
+          idDocumentType: idDocumentType,
           idDocumentFirebaseUrl: idDocFirebaseUrl,
           passportFirebaseUrl: passportFirebaseUrl,
       }));
@@ -301,31 +321,34 @@ export default function PersonalKYCPage() {
     );
 
 
-  const AvekaPassportPromptComponent = () => (
-    <div className="my-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
-       <div className="flex-shrink-0 mb-3 md:mb-0">
-            <Image
+  // Memoize the component to prevent unnecessary re-renders
+  const AvekaPassportPromptComponent = () => {
+    // Only render if the passport prompt should be visible
+    if (!avekaPassportPromptVisible) return null;
+    
+    return (
+      <div className="my-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
+        <div className="flex-shrink-0 mb-3 md:mb-0">
+          <Image
             src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
             alt="Aveka, GlobCred's Smart AI"
             width={50}
             height={50}
             className="rounded-full border-2 border-white shadow-md"
             data-ai-hint="robot avatar"
-            />
+            priority
+          />
         </div>
-      <div
-        className={`bg-[hsl(var(--card)/0.45)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow
-                    transform transition-all duration-500 ease-out
-                    ${avekaPassportPromptVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
-      >
-        <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
-        <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
-        <p className="text-base text-white">
-          Thanks! Now, please upload or take a picture of your Passport. Clear JPG, PNG images work best for AI. PDF, DOC, or TXT files are also accepted.
-        </p>
+        <div className="bg-[hsl(var(--card)/0.45)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow">
+          <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
+          <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
+          <p className="text-base text-white">
+            Thanks! Now, please upload or take a picture of your Passport. Clear JPG, PNG images work best for AI. PDF, DOC, or TXT files are also accepted.
+          </p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderDocumentUploadSection = (
     docType: 'id' | 'passport',
@@ -469,6 +492,7 @@ export default function PersonalKYCPage() {
 
                 {showPassportSection && (
                   <div className="mt-6 w-full">
+                    <AvekaPassportPromptComponent />
                     {renderDocumentUploadSection(
                       'passport',
                       'Passport',

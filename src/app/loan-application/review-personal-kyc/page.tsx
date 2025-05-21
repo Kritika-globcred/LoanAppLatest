@@ -81,10 +81,19 @@ export default function ReviewPersonalKYCPage() {
           router.push('/loan-application/personal-kyc');
           return;
       }
-      const { idDocumentDataUri, passportDataUri, idDocumentType } = JSON.parse(docsForReviewString);
+      const { 
+        idDocumentDataUri, 
+        passportDataUri, 
+        idDocumentType, 
+        idDocumentFirebaseUrl, 
+        passportFirebaseUrl 
+      } = JSON.parse(docsForReviewString);
 
+      // Use Firebase Storage URLs if available, fall back to data URIs
+      const idDocUri = idDocumentFirebaseUrl || idDocumentDataUri;
+      const passportUri = passportFirebaseUrl || passportDataUri;
 
-      if (!idDocumentDataUri || !passportDataUri || !idDocumentType) {
+      if (!idDocUri || !passportUri || !idDocumentType) {
         toast({
           title: "Error: Missing Documents",
           description: "Could not find document data. Please go back and re-upload.",
@@ -97,21 +106,37 @@ export default function ReviewPersonalKYCPage() {
       }
 
       try {
+        console.log("Starting KYC document processing...");
+        console.log("ID Document URI:", idDocUri ? "[URI present]" : "[MISSING]");
+        console.log("Passport URI:", passportUri ? "[URI present]" : "[MISSING]");
+        
         const input: ExtractPersonalKycInput = {
-          idDocumentImageUri: idDocumentDataUri,
-          passportImageUri: passportDataUri,
+          idDocumentImageUri: idDocUri,
+          idDocumentTextContent: null,
+          passportImageUri: passportUri,
+          passportTextContent: null,
           idDocumentType: idDocumentType,
         };
+        
+        console.log("Sending documents to AI for processing...");
         const result = await extractPersonalKycDetails(input);
+        
+        if (!result) {
+          throw new Error("AI processing returned no result");
+        }
+        
+        console.log("Successfully extracted KYC details:", result);
         const ageInYears = calculateAge(result.dateOfBirth);
         setExtractedData({ ...result, ageInYears });
         setAvekaMessage("Great news! I've extracted the details from your documents. Please review them below and make any corrections if needed.");
         toast({ title: "Details Extracted", description: "Please review your KYC information." });
       } catch (error) {
-        console.error("Error processing KYC documents:", error);
+        console.error("Error in KYC document processing:", error);
         toast({
-          title: "Extraction Failed",
-          description: "Could not extract details from the documents. Please ensure they are clear images or try re-uploading.",
+          title: "Document Processing Error",
+          description: error instanceof Error ? 
+            `Failed to process documents: ${error.message}` : 
+            "An unknown error occurred while processing your documents. Please try again.",
           variant: "destructive",
         });
         setAvekaMessage("I encountered an issue while extracting details. You might need to re-upload clearer images, or you can try filling the details manually if this persists.");
@@ -168,12 +193,59 @@ export default function ReviewPersonalKYCPage() {
 
     const docsForReview = JSON.parse(localStorage.getItem('personalDocsForReview') || '{}');
 
-    const personalKycDataToSave = {
-      ...extractedData,
-      idDocumentUrl: docsForReview.idDocumentDataUri, 
-      passportUrl: docsForReview.passportDataUri, 
-      consentTimestamp: currentTime,
+    // Create a clean copy with only valid, serializable fields
+    const cleanValue = (value: any): any => {
+      if (value === null || value === undefined) return undefined;
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        return value;
+      }
+      if (Array.isArray(value)) {
+        return value.map(cleanValue).filter(v => v !== undefined);
+      }
+      return undefined;
     };
+
+    const personalKycDataToSave: Record<string, any> = {};
+    
+    // Process extractedData
+    if (extractedData) {
+      Object.entries(extractedData).forEach(([key, value]) => {
+        const cleanVal = cleanValue(value);
+        if (cleanVal !== undefined) {
+          personalKycDataToSave[key] = cleanVal;
+        }
+      });
+    }
+
+    // Validate and add document URLs
+    const isValidUrl = (url: any): boolean => {
+      if (typeof url !== 'string') return false;
+      try {
+        // Basic URL validation
+        new URL(url);
+        return url.length < 2000; // Reasonable length limit
+      } catch {
+        return false;
+      }
+    };
+
+    if (isValidUrl(docsForReview.idDocumentDataUri)) {
+      personalKycDataToSave.idDocumentUrl = docsForReview.idDocumentDataUri;
+    } else {
+      console.warn('Invalid or missing ID document URL');
+    }
+
+    if (isValidUrl(docsForReview.passportDataUri)) {
+      personalKycDataToSave.passportUrl = docsForReview.passportDataUri;
+    } else {
+      console.warn('Invalid or missing passport URL');
+    }
+    
+    // Add timestamp
+    personalKycDataToSave.consentTimestamp = new Date().toISOString();
+    
+    // Log the sanitized data
+    console.log('Sanitized personalKyc data:', JSON.stringify(personalKycDataToSave, null, 2));
     
     localStorage.removeItem('personalDocsForReview');
 
