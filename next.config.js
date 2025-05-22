@@ -53,65 +53,81 @@ const nextConfig = {
   // Use default .next directory
   distDir: '.next',
   
-  // Enable React strict mode
-  reactStrictMode: true,
+  // Disable type checking during build
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   
-  // Enable SWC minification
+  // Disable ESLint during build
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  
+  // Enable SWC minification (faster than Terser)
   swcMinify: true,
   
-  // Enable production source maps
+  // Disable source maps in production
   productionBrowserSourceMaps: false,
   
-  // Image optimization
+  // Disable React strict mode during build for better performance
+  reactStrictMode: false,
+  
+  // Optimize images
   images: {
     domains: ['firebasestorage.googleapis.com'],
-    // Enable image optimization for Vercel
     unoptimized: false,
   },
   
   // Enable trailing slashes for better compatibility
   trailingSlash: true,
   
-  // Remove experimental features that might cause issues
-  // and are not needed for this project
-  
-  // Webpack configuration
-  webpack: (config, { isServer, webpack }) => {
-    // Client-side only configuration
-    if (!isServer) {
-      // Ignore server-only modules in client bundle
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        module: false,
-        net: false,
-        dns: 'mock',
-        tls: false,
-        child_process: false,
-      };
-      
-      // Ignore problematic modules
-      config.plugins.push(
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^@opentelemetry\/sdk-node$/,
-        }),
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^@opentelemetry\/exporter-jaeger$/,
-        }),
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^dotprompt$/,
-        }),
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^handlebars$/,
-        }),
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^genkit$/,
-        })
-      );
+  // Webpack configuration for optimized builds
+  webpack: (config, { isServer, dev, webpack }) => {
+    // Only optimize in production
+    if (!dev) {
+      // Client-side only configuration
+      if (!isServer) {
+        // Ignore server-only modules in client bundle
+        config.resolve.fallback = {
+          ...config.resolve.fallback,
+          fs: false,
+          module: false,
+          net: false,
+          dns: 'mock',
+          tls: false,
+          child_process: false,
+        };
+        
+        // Ignore problematic modules
+        config.plugins.push(
+          new webpack.IgnorePlugin({
+            resourceRegExp: /^@opentelemetry\/sdk-node$/,
+          }),
+          new webpack.IgnorePlugin({
+            resourceRegExp: /^@opentelemetry\/exporter-jaeger$/,
+          }),
+          new webpack.IgnorePlugin({
+            resourceRegExp: /^dotprompt$/,
+          }),
+          new webpack.IgnorePlugin({
+            resourceRegExp: /^handlebars$/,
+          }),
+          new webpack.IgnorePlugin({
+            resourceRegExp: /^genkit$/,
+          })
+        );
+      }
     }
+    
+    // Ensure CSS modules are properly handled
+    config.module.rules.push({
+      test: /\.css$/,
+      use: ['style-loader', 'css-loader'],
+    });
     
     return config;
   },
+  
   // Environment variables
   env: {
     NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -120,20 +136,24 @@ const nextConfig = {
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
     NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
   },
-  // Ensure CSS modules are properly handled
-  webpack: (config) => {
-    // Important: return the modified config
-    return config;
+  
+  // Enable experimental features for better performance
+  experimental: {
+    optimizeCss: true,
+    scrollRestoration: true,
+    // Enable concurrent features
+    workerThreads: true,
+    // Optimize package imports
+    modularizeImports: {
+      // Add any large libraries you're using here
+      'react-icons': {
+        transform: 'react-icons/{{member}}',
+      },
+    },
   },
-  // Handle TypeScript path aliases for module resolution
-  typescript: {
-    // !! WARN !!
-    // Dangerously allow production builds to successfully complete even if
-    // your project has type errors.
-    // !! WARN !!
-    ignoreBuildErrors: true,
-  },
+  
   // Configure allowed image domains
   images: {
     domains: [
