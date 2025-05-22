@@ -25,14 +25,14 @@
     "vercel-build": "next build"
   },
   "resolutions": {
-    "rimraf": "^5.0.0",
-    "glob": "^10.0.0",
-    "inflight": "^2.0.0",
-    "node-domexception": "^3.0.0",
-    "**/glob": "^10.0.0",
-    "**/rimraf": "^5.0.0",
-    "**/inflight": "^2.0.0",
-    "**/node-domexception": "^3.0.0"
+    "rimraf": "5.0.0",
+    "glob": "10.0.0",
+    "inflight": "2.0.0",
+    "node-domexception": "3.0.0",
+    "**/glob": "10.0.0",
+    "**/rimraf": "5.0.0",
+    "**/inflight": "2.0.0",
+    "**/node-domexception": "3.0.0"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.10.0",
