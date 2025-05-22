@@ -27,13 +27,14 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https: http:",
-      "font-src 'self' data:",
-      "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com",
-      "frame-src 'self' https://*.firebaseapp.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://www.googletagmanager.com https://www.google-analytics.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "img-src 'self' data: https: http: blob:",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://securetoken.googleapis.com https://www.google-analytics.com",
+      "frame-src 'self' https://*.firebaseapp.com https://*.google.com",
       "worker-src 'self' blob:",
+      "media-src 'self' data: blob:",
     ].join('; '),
   },
 ];
@@ -54,6 +55,12 @@ const nextConfig = {
   
   // Enable React strict mode
   reactStrictMode: true,
+  
+  // Enable SWC minification
+  swcMinify: true,
+  
+  // Enable production source maps
+  productionBrowserSourceMaps: false,
   
   // Image optimization
   images: {
