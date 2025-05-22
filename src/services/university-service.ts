@@ -1,20 +1,76 @@
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, writeBatch, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  orderBy, 
+  writeBatch, 
+  serverTimestamp, 
+  limit, 
+  startAfter, 
+  getCountFromServer,
+  DocumentData,
+  CollectionReference,
+  QueryDocumentSnapshot,
+  Query,
+  where,
+  getFirestore
+} from 'firebase/firestore';
+import { getDbInstance } from '@/lib/firebase';
 import { University, BulkUploadResult } from '@/types/university';
 import { v4 as uuidv4 } from 'uuid';
 
 const UNIVERSITIES_COLLECTION = 'universities';
+const PAGE_SIZE = 20; // Number of items per page
 
-export const getUniversities = async (): Promise<University[]> => {
+export const getUniversities = async (page = 1): Promise<{ data: University[], pagination: { currentPage: number, totalPages: number, totalItems: number, hasNextPage: boolean, hasPreviousPage: boolean } }> => {
   try {
-    const q = query(collection(db, UNIVERSITIES_COLLECTION), orderBy('name'));
+    const db = getDbInstance();
+    const universitiesRef = collection(db, UNIVERSITIES_COLLECTION);
+    
+    // Get total count
+    const countSnapshot = await getCountFromServer(universitiesRef);
+    const totalItems = countSnapshot.data().count;
+    const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+
+    // Adjust page number if it's out of bounds
+    const currentPage = Math.min(Math.max(1, page), totalPages);
+    const offset = (currentPage - 1) * PAGE_SIZE;
+
+    // Create base query
+    let q = query(
+      universitiesRef,
+      orderBy('name'),
+      limit(PAGE_SIZE)
+    );
+    
+    // Execute query
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
-      updatedAt: doc.data().updatedAt?.toDate(),
-    })) as University[];
+    
+    // Map documents to University array
+    const universities = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate(),
+        updatedAt: data.updatedAt?.toDate(),
+      } as University;
+    });
+    
+    return {
+      data: universities,
+      pagination: {
+        currentPage: currentPage,
+        totalPages,
+        totalItems,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1
+      }
+    };
   } catch (error) {
     console.error('Error getting universities:', error);
     throw error;
@@ -23,11 +79,12 @@ export const getUniversities = async (): Promise<University[]> => {
 
 export const addUniversity = async (university: Omit<University, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   try {
+    const db = getDbInstance();
     const docRef = await addDoc(collection(db, UNIVERSITIES_COLLECTION), {
       ...university,
       isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
     return docRef.id;
   } catch (error) {
@@ -38,9 +95,10 @@ export const addUniversity = async (university: Omit<University, 'id' | 'created
 
 export const updateUniversity = async (id: string, university: Partial<University>): Promise<void> => {
   try {
+    const db = getDbInstance();
     await updateDoc(doc(db, UNIVERSITIES_COLLECTION, id), {
       ...university,
-      updatedAt: new Date(),
+      updatedAt: serverTimestamp(),
     });
   } catch (error) {
     console.error('Error updating university:', error);
@@ -50,6 +108,7 @@ export const updateUniversity = async (id: string, university: Partial<Universit
 
 export const deleteUniversity = async (id: string): Promise<void> => {
   try {
+    const db = getDbInstance();
     await deleteDoc(doc(db, UNIVERSITIES_COLLECTION, id));
   } catch (error) {
     console.error('Error deleting university:', error);
@@ -67,16 +126,13 @@ export const bulkUploadUniversities = async (
   universities: Omit<University, 'id' | 'createdAt' | 'updatedAt'>[],
   onProgress?: (progress: number) => void
 ): Promise<BulkUploadResult> => {
-  if (!db) {
-    throw new Error('Firebase is not initialized');
-  }
-
-  const batchSize = 500; // Firestore batch limit
-  const total = universities.length;
-  let successCount = 0;
-  const errors: Array<{ row: number; error: string }> = [];
-
   try {
+    const db = getDbInstance();
+    const batchSize = 500; // Firestore batch limit
+    const total = universities.length;
+    let successCount = 0;
+    const errors: Array<{ row: number; error: string }> = [];
+
     // Process in batches to avoid Firestore limits
     for (let i = 0; i < universities.length; i += batchSize) {
       const batch = writeBatch(db);
@@ -140,14 +196,13 @@ export const bulkUploadUniversities = async (
     return {
       success: false,
       message: 'Bulk upload failed',
-      total,
-      successCount,
-      failedCount: total - successCount,
+      total: 0,
+      successCount: 0,
+      failedCount: 0,
       errors: [
-        ...errors,
         {
           row: 0,
-          error: error instanceof Error ? error.message : 'Unknown error during bulk upload',
+          error: error instanceof Error ? error.message : 'Unknown error',
         },
       ],
     };

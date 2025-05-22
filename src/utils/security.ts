@@ -51,15 +51,116 @@ export const rateLimiterMiddleware = async (req: NextApiRequest, res: NextApiRes
   }
 };
 
-// Verify Firebase ID Token
-export const verifyFirebaseToken = async (idToken: string) => {
+// Token verification rate limiter
+const tokenRateLimiter = new rateLimit.RateLimiterMemory({
+  points: 10, // 10 token verifications
+  duration: 60, // per minute per IP
+});
+
+interface TokenVerificationResult {
+  uid?: string;
+  email?: string | null;
+  error?: string;
+  isRevoked?: boolean;
+  issuedAt?: number;
+  expiresAt?: number;
+}
+
+/**
+ * Enhanced Firebase ID Token verification with additional security checks
+ * @param idToken The Firebase ID token to verify
+ * @param ipAddress Optional IP address for rate limiting (recommended for server-side usage)
+ * @returns Token verification result with user information or error details
+ */
+export const verifyFirebaseToken = async (
+  idToken: string,
+  ipAddress?: string
+): Promise<TokenVerificationResult> => {
+  // Input validation
+  if (!idToken || typeof idToken !== 'string') {
+    console.warn('Invalid token format');
+    return { error: 'Invalid token format' };
+  }
+
+  // Apply rate limiting if IP address is provided
+  if (ipAddress) {
+    try {
+      await tokenRateLimiter.consume(ipAddress);
+    } catch (rateLimitError) {
+      console.warn('Rate limit exceeded for token verification', { ipAddress });
+      return { error: 'Too many token verification attempts. Please try again later.' };
+    }
+  }
+
   try {
     const auth = getAdminAuth();
-    const decodedToken = await auth.verifyIdToken(idToken);
-    return { uid: decodedToken.uid, email: decodedToken.email };
-  } catch (error) {
-    console.error('Error verifying token:', error);
-    return null;
+    
+    // Verify the ID token
+    const decodedToken = await auth.verifyIdToken(idToken, true); // Check if token is revoked
+    
+    // Additional security checks
+    const currentTime = Math.floor(Date.now() / 1000);
+    const tokenAge = currentTime - (decodedToken.iat || 0);
+    
+    // Check if token was issued in the future (clock skew tolerance: 5 minutes)
+    if (decodedToken.iat && decodedToken.iat > (currentTime + 300)) {
+      console.warn('Token issued in the future', { 
+        uid: decodedToken.uid, 
+        issuedAt: new Date((decodedToken.iat || 0) * 1000).toISOString() 
+      });
+      return { error: 'Invalid token: token issued in the future' };
+    }
+    
+    // Check if token is too old (1 week)
+    if (tokenAge > 60 * 60 * 24 * 7) {
+      console.warn('Stale token detected', { 
+        uid: decodedToken.uid, 
+        ageInDays: (tokenAge / (60 * 60 * 24)).toFixed(2) 
+      });
+      return { error: 'Token is too old. Please sign in again.' };
+    }
+    
+    // Check if token is about to expire soon (5 minutes)
+    const expiresIn = (decodedToken.exp || 0) - currentTime;
+    if (expiresIn < 300) { // 5 minutes
+      console.info('Token expiring soon', { 
+        uid: decodedToken.uid, 
+        expiresIn: `${expiresIn}s`,
+        expiresAt: new Date((decodedToken.exp || 0) * 1000).toISOString()
+      });
+      // Continue with the current token but indicate it's about to expire
+    }
+
+    return {
+      uid: decodedToken.uid,
+      email: decodedToken.email || null,
+      issuedAt: decodedToken.iat,
+      expiresAt: decodedToken.exp,
+      isRevoked: false
+    };
+    
+  } catch (error: any) {
+    // Handle specific Firebase Auth errors
+    let errorMessage = 'Token verification failed';
+    
+    if (error.code === 'auth/id-token-revoked') {
+      errorMessage = 'Session revoked. Please sign in again.';
+      console.warn('Revoked token attempt', { error: error.message });
+    } else if (error.code === 'auth/id-token-expired') {
+      errorMessage = 'Session expired. Please sign in again.';
+      console.warn('Expired token attempt', { error: error.message });
+    } else if (error.code === 'auth/argument-error') {
+      errorMessage = 'Invalid token format';
+      console.warn('Malformed token', { error: error.message });
+    } else {
+      console.error('Token verification error:', error);
+    }
+    
+    return { 
+      error: errorMessage,
+      isRevoked: error.code === 'auth/id-token-revoked',
+      ...(error.expiredAt && { expiresAt: error.expiredAt })
+    };
   }
 };
 
