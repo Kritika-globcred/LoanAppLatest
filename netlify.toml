@@ -1,0 +1,29 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[functions]
+  # Increase the function timeout to 30 seconds
+  node_bundler = "esbuild"
+  external_node_modules = ["@google/generative-ai"]
+
+# Increase the request body size limit to 10MB
+[[functions]]
+  function = "review-personal-kyc"
+  maxDuration = 30
+  memory = 1024
+  included_files = [
+    "node_modules/.pnpm/**"
+  ]
+
+# Handle Next.js routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Handle API routes
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
