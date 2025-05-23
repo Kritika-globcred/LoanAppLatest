@@ -7,10 +7,11 @@ import { cn } from '@/lib/utils';
 type NavItemProps = {
   href: string;
   children: React.ReactNode;
-  onClick?: () => void; 
+  onClick?: () => void;
+  className?: string;
 };
 
-export function NavItem({ href, children, onClick }: NavItemProps) {
+export function NavItem({ href, children, onClick, className }: NavItemProps) {
   const pathname = usePathname();
   const isActive = pathname === href;
 
@@ -20,7 +21,8 @@ export function NavItem({ href, children, onClick }: NavItemProps) {
       onClick={onClick}
       className={cn(
         "text-sm font-medium transition-colors hover:text-primary",
-        isActive ? "text-primary" : "text-muted-foreground"
+        isActive ? "text-primary" : "text-muted-foreground",
+        className
       )}
     >
       {children}

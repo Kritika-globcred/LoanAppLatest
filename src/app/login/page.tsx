@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FcGoogle } from 'react-icons/fc';
@@ -44,10 +44,14 @@ export default function Login() {
   };
 
   // Check for error in URL parameters
-  const urlError = searchParams.get('error');
-  if (urlError === 'unauthorized' && !error) {
-    setError('Only globcred.org email addresses are allowed.');
-  }
+  useEffect(() => {
+    if (!searchParams) return;
+    
+    const urlError = searchParams.get('error');
+    if (urlError === 'unauthorized' && !error) {
+      setError('Only globcred.org email addresses are allowed.');
+    }
+  }, [searchParams, error]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">

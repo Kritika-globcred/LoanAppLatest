@@ -29,14 +29,28 @@ try {
     if (isClient) {
       // Client-side initialization
       authInstance = getAuth(app);
+      
+      // Client-side initialization
       dbInstance = getFirestore(app);
+      
       storageInstance = getStorage(app);
       
-      // Use emulators in development
-      if (process.env.NODE_ENV === 'development') {
-        connectAuthEmulator(authInstance, 'http://localhost:9099');
-        connectFirestoreEmulator(dbInstance, 'localhost', 8080);
-        connectStorageEmulator(storageInstance, 'localhost', 9199);
+      // Only connect to emulators if explicitly enabled in environment variables
+      if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true') {
+        console.log('Using Firebase Emulators');
+        const authPort = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT || '9099';
+        const firestorePort = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || '8080';
+        const storagePort = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_EMULATOR_PORT || '9199';
+        
+        try {
+          connectAuthEmulator(authInstance, `http://localhost:${authPort}`);
+          connectFirestoreEmulator(dbInstance, 'localhost', parseInt(firestorePort, 10));
+          connectStorageEmulator(storageInstance, 'localhost', parseInt(storagePort, 10));
+          console.log('Firebase emulators connected successfully');
+        } catch (error) {
+          console.error('Failed to connect to Firebase emulators:', error);
+          // Continue with production if emulator connection fails
+        }
       }
     } else {
       // Server-side initialization

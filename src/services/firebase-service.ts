@@ -1,18 +1,24 @@
-
 // For this version, we'll use the modular SDK v9+
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import { 
   getFirestore, 
-  Timestamp,
   collection, 
   doc, 
   setDoc, 
   getDoc, 
+  serverTimestamp, 
+  Timestamp, 
+  initializeFirestore, 
+  connectFirestoreEmulator,
+  DocumentData,
+  QueryDocumentSnapshot,
+  DocumentSnapshot,
   query, 
   where, 
-  getDocs, 
-  serverTimestamp,
-  Firestore
+  getDocs,
+  Firestore,
+  FirestoreError,
+  DocumentReference
 } from "firebase/firestore";
 import { 
   getStorage, 
@@ -349,28 +355,29 @@ export async function saveUserApplicationData(userId: string, data: Partial<User
     // If that works, try to save the personalKyc data separately
     if (cleanedData.personalKyc) {
       console.log('[Firebase Service] Attempting to save personalKyc data...');
-      await setDoc(userDocRef, { personalKyc: cleanedData.personalKyc }, { merge: true });
+      try {
+        await setDoc(userDocRef, { personalKyc: cleanedData.personalKyc }, { merge: true });
+      } catch (error) {
+        console.error('[Firebase Service] Error saving personalKyc data:', error);
+        throw error; // Re-throw to be caught by the outer catch
+      }
     }
     
     // Then save the rest of the data (excluding personalKyc)
     const { personalKyc, ...restData } = cleanedData;
     if (Object.keys(restData).length > 0) {
-      await setDoc(userDocRef, restData, { merge: true });
+      try {
+        await setDoc(userDocRef, restData, { merge: true });
+      } catch (error) {
+        console.error('[Firebase Service] Error saving user data:', error);
+        throw error; // Re-throw to be caught by the outer catch
+      }
     }
     
     console.log(`[Firebase Service] Data for user ${userId} saved successfully to collection '${CUSTOMER_COLLECTION}' in DATABASE_ID '${currentDbId}'.`);
     return { success: true };
   } catch (error: any) {
-    console.error(`[Firebase Service] Error saving user data for ${userId} to DB_ID '${currentDbId}':`, `"${error.code}"`, `"${error.message}"`);
-    console.error('[Firebase Service] Error details:', error);
-    
-    // Log the specific invalid data if available
-    if (error.code === 'invalid-argument' && error.message.includes('nested entity')) {
-      console.error('[Firebase Service] Problematic data structure:', 
-        JSON.stringify(cleanedData.personalKyc, (key, value) => 
-          typeof value === 'bigint' ? value.toString() : value, 2));
-    }
-    
+    console.error(`[Firebase Service] Error saving user data for ${userId} to DB_ID '${currentDbId}':`, `"${error.code}"`, `"${error.message}"`, error);
     let detailedError = error.message || 'Unknown error during Firestore save.';
     if (error.code === 'unavailable') {
       detailedError = `Failed to save data: The client is offline or unable to reach Firestore. (Code: ${error.code})`;
@@ -387,7 +394,6 @@ export async function saveUserApplicationData(userId: string, data: Partial<User
   }
 }
 
-
 export async function getUserApplicationData(userId: string): Promise<{success: boolean, data?: UserApplicationData, error?: string}> {
   const { db: currentDb, firebaseApp: currentApp } = ensureFirebaseInitialized();
   if (!currentDb || !currentApp) {
@@ -395,9 +401,11 @@ export async function getUserApplicationData(userId: string): Promise<{success: 
      console.error(errorMsg);
      return { success: false, error: "Firestore not initialized. Cannot get data." };
   }
+  
   // @ts-ignore
   const currentDbId = currentDb?._databaseId?.database;
   console.log(`[Firebase Service] Fetching data for user ${userId} from collection '${CUSTOMER_COLLECTION}' in DATABASE_ID '${currentDbId}', project '${currentApp.options.projectId}'`);
+  
   try {
     const docRef = doc(currentDb, CUSTOMER_COLLECTION, userId);
     const docSnap = await getDoc(docRef);

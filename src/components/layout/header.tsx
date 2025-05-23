@@ -31,13 +31,16 @@ export function Header() {
         <Logo />
         
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center space-x-6">
-          {navLinks.map((link) => (
-            <NavItem key={link.href} href={link.href}>
-              {link.label}
-            </NavItem>
-          ))}
-        </nav>
+        <div className="hidden md:flex items-center space-x-4">
+          <nav className="flex items-center space-x-6">
+            {navLinks.map((link) => (
+              <NavItem key={link.href} href={link.href}>
+                {link.label}
+              </NavItem>
+            ))}
+            <NavItem href="/login">Login</NavItem>
+          </nav>
+        </div>
 
         {/* Mobile Navigation Trigger */}
         <div className="md:hidden">

@@ -41,18 +41,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     
     const unsubscribe = firebaseOnAuthStateChanged(authInstance, async (user) => {
       if (user) {
-        // Check if user is from globcred.org
-        if (!user.email?.endsWith('@globcred.org')) {
-          try {
-            await firebaseSignOut(authInstance);
-          } catch (error) {
-            console.error('Error signing out unauthorized user:', error);
+        // Only check for globcred.org emails if not on the login page
+        if (!window.location.pathname.startsWith('/login')) {
+          if (!user.email?.endsWith('@globcred.org')) {
+            try {
+              await firebaseSignOut(authInstance);
+              setUser(null);
+              router.push('/login?error=unauthorized');
+              return;
+            } catch (error) {
+              console.error('Error signing out unauthorized user:', error);
+              setUser(null);
+              return;
+            }
           }
-          setUser(null);
-          router.push('/login?error=unauthorized');
-        } else {
-          setUser(user);
         }
+        setUser(user);
       } else {
         setUser(null);
       }
@@ -60,7 +64,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     return () => unsubscribe();
-  }, [router]); // Removed auth from dependencies as it's now handled inside the effect
+  }, [router]);
 
   const signInWithGoogle = useCallback(async () => {
     setLoading(true);

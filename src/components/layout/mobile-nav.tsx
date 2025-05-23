@@ -28,7 +28,11 @@ export function MobileNav({ onLinkClick }: MobileNavProps) {
         ))}
       </nav>
       <Separator className="my-6" />
-      {/* Add any additional mobile nav items or actions here */}
+      <div className="mt-4">
+        <NavItem href="/login" onClick={onLinkClick} className="block w-full text-center">
+          Login
+        </NavItem>
+      </div>
     </div>
   );
 }
