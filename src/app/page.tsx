@@ -89,6 +89,24 @@ export default function Home() {
   ];
 
 
+  // Handle application type selection
+  const handleApplicationType = (type: string) => {
+    setActiveNavItem(type);
+  };
+
+  // Get started button click handler
+  const handleGetStarted = () => {
+    if (activeNavItem === 'Loan') {
+      window.location.href = '/loan-application/mobile';
+    } else if (activeNavItem === 'Study') {
+      // For study, we'll use the same flow as loan but skip admission KYC
+      window.location.href = '/loan-application/mobile?type=study';
+    } else if (activeNavItem === 'Work') {
+      // For work, we'll use the same flow as loan but skip admission KYC
+      window.location.href = '/loan-application/mobile?type=work';
+    }
+  };
+
   return (
     <div className="flex flex-col items-center">
       <section
@@ -105,33 +123,9 @@ export default function Home() {
           {/* Header Section */}
           <div className="flex justify-between items-center py-4 mb-6">
             <Logo />
-            <nav>
-              <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
-                {navMenuItems.map((item) => (
-                  <li key={item}>
-                    <button
-                      onClick={() => setActiveNavItem(item)}
-                      className="text-white hover:opacity-75 transition-opacity focus:outline-none flex items-center text-xs sm:text-sm"
-                      aria-current={activeNavItem === item ? "page" : undefined}
-                    >
-                      <span
-                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
-                          activeNavItem === item
-                            ? 'progress-dot-active'
-                            : 'bg-gray-400/60'
-                        }`}
-                        aria-hidden="true"
-                      ></span>
-                      {item}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
             <div className="flex items-center space-x-2 md:space-x-4">
-              <Button variant="default" size="sm">Login</Button>
-              <Link href="/loan-application/mobile" passHref>
-                <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
+              <Link href="/login">
+                <Button variant="default" size="sm">Login</Button>
               </Link>
             </div>
           </div>
@@ -148,7 +142,7 @@ export default function Home() {
             <div className="mt-10 flex flex-col md:flex-row items-center justify-center md:items-start md:space-x-6 max-w-3xl mx-auto">
               <div className="flex-shrink-0 mb-4 md:mb-0">
                 <Image
-                  src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png" 
+                  src="/images/aveka.png" 
                   alt="Aveka, GlobCred's Smart AI"
                   width={50}
                   height={50}
@@ -171,13 +165,39 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-8 flex justify-center">
-              <Link href="/loan-application/mobile" passHref>
-                <Button variant="default" size="lg" className="gradient-border-button">
-                  <Sparkles className="mr-2 h-5 w-5" />
-                  Get Started
-                </Button>
-              </Link>
+            <div className="mt-8 flex flex-col items-center space-y-6">
+              <p className="text-white text-lg font-medium">I am applying for</p>
+              <nav className="w-full max-w-md">
+                <ul className="flex items-center justify-center space-x-4 sm:space-x-6 md:space-x-8">
+                  {navMenuItems.map((item) => (
+                    <li key={item}>
+                      <button
+                        onClick={() => handleApplicationType(item)}
+                        className="text-white hover:opacity-75 transition-opacity focus:outline-none flex items-center text-sm sm:text-base"
+                      >
+                        <span
+                          className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
+                            activeNavItem === item
+                              ? 'progress-dot-active'
+                              : 'bg-gray-400/60'
+                          }`}
+                          aria-hidden="true"
+                        ></span>
+                        {item}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+              <Button 
+                variant="default" 
+                size="lg" 
+                className="gradient-border-button mt-2"
+                onClick={handleGetStarted}
+              >
+                <Sparkles className="mr-2 h-5 w-5" />
+                Get Started
+              </Button>
             </div>
           </div>
           {/* End Hero Section Content */}

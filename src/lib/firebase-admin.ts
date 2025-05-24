@@ -1,8 +1,10 @@
-import { initializeApp, cert, type ServiceAccount } from 'firebase-admin/app';
+import { initializeApp, cert, type ServiceAccount, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin only once
 let adminInitialized = false;
+let firestoreInstance: ReturnType<typeof getFirestore> | null = null;
 
 export const initializeFirebaseAdmin = () => {
   if (adminInitialized) return;
@@ -10,6 +12,12 @@ export const initializeFirebaseAdmin = () => {
   // Check if we're running in a server environment
   if (typeof window !== 'undefined') {
     throw new Error('Firebase Admin should only be initialized on the server side');
+  }
+
+  // Check if already initialized
+  if (getApps().length > 0) {
+    adminInitialized = true;
+    return;
   }
 
   // Check if environment variables are set
@@ -27,11 +35,14 @@ export const initializeFirebaseAdmin = () => {
     };
 
     // Initialize the Firebase Admin SDK
-    initializeApp({
+    const app = initializeApp({
       credential: cert(serviceAccount),
       databaseURL: `https://${process.env.FIREBASE_ADMIN_PROJECT_ID}.firebaseio.com`
     });
 
+    // Initialize Firestore
+    firestoreInstance = getFirestore(app);
+    
     adminInitialized = true;
     console.log('Firebase Admin initialized successfully');
   } catch (error) {
@@ -46,6 +57,17 @@ export const getAdminAuth = () => {
     initializeFirebaseAdmin();
   }
   return getAuth();
+};
+
+// Export Firestore instance
+export const getAdminFirestore = () => {
+  if (!adminInitialized) {
+    initializeFirebaseAdmin();
+  }
+  if (!firestoreInstance) {
+    throw new Error('Firestore not initialized');
+  }
+  return firestoreInstance;
 };
 
 // Export other admin services as needed

@@ -1,20 +1,27 @@
 [build]
-  command = "npm run build"
+  command = "npm install && npm run build"
   publish = ".next"
+  functions = "netlify/functions"
 
 [functions]
   # Increase the function timeout to 30 seconds
   node_bundler = "esbuild"
   external_node_modules = ["@google/generative-ai"]
 
-# Increase the request body size limit to 10MB
+# Configure the specific function
 [[functions]]
+  path = "/review-personal-kyc"
   function = "review-personal-kyc"
   maxDuration = 30
   memory = 1024
-  included_files = [
-    "node_modules/.pnpm/**"
-  ]
+
+# Handle CORS preflight requests
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"
 
 # Handle Next.js routes
 [[redirects]]
@@ -27,3 +34,11 @@
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
+  force = true
+
+# Handle the specific KYC endpoint
+[[redirects]]
+  from = "/loan-application/review-personal-kyc"
+  to = "/.netlify/functions/review-personal-kyc"
+  status = 200
+  force = true

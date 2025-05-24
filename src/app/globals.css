@@ -92,6 +92,17 @@
   }
 }
 
+/* Scrollbar styling for WebKit browsers */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Scrollbar styling for Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 @layer components {
   .gradient-border-button {
     @apply relative bg-background text-primary border-2 border-transparent shadow-sm;

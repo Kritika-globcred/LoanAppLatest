@@ -24,7 +24,7 @@ import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar
 import { loanAppSteps } from '@/lib/loan-steps';
 import { saveUserApplicationData } from '@/services/firebase-service';
 import { getOrGenerateUserId } from '@/lib/user-utils';
-import { serverTimestamp } from 'firebase/firestore';
+import { serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 
 interface CountryInfo {
@@ -53,8 +53,6 @@ const globalCountryCodesSample: CountryInfo[] = [
 ];
 
 export default function MobileVerificationPage() {
-  const [activeNavItem, setActiveNavItem] = useState('Loan');
-  const navMenuItems = ['Loan', 'Study', 'Work'];
   const { toast } = useToast();
   const router = useRouter();
 
@@ -65,6 +63,16 @@ export default function MobileVerificationPage() {
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [applicationType, setApplicationType] = useState('loan'); // Default to 'loan'
+
+  // Get application type from URL query params
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const type = params.get('type') || 'loan';
+      setApplicationType(type);
+    }
+  }, []);
 
   useEffect(() => {
     const id = getOrGenerateUserId();
@@ -101,6 +109,13 @@ export default function MobileVerificationPage() {
       });
       return;
     }
+    
+    // Determine the next step based on application type
+    let nextStep = '/loan-application/admission-kyc';
+    if (applicationType === 'study' || applicationType === 'work') {
+      // Skip admission KYC for study and work applications
+      nextStep = '/loan-application/personal-kyc';
+    }
 
     if (!userId) {
         toast({ title: "Error", description: "User ID not found. Please refresh.", variant: "destructive" });
@@ -116,7 +131,8 @@ export default function MobileVerificationPage() {
       mobileNumber: mobileNumber.trim(),
       countryCode: selectedCountryInfo?.dialCode,
       countryShortName: selectedCountryInfo?.countryShortName,
-      createdAt: serverTimestamp(),
+      createdAt: serverTimestamp() as Timestamp,
+      applicationType: applicationType as 'loan' | 'study' | 'work'
     };
 
     const result = await saveUserApplicationData(userId, initialData);
@@ -130,10 +146,11 @@ export default function MobileVerificationPage() {
         if (typeof window !== 'undefined') {
           localStorage.setItem('selectedCountryValue', countryCode);
         }
-        console.log("[Mobile Page] Save successful. Attempting to navigate to /loan-application/admission-kyc in 100ms");
+        console.log(`[Mobile Page] Save successful. Application type: ${applicationType}`);
+        console.log(`[Mobile Page] Attempting to navigate to ${nextStep} in 100ms`);
         setTimeout(() => {
             try {
-              router.push('/loan-application/admission-kyc');
+              router.push(nextStep);
               console.log("[Mobile Page] router.push called successfully after delay.");
             } catch (navError) {
               console.error("[Mobile Page] Error during router.push (after delay):", navError);
@@ -174,35 +191,11 @@ export default function MobileVerificationPage() {
 
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
-            <Logo />
-            <nav>
-              <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
-                {navMenuItems.map((item) => (
-                  <li key={item}>
-                    <button
-                      onClick={() => setActiveNavItem(item)}
-                      className="text-white hover:opacity-75 transition-opacity focus:outline-none flex items-center text-xs sm:text-sm"
-                      aria-current={activeNavItem === item ? "page" : undefined}
-                    >
-                      <span
-                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
-                          activeNavItem === item
-                            ? 'progress-dot-active'
-                            : 'bg-gray-400/60'
-                        }`}
-                        aria-hidden="true"
-                      ></span>
-                      {item}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-            <div className="flex items-center space-x-2 md:space-x-4">
-              <Button variant="default" size="sm">Login</Button>
-              <Link href="/loan-application/mobile" passHref>
-                <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
-              </Link>
+            <div className="flex items-center justify-between w-full">
+              <Logo />
+              <div className="flex items-center space-x-2 md:space-x-4">
+                <Button variant="default" size="sm">Login</Button>
+              </div>
             </div>
           </div>
           <LoanProgressBar steps={loanAppSteps} />
@@ -213,7 +206,7 @@ export default function MobileVerificationPage() {
                 <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
+                        src="/images/aveka.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}
@@ -229,7 +222,8 @@ export default function MobileVerificationPage() {
                         <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
                         <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                         <p className="text-base text-white">
-                        Hi there! To start your loan application, please share your mobile number.
+                          Hi there! To start your {applicationType} application, please share your mobile number.
+                          {applicationType !== 'loan' && ' (Admission KYC will be skipped for this application type)'}
                         </p>
                     </div>
                 </div>

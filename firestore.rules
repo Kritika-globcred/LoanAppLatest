@@ -15,6 +15,21 @@ service cloud.firestore {
     match /user_documents/{userId}/{document=**} {
       allow read, write: if request.auth != null;
     }
+    
+    // Allow authenticated users to read customer collection
+    // Users can only write to their own customer document
+    match /customer/{customerId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == customerId;
+      allow update: if request.auth != null && request.auth.uid == customerId;
+      // Only allow admins to delete
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+    
+    // Allow listing of customer collection for admins
+    match /customer {
+      allow list: if request.auth != null && request.auth.token.admin == true;
+    }
 
     // Default deny all other requests
     match /{document=**} {

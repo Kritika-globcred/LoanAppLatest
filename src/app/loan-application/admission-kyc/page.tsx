@@ -24,8 +24,7 @@ import { saveUserApplicationData, uploadFileToStorage } from '@/services/firebas
 
 
 export default function AdmissionKYCPage() {
-  const [activeNavItem, setActiveNavItem] = useState('Loan');
-  const navMenuItems = ['Loan', 'Study', 'Work'];
+  // Navigation removed as per requirements
   const { toast } = useToast();
   const router = useRouter();
   const userId = getOrGenerateUserId();
@@ -450,29 +449,7 @@ export default function AdmissionKYCPage() {
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
-            <nav>
-              <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
-                {navMenuItems.map((item) => (
-                  <li key={item}>
-                    <button
-                      onClick={() => setActiveNavItem(item)}
-                      className="text-white hover:opacity-75 transition-opacity focus:outline-none flex items-center text-xs sm:text-sm"
-                      aria-current={activeNavItem === item ? "page" : undefined}
-                    >
-                      <span
-                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
-                          activeNavItem === item
-                            ? 'progress-dot-active'
-                            : 'bg-gray-400/60'
-                        }`}
-                        aria-hidden="true"
-                      ></span>
-                      {item}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
+            {/* Navigation removed as per requirements */}
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
               <Link href="/loan-application/mobile" passHref>
@@ -480,7 +457,7 @@ export default function AdmissionKYCPage() {
               </Link>
             </div>
           </div>
-          <LoanProgressBar steps={loanAppSteps} />
+          <LoanProgressBar steps={loanAppSteps} hasOfferLetter={hasOfferLetter || false} />
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/mobile')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -493,7 +470,7 @@ export default function AdmissionKYCPage() {
                 <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
+                        src="/images/aveka.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}

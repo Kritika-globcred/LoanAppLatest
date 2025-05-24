@@ -5,8 +5,9 @@ interface FormDialogProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
+  description?: string;
   children: ReactNode;
-  onSubmit: (e: React.FormEvent) => void;
+  onSubmit?: (e: React.FormEvent) => void;
   submitText?: string;
   submitVariant?: 'primary' | 'danger' | 'success';
   loading?: boolean;
@@ -16,6 +17,7 @@ export function FormDialog({
   isOpen,
   onClose,
   title,
+  description,
   children,
   onSubmit,
   submitText = 'Save',
@@ -55,36 +57,54 @@ export function FormDialog({
               leaveTo="opacity-0 scale-95"
             >
               <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                <Dialog.Title
-                  as="h3"
-                  className="text-lg font-medium leading-6 text-gray-900"
-                >
-                  {title}
-                </Dialog.Title>
+                <div className="text-left">
+                  <Dialog.Title
+                    as="h3"
+                    className="text-lg font-medium leading-6 text-gray-900"
+                  >
+                    {title}
+                  </Dialog.Title>
+                  {description && (
+                    <p className="mt-1 text-sm text-gray-500">
+                      {description}
+                    </p>
+                  )}
+                </div>
                 
-                <form onSubmit={onSubmit} className="mt-4">
-                  <div className="space-y-4">
+                {onSubmit ? (
+                  <form onSubmit={onSubmit} className="mt-4 space-y-4">
                     {children}
+                    <div className="mt-6 flex justify-end space-x-3">
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className={`px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${variantClasses[submitVariant]} ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      >
+                        {loading ? 'Saving...' : submitText}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="mt-4 space-y-4">
+                    {children}
+                    <div className="mt-6 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        Close
+                      </button>
+                    </div>
                   </div>
-
-                  <div className="mt-6 flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                      onClick={onClose}
-                      disabled={loading}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className={`inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${variantClasses[submitVariant]}`}
-                      disabled={loading}
-                    >
-                      {loading ? 'Saving...' : submitText}
-                    </button>
-                  </div>
-                </form>
+                )}
               </Dialog.Panel>
             </Transition.Child>
           </div>

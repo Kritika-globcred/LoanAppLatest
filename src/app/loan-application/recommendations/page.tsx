@@ -166,7 +166,7 @@ export default function RecommendationsPage() {
               <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
             </div>
           </div>
-          <LoanProgressBar steps={loanAppSteps} />
+          <LoanProgressBar steps={loanAppSteps} hasOfferLetter={localStorage.getItem('hasOfferLetterStatus') === 'true'} />
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/preferences')} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -179,7 +179,7 @@ export default function RecommendationsPage() {
                 <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
                     <div className="flex-shrink-0 mb-3 md:mb-0">
                         <Image
-                        src="https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Aveka.png"
+                        src="/images/aveka.png"
                         alt="Aveka, GlobCred's Smart AI"
                         width={50}
                         height={50}

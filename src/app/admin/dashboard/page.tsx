@@ -56,34 +56,36 @@ export default function AdminDashboard() {
                 <p className="text-gray-600">You are successfully logged in as {user.email}</p>
                 
                 <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {/* Dashboard cards */}
+                  {/* Customers Card */}
                   <Link 
-                    href="/admin/universities"
+                    href="/admin/customers"
                     className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-200"
                   >
                     <div className="px-4 py-5 sm:p-6">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">Manage Universities</h3>
-                      <p className="mt-2 text-sm text-gray-500">Add, edit, or remove universities</p>
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">Manage Customers</h3>
+                      <p className="mt-2 text-sm text-gray-500">View and manage customer applications</p>
                     </div>
                   </Link>
                   
+                  {/* Lenders Card */}
                   <Link 
                     href="/admin/lenders"
                     className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-200"
                   >
                     <div className="px-4 py-5 sm:p-6">
                       <h3 className="text-lg leading-6 font-medium text-gray-900">Manage Lenders</h3>
-                      <p className="mt-2 text-sm text-gray-500">Manage lender information and criteria</p>
+                      <p className="mt-2 text-sm text-gray-500">Add and manage lenders</p>
                     </div>
                   </Link>
                   
+                  {/* Universities Card */}
                   <Link 
-                    href="/admin/applications"
+                    href="/admin/universities"
                     className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-200"
                   >
                     <div className="px-4 py-5 sm:p-6">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">View Applications</h3>
-                      <p className="mt-2 text-sm text-gray-500">Review and process loan applications</p>
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">Manage Universities</h3>
+                      <p className="mt-2 text-sm text-gray-500">Add and manage universities</p>
                     </div>
                   </Link>
                 </div>

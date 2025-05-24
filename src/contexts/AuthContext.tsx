@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   User, 
   GoogleAuthProvider,
@@ -9,14 +9,16 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged as firebaseOnAuthStateChanged,
   AuthError,
-  Auth
+  Auth,
+  User as FirebaseUser
 } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { auth } from '../lib/firebase';
+import { getAuthInstance } from '../lib/firebase';
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
+  error: string | null;
   login: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -28,67 +30,117 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const isClient = typeof window !== 'undefined';
 
   // Handle auth state changes
   useEffect(() => {
-    const authInstance = auth();
-    if (!authInstance) {
-      console.error('Firebase auth not available in this environment');
+    if (!isClient) {
       setLoading(false);
       return;
     }
-    
-    const unsubscribe = firebaseOnAuthStateChanged(authInstance, async (user) => {
-      if (user) {
-        // Only check for globcred.org emails if not on the login page
-        if (!window.location.pathname.startsWith('/login')) {
-          if (!user.email?.endsWith('@globcred.org')) {
-            try {
-              await firebaseSignOut(authInstance);
-              setUser(null);
-              router.push('/login?error=unauthorized');
-              return;
-            } catch (error) {
-              console.error('Error signing out unauthorized user:', error);
-              setUser(null);
-              return;
-            }
-          }
-        }
-        setUser(user);
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
 
-    return () => unsubscribe();
-  }, [router]);
+    try {
+      const currentAuth = getAuthInstance();
+      
+      const unsubscribe = firebaseOnAuthStateChanged(currentAuth, (user) => {
+        if (user) {
+          // Check for globcred.org email
+          if (!user.email?.endsWith('@globcred.org')) {
+            console.warn('Unauthorized email domain, signing out...');
+            firebaseSignOut(currentAuth);
+            setUser(null);
+            router.push('/login?error=unauthorized');
+            return;
+          }
+          setUser(user);
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
+      });
+
+      return () => unsubscribe();
+    } catch (err) {
+      const errorMsg = 'Error initializing auth';
+      console.error(errorMsg, err);
+      setError(errorMsg);
+      setLoading(false);
+    }
+  }, [isClient, router]);
 
   const signInWithGoogle = useCallback(async () => {
     setLoading(true);
-    const authInstance = auth();
-    if (!authInstance) {
-      console.error('Auth not available');
-      setLoading(false);
-      return;
-    }
+    setError(null);
     
-    const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(authInstance, provider);
-      const user = result.user;
+      if (!isClient) {
+        throw new Error('Google Sign-In is not available on the server');
+      }
+
+      const currentAuth = getAuthInstance();
       
-      if (!user.email?.endsWith('@globcred.org')) {
-        await firebaseSignOut(authInstance);
-        throw new Error('Only globcred.org email addresses are allowed');
+      console.log('Proceeding with Google Sign-In');
+      
+      // Clear any existing auth state
+      if (currentAuth.currentUser) {
+        console.log('Found existing user, signing out first...');
+        await firebaseSignOut(currentAuth);
       }
       
-      router.push('/admin/dashboard');
+      // Initialize Google Auth Provider
+      const provider = new GoogleAuthProvider();
+      
+      // Add any additional scopes here if needed
+      // provider.addScope('https://www.googleapis.com/auth/userinfo.email');
+      // provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
+      
+      console.log('Starting Google Sign-In flow...');
+      if (!currentAuth) {
+        throw new Error('Firebase Auth is not available');
+      }
+      
+      const result = await signInWithPopup(currentAuth, provider);
+      const user = result.user;
+      
+      console.log('Google Sign-In successful:', {
+        uid: user.uid,
+        email: user.email,
+        emailVerified: user.emailVerified
+      });
+      
+      // Email domain check is now handled in the auth state change listener
+      
+      // The auth state change listener will handle the redirect to the dashboard
+      
     } catch (error) {
-      console.error('Google Sign-In Error:', error);
-      throw error;
+      const errorMsg = error instanceof Error ? error.message : 'Failed to sign in with Google';
+      const errorCode = (error as any)?.code || 'unknown';
+      
+      console.error('Google Sign-In error:', {
+        message: errorMsg,
+        code: errorCode,
+        error
+      });
+      
+      // Handle specific error cases
+      let userFacingError = 'Failed to sign in with Google';
+      
+      if (errorCode === 'auth/popup-closed-by-user') {
+        userFacingError = 'Sign in was cancelled';
+      } else if (errorCode === 'auth/network-request-failed') {
+        userFacingError = 'Network error. Please check your internet connection.';
+      } else if (errorCode === 'auth/popup-blocked') {
+        userFacingError = 'Popup was blocked. Please allow popups for this site.';
+      } else if (errorCode === 'auth/cancelled-popup-request') {
+        // This can happen if multiple sign-in attempts are made in quick succession
+        userFacingError = 'Another sign-in attempt is already in progress';
+      }
+      
+      setError(userFacingError);
+      throw new Error(userFacingError);
+      
     } finally {
       setLoading(false);
     }
@@ -96,15 +148,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = useCallback(async (email: string, password: string) => {
     setLoading(true);
-    const authInstance = auth();
-    if (!authInstance) {
-      console.error('Auth not available');
-      setLoading(false);
-      return;
-    }
+    setError(null);
     
     try {
-      await signInWithEmailAndPassword(authInstance, email, password);
+      if (!isClient) {
+        throw new Error('Email/password login is not available on the server');
+      }
+
+      const currentAuth = getAuthInstance();
+      // Clear any existing auth state
+      if (currentAuth.currentUser) {
+        console.log('Found existing user, signing out first...');
+        await firebaseSignOut(currentAuth);
+      }
+      
+      await signInWithEmailAndPassword(currentAuth, email, password);
       router.push('/admin/dashboard');
     } catch (error) {
       console.error('Email/Password Sign-In Error:', error);
@@ -115,33 +173,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [router]);
 
   const signOut = useCallback(async () => {
-    const authInstance = auth();
-    if (!authInstance) {
-      console.error('Auth not available');
-      return;
-    }
+    setLoading(true);
+    setError(null);
     
     try {
-      await firebaseSignOut(authInstance);
-      router.push('/login');
+      const currentAuth = getAuthInstance();
+      
+      console.log('Signing out user...');
+      await firebaseSignOut(currentAuth);
+      console.log('User signed out successfully');
+      
     } catch (error) {
-      console.error('Sign out error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sign out';
+      console.error('Sign out error:', errorMessage, error);
+      setError(errorMessage);
       throw error;
+    } finally {
+      setLoading(false);
     }
-  }, [router]);
+  }, []);
 
-  const isAdmin = useCallback(() => {
+  const isAdmin = useMemo(() => {
     return user?.email?.endsWith('@globcred.org') || false;
   }, [user]);
 
-  const value = {
+  const value = useMemo(() => ({
     user,
     loading,
+    error,
     login,
     signInWithGoogle,
     signOut,
-    isAdmin: isAdmin()
-  };
+    isAdmin
+  }), [user, loading, error, login, signInWithGoogle, signOut, isAdmin]);
 
   return (
     <AuthContext.Provider value={value}>
