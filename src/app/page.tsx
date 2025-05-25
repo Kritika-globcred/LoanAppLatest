@@ -13,13 +13,14 @@ export default function Home() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
   const navMenuItems = ['Loan', 'Study', 'Work'];
 
-  const initialLoanDisbursed = 127902;
-  const initialHappyStudents = 57905;
-  const initialLiveVisitors = 1234;
+  const initialLoanDisbursed = 25000000; // $25M
+  const initialHappyStudents = 50000; // 50K
+  const initialLenderAccess = 61; // 61+ lenders
 
-  const [loanDisbursed, setLoanDisbursed] = useState(initialLoanDisbursed);
-  const [happyStudents, setHappyStudents] = useState(initialHappyStudents);
-  const [liveVisitors, setLiveVisitors] = useState(initialLiveVisitors);
+  // Static statistics values
+  const loanDisbursed = initialLoanDisbursed;
+  const applicationsProcessed = initialHappyStudents;
+  const lenderAccess = initialLenderAccess;
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
 
   useEffect(() => {
@@ -27,31 +28,6 @@ export default function Home() {
       setAvekaMessageVisible(true);
     }, 1000);
     return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    const loanInterval = setInterval(() => {
-      setLoanDisbursed(prev => prev + 1);
-    }, 2 * 60 * 1000); // Every 2 minutes
-
-    const studentInterval = setInterval(() => {
-      setHappyStudents(prev => prev + 1);
-    }, 2 * 60 * 1000); // Every 2 minutes
-
-    const visitorInterval = setInterval(() => {
-      setLiveVisitors(prev => {
-        const change = prev * 0.10 * (Math.random() > 0.5 ? 1 : -1);
-        let newValue = Math.round(prev + change);
-        newValue = Math.max(978, Math.min(1789, newValue));
-        return newValue;
-      });
-    }, 1000); // Every second
-
-    return () => {
-      clearInterval(loanInterval);
-      clearInterval(studentInterval);
-      clearInterval(visitorInterval);
-    };
   }, []);
 
   const lenders = [
@@ -66,23 +42,23 @@ export default function Home() {
 
   const testimonials = [
     {
-      name: "Alex Johnson",
-      image: "https://placehold.co/80x80.png",
-      hint: "student face",
+      name: "Pratik",
+      image: "/images/testimonials/pratik.jpg",
+      hint: "Pratik's photo",
       text: "GlobCred made my dream of studying abroad a reality! The process was smooth and the support was fantastic.",
       program: "MSc Computer Science"
     },
     {
-      name: "Priya Sharma",
-      image: "https://placehold.co/80x80.png",
-      hint: "graduate photo",
+      name: "Sukriti",
+      image: "/images/testimonials/sukriti.jpg",
+      hint: "Sukriti's photo",
       text: "I was overwhelmed with the loan options, but Aveka and the GlobCred team guided me perfectly. Highly recommend!",
       program: "MBA in Marketing"
     },
     {
-      name: "Carlos Rossi",
-      image: "https://placehold.co/80x80.png",
-      hint: "happy person",
+      name: "Ashutosh",
+      image: "/images/testimonials/ashutosh.jpg",
+      hint: "Ashutosh's photo",
       text: "Securing a work visa and initial funding was challenging until I found GlobCred. They are lifesavers!",
       program: "Software Engineer"
     }
@@ -263,11 +239,11 @@ export default function Home() {
                     <Landmark size={40} className="text-primary" />
                   </div>
                   <CardTitle className="text-4xl font-bold">
-                    ${loanDisbursed.toLocaleString()}
+                    ${(loanDisbursed / 1000000).toFixed(0)}M+
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-lg text-gray-300">Loan Amount Disbursed</p>
+                  <p className="text-lg text-gray-300">Loan Sanctioned</p>
                 </CardContent>
               </Card>
               <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0 rounded-xl">
@@ -276,11 +252,11 @@ export default function Home() {
                     <Smile size={40} className="text-primary" />
                   </div>
                   <CardTitle className="text-4xl font-bold">
-                    {happyStudents.toLocaleString()}
+                    {applicationsProcessed.toLocaleString()}+
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-lg text-gray-300">Happy Students</p>
+                  <p className="text-lg text-gray-300">Applications Processed</p>
                 </CardContent>
               </Card>
               <Card className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl text-white text-center border-0 rounded-xl">
@@ -289,11 +265,11 @@ export default function Home() {
                     <Signal size={40} className="text-primary" />
                   </div>
                   <CardTitle className="text-4xl font-bold">
-                    {liveVisitors.toLocaleString()}
+                    {lenderAccess}+
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-lg text-gray-300">Live Website Visitors</p>
+                  <p className="text-lg text-gray-300">Lender Access</p>
                 </CardContent>
               </Card>
             </div>

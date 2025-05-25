@@ -222,8 +222,10 @@ export default function MobileVerificationPage() {
                         <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
                         <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                         <p className="text-base text-white">
-                          Hi there! To start your {applicationType} application, please share your mobile number.
-                          {applicationType !== 'loan' && ' (Admission KYC will be skipped for this application type)'}
+                          {otpSent 
+                            ? "We just sent you a code to verify - kindly enter it below to complete mobile verification"
+                            : "Awesome! Lets get started with your application. Lets verify your mobile number (make sure its active on whatsapp! dont worry - we dont spam you)"
+                          }
                         </p>
                     </div>
                 </div>

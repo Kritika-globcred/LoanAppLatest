@@ -15,8 +15,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Adaptable Canvas',
-  description: 'A responsive application with intuitive navigation.',
+  title: 'GlobCred: LoanApp',
+  description: 'Your trusted partner for education loans and financial solutions.',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
