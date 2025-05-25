@@ -38,7 +38,14 @@ export default function AdmissionKYCPage() {
   const [offerLetterFile, setOfferLetterFile] = useState<File | null>(null);
   const [offerLetterPreview, setOfferLetterPreview] = useState<string | null>(null); // For image, PDF, DOC data URI
   const [offerLetterTextContent, setOfferLetterTextContent] = useState<string | null>(null); // For TXT content
-
+  
+  // New state for admission details form
+  const [universityName, setUniversityName] = useState('');
+  const [courseName, setCourseName] = useState('');
+  const [country, setCountry] = useState('');
+  const [degree, setDegree] = useState('');
+  const [showAdmissionForm, setShowAdmissionForm] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const [isProcessingLetter, setIsProcessingLetter] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -243,8 +250,14 @@ export default function AdmissionKYCPage() {
       toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
       return;
     }
-     if (!extractedData || Object.values(extractedData).some(val => val === "Not Specified" || val === "")) {
+    if (!extractedData || Object.values(extractedData).some(val => val === "Not Specified" || val === "")) {
       toast({ title: "Incomplete Details", description: "Please ensure all offer letter details are filled or corrected.", variant: "destructive" });
+      return;
+    }
+
+    // Add validation for the new form fields
+    if (!universityName.trim() || !courseName.trim() || !country.trim() || !degree.trim()) {
+      toast({ title: "Incomplete Form", description: "Please fill in all admission details.", variant: "destructive" });
       return;
     }
 
@@ -264,7 +277,11 @@ export default function AdmissionKYCPage() {
 
     const admissionDataToSave = {
       ...extractedData,
-      offerLetterUrl: uploadedOfferLetterUrl,
+      universityName: universityName || extractedData.universityName,
+      courseName: courseName || extractedData.courseName,
+      country: country,
+      degreeLevel: degree,
+      offerLetterUrl: uploadedOfferLetterUrl || undefined, // Convert null to undefined for type safety
       consentTimestamp: currentTime,
     };
 
@@ -302,12 +319,107 @@ export default function AdmissionKYCPage() {
     }
   };
 
+  const handleYesClick = () => {
+    setHasOfferLetter(true);
+    setShowAdmissionForm(true);
+    setAvekaMessage("Great! Please fill in your admission details below and then upload your offer letter.");
+  };
+
+  const handleAdmissionFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!universityName.trim() || !courseName.trim() || !country.trim() || !degree.trim()) {
+      setFormError('All fields are required');
+      return;
+    }
+    setFormError('');
+    setShowAdmissionForm(false);
+    setAvekaMessage("Excellent! Now please upload a clear IMAGE (JPG, PNG) of your offer letter or take a picture. Other document types like PDF, DOC, or TXT are also accepted, but images work best for AI extraction.");
+  };
+
   const renderInitialQuestion = () => (
     <div className="text-center">
-      <div className="flex justify-center space-x-4">
-        <Button onClick={() => {setHasOfferLetter(true); setAvekaMessage("Excellent! Please upload a clear IMAGE (JPG, PNG) of your offer letter or take a picture. Other document types like PDF, DOC, or TXT are also accepted, but images work best for AI extraction.");}} size="lg" className="gradient-border-button" disabled={isUploading}>Yes, I have it</Button>
-        <Button onClick={handleNoOfferLetter} size="lg" variant="outline" className="bg-white text-black hover:bg-gray-100" disabled={isUploading}>No, not yet</Button>
-      </div>
+      {!showAdmissionForm ? (
+        <div className="space-y-4">
+          <div className="flex justify-center space-x-4">
+            <Button 
+              onClick={handleYesClick} 
+              size="lg" 
+              className="gradient-border-button" 
+              disabled={isUploading}
+            >
+              Yes, I have it
+            </Button>
+            <Button 
+              onClick={handleNoOfferLetter} 
+              size="lg" 
+              variant="outline" 
+              className="bg-white text-black hover:bg-gray-100" 
+              disabled={isUploading}
+            >
+              No, not yet
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleAdmissionFormSubmit} className="space-y-4 max-w-2xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="universityName" className="text-white">University Name *</Label>
+              <Input
+                id="universityName"
+                value={universityName}
+                onChange={(e) => setUniversityName(e.target.value)}
+                placeholder="Enter university name"
+                className="bg-white/10 border-gray-600 text-white"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="courseName" className="text-white">Course Name *</Label>
+              <Input
+                id="courseName"
+                value={courseName}
+                onChange={(e) => setCourseName(e.target.value)}
+                placeholder="Enter course name"
+                className="bg-white/10 border-gray-600 text-white"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="country" className="text-white">Country *</Label>
+              <Input
+                id="country"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                placeholder="Enter country"
+                className="bg-white/10 border-gray-600 text-white"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="degree" className="text-white">Degree Level *</Label>
+              <select
+                id="degree"
+                value={degree}
+                onChange={(e) => setDegree(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-gray-600 bg-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900"
+              >
+                <option value="">Select degree level</option>
+                <option value="Masters">Masters</option>
+                <option value="Diploma">Diploma</option>
+                <option value="Under-Graduation">Under-Graduation</option>
+              </select>
+            </div>
+          </div>
+          {formError && (
+            <p className="text-red-400 text-sm">{formError}</p>
+          )}
+          <Button 
+            type="submit" 
+            className="gradient-border-button mt-4"
+            disabled={isUploading}
+          >
+            Continue to Upload Offer Letter
+          </Button>
+        </form>
+      )}
     </div>
   );
 
@@ -345,7 +457,7 @@ export default function AdmissionKYCPage() {
             <canvas ref={canvasRef} className="hidden"></canvas>
             { !(hasCameraPermission === false) && (
                  <div className="mt-4 flex justify-center">
-                    <Button onClick={handleCaptureImage} size="md" className="gradient-border-button">Capture Image</Button>
+                    <Button onClick={handleCaptureImage} size="default" className="gradient-border-button">Capture Image</Button>
                 </div>
             )}
             { hasCameraPermission === false && (
@@ -494,7 +606,8 @@ export default function AdmissionKYCPage() {
                 </div>
 
                 {hasOfferLetter === null && renderInitialQuestion()}
-                {hasOfferLetter === true && !extractedData && renderFileUpload()}
+                {hasOfferLetter === true && showAdmissionForm && !extractedData && renderInitialQuestion()}
+                {hasOfferLetter === true && !showAdmissionForm && !extractedData && renderFileUpload()}
                 {hasOfferLetter === true && extractedData && renderExtractedDataTable()}
 
               </div>

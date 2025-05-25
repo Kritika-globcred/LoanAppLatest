@@ -132,10 +132,8 @@ export default function AcademicKYCPage() {
     if (postGradLevel === "Pursuing") {
       return postGradPursuingCourse && postGradPursuingType && postGradExpectedCompletionYear && postGradExpectedCompletionMonth && postGradExpectedCompletionDay;
     }
-    if (postGradLevel === "Not applicable") {
-      return postGradNaReason.trim() !== '';
-    }
-    return false;
+    // Removed the requirement for naReason when postGradLevel is "Not applicable"
+    return true;
   };
   
   const isLanguageTestComplete = () => {
@@ -391,7 +389,6 @@ export default function AcademicKYCPage() {
             </div>
           </>
         )}
-        { postGradLevel === "Not applicable" && (<div><Label htmlFor="postGradNaReason" className="text-white">Please explain reason</Label><Textarea id="postGradNaReason" value={postGradNaReason} onChange={(e) => setPostGradNaReason(e.target.value)} className="bg-white/80 text-black" /></div>)}
       </div>
     )
   );
