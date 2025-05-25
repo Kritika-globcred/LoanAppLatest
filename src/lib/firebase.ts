@@ -32,6 +32,9 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// Export the Firestore instance
+export const getDbInstance = () => db;
+
 // Helper function to get customers collection reference
 export const getCustomersCollection = () => collection(db, 'customers');
 
@@ -74,6 +77,9 @@ export const getCustomerById = async (customerId: string) => {
 };
 
 const storage = getStorage(app);
+
+// Export the storage instance
+export const getStorageInstance = () => storage;
 
 // Set up emulators in development
 if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true') {

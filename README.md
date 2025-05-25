@@ -10,6 +10,52 @@ A modern loan application platform built with Next.js and Firebase, deployed on 
 - Real-time updates with Firestore
 - Responsive design with Tailwind CSS
 - TypeScript for type safety
+- Comprehensive error handling and logging
+- Custom error pages with user-friendly messages
+- Security headers and CSP protection
+- Performance monitoring and analytics
+
+## Error Handling & Logging
+
+### Global Error Handling
+
+- **Error Boundaries**: React Error Boundaries catch JavaScript errors in the component tree.
+- **API Error Handling**: Consistent error responses with status codes and error details.
+- **Global Error Page**: Custom error page for unhandled exceptions.
+- **404 Not Found**: Custom 404 page with helpful navigation.
+
+### Logging
+
+- **Structured Logging**: JSON-formatted logs with timestamps and context.
+- **Error Tracking**: Errors are logged with stack traces and relevant context.
+- **Performance Monitoring**: Request timing and performance metrics.
+- **Security**: Sensitive data is automatically redacted from logs.
+
+### Security
+
+- **CSP Headers**: Content Security Policy to prevent XSS attacks.
+- **Security Headers**: Added security headers like X-Content-Type-Options, X-Frame-Options, etc.
+- **Nonce-based Script Loading**: For inline scripts to work with strict CSP.
+
+### Environment Variables
+
+Add these to your `.env.local` for enhanced error reporting:
+
+```
+# Error Reporting
+NEXT_PUBLIC_SENTRY_DSN=your-sentry-dsn
+NEXT_PUBLIC_APP_ENV=development
+NEXT_PUBLIC_APP_VERSION=1.0.0
+
+# Logging
+NEXT_PUBLIC_LOG_LEVEL=info
+NEXT_PUBLIC_LOG_TO_CONSOLE=true
+NEXT_PUBLIC_LOG_TO_FILE=false
+
+# API
+NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_API_TIMEOUT=30000
+```
 
 ## Prerequisites
 

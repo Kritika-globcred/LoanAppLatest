@@ -1,47 +1,362 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+
+// Define a custom error type that extends Error
+class AppError extends Error {
+  constructor(
+    message: string,
+    public readonly context?: Record<string, unknown>,
+    public readonly userId?: string
+  ) {
+    super(message);
+    this.name = 'AppError';
+    
+    // Maintains proper stack trace for where our error was thrown (only available on V8)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, AppError);
+    }
+    
+    // Set the prototype explicitly for instanceof checks
+    Object.setPrototypeOf(this, AppError.prototype);
+  }
+}
+
+// Helper function to safely log errors with context
+function logError(error: unknown, context: Record<string, unknown> = {}) {
+  // Safely get the error message
+  const errorMessage = error instanceof Error 
+    ? error.message 
+    : (typeof error === 'object' && error !== null && 'message' in error)
+      ? String((error as any).message)
+      : String(error);
+  
+  // Create a safe error object
+  const errorToLog = new Error(errorMessage);
+  
+  // Add additional context
+  if (error instanceof Error) {
+    Object.assign(errorToLog, {
+      originalName: error.name,
+      stack: error.stack,
+      ...(error instanceof AppError 
+        ? { 
+            context: error.context, 
+            userId: error.userId,
+            ...context
+          }
+        : { ...context })
+    });
+  } else {
+    Object.assign(errorToLog, {
+      originalError: error,
+      ...context
+    });
+  }
+  
+  // Log the error with proper typing
+  logger.error(errorMessage, errorToLog);
+  
+  // Return a clean error info object
+  const errorInfo = {
+    message: errorMessage,
+    timestamp: new Date().toISOString(),
+    ...(errorToLog as any)
+  };
+  
+  return errorInfo;
+}
+
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import { storage } from '@/utils/storage';
+import { logger } from '@/utils/logger';
+import Image from 'next/image';
 import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/layout/logo";
 import { Input } from "@/components/ui/input";
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, ArrowLeft, Edit3, Save } from 'lucide-react';
+import { Loader2, Edit3, Pencil, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { getOrGenerateUserId } from '@/lib/user-utils';
+import { getUserApplicationData, saveUserApplicationData, type UserApplicationData } from '@/services/firebase-service';
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
-import { getOrGenerateUserId } from '@/lib/user-utils';
-import { getUserApplicationData, saveUserApplicationData, type UserApplicationData } from '@/services/firebase-service'; 
 
-type CoSignatoryData = NonNullable<UserApplicationData['professionalKyc']>['coSignatory'];
-type WorkEmploymentData = NonNullable<UserApplicationData['professionalKyc']>['workEmployment'];
-type CombinedProfessionalData = Partial<CoSignatoryData & WorkEmploymentData>;
+// Define base types from UserApplicationData
+type ProfessionalKyc = NonNullable<UserApplicationData['professionalKyc']>;
+type CoSignatoryData = NonNullable<ProfessionalKyc['coSignatory']>;
+type WorkEmploymentData = NonNullable<ProfessionalKyc['workEmployment']>;
+
+type OptionalFields<T> = { [K in keyof T]?: T[K] | undefined };
+type CombinedProfessionalData = OptionalFields<CoSignatoryData> & OptionalFields<WorkEmploymentData>;
 type EditableCombinedDataKey = keyof CombinedProfessionalData;
 
+type CoSignatoryKey = keyof CoSignatoryData;
+type WorkEmploymentKey = keyof WorkEmploymentData;
+
+// Field display configuration type
+interface FieldDisplayConfig {
+  label: string;
+  isEditable?: boolean;
+  required?: boolean;
+  description?: string;
+  hint?: string;
+  inputType?: 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'url';
+  options?: { value: string; label: string }[];
+  value?: string | number | boolean | null;
+  formatValue?: (value: unknown) => React.ReactNode;
+  condition?: (data: CombinedProfessionalData) => boolean;
+}
+
+type FieldConfig = {
+  [key in EditableCombinedDataKey]?: FieldDisplayConfig;
+} & {
+  // Add any additional fields that might be used but not in the original type
+  employmentType?: FieldDisplayConfig;
+  [key: string]: any; // Allow any other string keys
+};
+
+
+
+// Default format function for values
+const defaultFormatValue = (value: unknown): React.ReactNode => {
+  if (value === undefined || value === null || value === '') {
+    return <span className="text-gray-400 italic">Not provided</span>;
+  }
+  return String(value);
+};
+
+// Field configuration with proper typing
+const fieldConfig: FieldConfig = {
+  // Co-signatory fields
+  coSignatoryChoice: {
+    label: 'Co-signatory Required',
+    isEditable: true,
+    description: 'Do you need a co-signatory for your loan?',
+    formatValue: (value: unknown) => {
+      if (value === 'yes') return 'Yes';
+      if (value === 'no') return 'No';
+      return defaultFormatValue(value);
+    }
+  },
+  coSignatoryIdDocumentType: {
+    label: 'ID Document Type',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  coSignatoryIdUrl: { 
+    label: 'Co-Signatory ID Document',
+    isEditable: true,
+    formatValue: (value: unknown) => {
+      if (!value) return 'Not provided';
+      return (
+        <a 
+          href={String(value)} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-blue-400 hover:underline"
+        >
+          View Document
+        </a>
+      );
+    }
+  },
+  idType: { 
+    label: 'Co-Signatory Extracted ID Type',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  nameOnId: {
+    label: 'Name on ID',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  consentTimestamp: {
+    label: 'Consent Timestamp',
+    isEditable: false,
+    formatValue: (value: unknown) => {
+      if (!value) return 'Not provided';
+      try {
+        return new Date(String(value)).toLocaleString();
+      } catch {
+        return String(value);
+      }
+    }
+  },
+  
+  // Work experience fields
+  workExperienceIndustry: {
+    label: 'Industry',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  workExperienceYears: {
+    label: 'Years of Experience',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  workExperienceMonths: {
+    label: 'Months of Experience',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  linkedInUrl: {
+    label: 'LinkedIn Profile',
+    isEditable: true,
+    formatValue: (value: unknown) => {
+      const url = String(value || '');
+      return url ? (
+        <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+          View Profile
+        </a>
+      ) : 'Not provided';
+    }
+  },
+  extractedYearsOfExperience: {
+    label: 'Extracted Years of Experience',
+    isEditable: false,
+    formatValue: defaultFormatValue
+  },
+  monthlySalary: {
+    label: 'Monthly Salary',
+    isEditable: true,
+    inputType: 'number',
+    formatValue: (value: unknown) => {
+      if (value === undefined || value === null) return 'Not provided';
+      return `$${Number(value).toLocaleString()}`;
+    }
+  },
+  employmentType: {
+    label: 'Employment Type',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  companyName: {
+    label: 'Company Name',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  jobTitle: {
+    label: 'Job Title',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  startDate: {
+    label: 'Start Date',
+    isEditable: true,
+    inputType: 'date',
+    formatValue: (value: unknown) => {
+      if (!value) return 'Not provided';
+      try {
+        return new Date(String(value)).toLocaleDateString();
+      } catch {
+        return String(value);
+      }
+    }
+  },
+  endDate: {
+    label: 'End Date',
+    isEditable: true,
+    inputType: 'date',
+    formatValue: (value: unknown) => {
+      if (!value) return 'Present';
+      try {
+        return new Date(String(value)).toLocaleDateString();
+      } catch {
+        return String(value);
+      }
+    }
+  },
+  isCurrentJob: {
+    label: 'Current Job',
+    isEditable: true,
+    inputType: 'checkbox',
+    formatValue: (value: unknown) => {
+      if (value === true || value === 'yes') return 'Yes';
+      if (value === false || value === 'no') return 'No';
+      return 'Unknown';
+    }
+  },
+  annualSalary: {
+    label: 'Annual Salary',
+    isEditable: true,
+    inputType: 'number',
+    formatValue: (value: unknown) => {
+      if (value === undefined || value === null) return 'Not provided';
+      return `$${Number(value).toLocaleString()}`;
+    }
+  },
+  salaryCurrency: {
+    label: 'Salary Currency',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  familyMonthlyIncome: {
+    label: 'Family Monthly Income',
+    isEditable: true,
+    inputType: 'number',
+    formatValue: (value: unknown) => {
+      if (value === undefined || value === null) return 'Not provided';
+      return `$${Number(value).toLocaleString()}`;
+    }
+  },
+  familySalaryCurrency: {
+    label: 'Family Income Currency',
+    isEditable: true,
+    formatValue: defaultFormatValue
+  },
+  extractedCurrentOrLastIndustry: {
+    label: 'Current/Last Industry',
+    isEditable: false,
+    formatValue: defaultFormatValue
+  },
+  extractedCurrentOrLastJobRole: {
+    label: 'Current/Last Job Role',
+    isEditable: false,
+    formatValue: defaultFormatValue
+  },
+  isCurrentlyWorking: {
+    label: 'Currently Working',
+    isEditable: true,
+    inputType: 'checkbox',
+    formatValue: (value: unknown) => {
+      if (value === true || value === 'yes') return 'Yes';
+      if (value === false || value === 'no') return 'No';
+      return 'Unknown';
+    }
+  }
+};
 
 export default function ReviewProfessionalKYCPage() {
-  const [activeNavItem, setActiveNavItem] = useState('Loan');
-  const navMenuItems = ['Loan', 'Study', 'Work'];
   const router = useRouter();
   const { toast } = useToast();
   const userId = getOrGenerateUserId();
-
+  
+  const [activeNavItem, setActiveNavItem] = useState('Loan');
+  const [formData, setFormData] = useState<{
+    professional?: any;
+    work?: any;
+    coSignatory?: any;
+  }>({
+    professional: null,
+    work: null,
+    coSignatory: null
+  });
   const [combinedData, setCombinedData] = useState<CombinedProfessionalData>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  
   const [editingField, setEditingField] = useState<EditableCombinedDataKey | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [consentChecked, setConsentChecked] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>('');
-  
-  const [avekaMessage, setAvekaMessage] = useState("Let's review all your professional details. Please check everything carefully.");
-  const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
+  const [avekaMessage, setAvekaMessage] = useState<string>("Let's review all your professional details. Please check everything carefully.");
+  const [avekaMessageVisible, setAvekaMessageVisible] = useState<boolean>(false);
+
+  const navMenuItems = ['Loan', 'Study', 'Work'];
 
   useEffect(() => {
     const timer = setTimeout(() => setAvekaMessageVisible(true), 500);
@@ -54,292 +369,496 @@ export default function ReviewProfessionalKYCPage() {
     return () => clearInterval(timerId);
   }, []);
 
-  useEffect(() => {
-    const loadDataForReview = async () => {
-      if (!userId) {
-        toast({ title: "Error", description: "User ID not found. Please restart.", variant: "destructive" });
+  const loadDataForReview = useCallback(() => {
+    setIsLoading(true);
+    setAvekaMessage("Loading your professional information for review...");
+    
+    try {
+      // Get data from local storage
+      const professionalData = localStorage.getItem('professionalKycData');
+      const workData = localStorage.getItem('workEmploymentKycData');
+      const coSignatoryData = localStorage.getItem('coSignatoryKycData');
+      
+      if (!professionalData && !workData && !coSignatoryData) {
+        const noDataMsg = "No professional data found. Please complete the professional details section first.";
+        logger.warn('No professional data found in local storage');
+        
+        toast({ 
+          title: "No Data", 
+          description: noDataMsg,
+          variant: "destructive"
+        });
+        setAvekaMessage(noDataMsg);
         setIsLoading(false);
         return;
       }
-      setIsLoading(true);
-      setAvekaMessage("Loading your professional information for review...");
-      const result = await getUserApplicationData(userId);
 
-      if (result.success && result.data?.professionalKyc) {
-        const profKyc = result.data.professionalKyc;
-        const mergedData: CombinedProfessionalData = {
-          ...(profKyc.coSignatory || {}),
-          ...(profKyc.workEmployment || {}),
-        };
-        setCombinedData(mergedData);
-        setAvekaMessage("Great! Here's a summary of your professional information. Please review it carefully and make any corrections if needed.");
-      } else if (result.error) {
-        toast({ title: "Error Loading Data", description: result.error, variant: "destructive" });
-        setAvekaMessage("Could not load your professional details for review. " + result.error);
-      } else {
-        toast({ title: "No Data", description: "No professional KYC data found to review. Please complete the previous steps.", variant: "destructive" });
-        setAvekaMessage("It seems no professional details were found. Please go back and complete the previous steps.");
-      }
+      // Parse the data if it exists
+      const parsedProfessionalData = professionalData ? JSON.parse(professionalData) : null;
+      const parsedWorkData = workData ? JSON.parse(workData) : null;
+      const parsedCoSignatoryData = coSignatoryData ? JSON.parse(coSignatoryData) : null;
+
+      // Set the form data state
+      setFormData({
+        professional: parsedProfessionalData,
+        work: parsedWorkData,
+        coSignatory: parsedCoSignatoryData
+      });
+
+      // Also set the combined data for backward compatibility
+      setCombinedData({
+        ...(parsedCoSignatoryData || {}),
+        ...(parsedWorkData || {})
+      });
+
+      setAvekaMessage("Please review your professional details before proceeding.");
+      logger.info('Successfully loaded professional KYC data from local storage');
+      
+    } catch (error) {
+      logger.error('Error loading professional data:', error);
+      const errorMsg = "Failed to load your data. Please try again.";
+      
+      // Log the error with context
+      const errorContext = {
+        action: 'load_professional_data',
+        component: 'ReviewProfessionalKYC',
+        timestamp: new Date().toISOString()
+      };
+      
+      const errorObj = new AppError(
+        error instanceof Error ? error.message : 'Unknown error',
+        errorContext
+      );
+      
+      logError(errorObj, errorContext);
+      
+      // Show error to user
+      toast({ 
+        title: "Error Loading Data", 
+        description: errorMsg, 
+        variant: "destructive",
+        duration: 8000 // Show for 8 seconds
+      });
+      
+      setAvekaMessage(errorMsg);
+    } finally {
       setIsLoading(false);
-    };
-    loadDataForReview();
+    }
   }, [userId, toast]);
 
-  const handleEditField = (field: EditableCombinedDataKey, currentValue: string | number | undefined | null | boolean) => {
-    setEditingField(field);
-    setEditValue(String(currentValue !== undefined && currentValue !== null ? currentValue : ''));
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await loadDataForReview();
+      } catch (error) {
+        logger.error('Unhandled error in loadDataForReview', error);
+      }
+    };
+    
+    loadData();
+  }, [userId, loadDataForReview]);
+
+  const handleEditField = (key: EditableCombinedDataKey, currentValue: unknown) => {
+    setEditingField(key);
+    const stringValue = currentValue !== undefined && currentValue !== null 
+      ? String(currentValue) 
+      : '';
+    setEditValue(stringValue);
   };
 
-  const handleSaveEdit = () => {
-    if (combinedData && editingField) {
-      const newData = { ...combinedData, [editingField]: editValue };
-      setCombinedData(newData);
+  const handleSaveEdit = useCallback(() => {
+    if (!editingField) return;
+    
+    try {
+      setCombinedData(prev => {
+        const updatedData = { ...prev, [editingField]: editValue };
+        
+        logger.debug('Field updated', {
+          field: editingField,
+          value: editValue,
+          previousValue: prev[editingField as keyof typeof prev]
+        });
+        
+        const fieldLabel = fieldConfig[editingField]?.label || 
+          String(editingField).replace(/([A-Z])/g, ' $1').trim();
+        
+        toast({
+          title: 'Field Updated',
+          description: `${fieldLabel} has been updated.`,
+        });
+        
+        return updatedData;
+      });
+      
       setEditingField(null);
-      toast({ title: "Details Updated", description: `${String(editingField).replace(/([A-Z])/g, ' $1').trim()} has been updated.`});
+      setEditValue('');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorObj = new AppError(
+        errorMessage,
+        { 
+          action: 'save_field_edit',
+          field: editingField,
+          value: editValue,
+          timestamp: new Date().toISOString()
+        },
+        userId
+      );
+      logError(errorObj);
+      toast({
+        title: 'Error',
+        description: 'Failed to save changes. Please try again.',
+        variant: 'destructive',
+      });
     }
-  };
+  }, [editingField, editValue, toast]);
 
-  const handleConfirmAndContinue = async () => {
+  const handleConfirmAndContinue = useCallback(async () => {
     if (!userId) {
-        toast({ title: "Error", description: "User ID not found.", variant: "destructive" });
-        return;
-    }
-    if (!consentChecked) {
-      toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: "User ID not found. Please refresh the page and try again.", 
+        variant: "destructive" 
+      });
       return;
     }
-    setIsSaving(true);
     
-    const professionalKycToSave: UserApplicationData['professionalKyc'] = {
-        coSignatory: {},
-        workEmployment: {},
-        reviewedTimestamp: currentTime, 
-    };
-
-    const coSignatoryFields: (keyof CoSignatoryData)[] = ['coSignatoryChoice', 'coSignatoryIdDocumentType', 'coSignatoryRelationship', 'idNumber', 'idType', 'nameOnId', 'coSignatoryIdUrl', 'consentTimestamp'];
-    const workEmploymentFields: (keyof WorkEmploymentData)[] = ['workExperienceIndustry', 'workExperienceYears', 'workExperienceMonths', 'workExperienceProofType', 'resumeUrl', 'linkedInUrl', 'extractedYearsOfExperience', 'extractedGapInLast3YearsMonths', 'extractedCurrentOrLastIndustry', 'extractedCurrentOrLastJobRole', 'isCurrentlyWorking', 'monthlySalary', 'salaryCurrency', 'familyMonthlySalary', 'familySalaryCurrency', 'consentTimestamp'];
-
-    for (const key in combinedData) {
-        if (coSignatoryFields.includes(key as any)) {
-            professionalKycToSave.coSignatory![key as keyof CoSignatoryData] = combinedData[key as keyof CoSignatoryData];
-        } else if (workEmploymentFields.includes(key as any)) {
-            professionalKycToSave.workEmployment![key as keyof WorkEmploymentData] = combinedData[key as keyof WorkEmploymentData];
-        }
+    if (!consentChecked) {
+      toast({ 
+        title: "Consent Required", 
+        description: "Please confirm that all details are correct by checking the box.", 
+        variant: "destructive" 
+      });
+      return;
     }
     
-    const result = await saveUserApplicationData(userId, { professionalKyc: professionalKycToSave });
-    setIsSaving(false);
+    setIsSaving(true);
+    
+    try {
+      logger.info('Saving professional KYC data', { userId });
+      
+      const professionalKycToSave: UserApplicationData['professionalKyc'] = {
+        coSignatory: {},
+        workEmployment: {},
+        reviewedTimestamp: currentTime,
+      };
 
-    if (result.success) {
-        toast({ title: "Professional Details Confirmed!", description: "Proceeding to next step." });
-        const hasOfferLetter = localStorage.getItem('hasOfferLetterStatus');
+      const coSignatoryFields = new Set<CoSignatoryKey>([
+        'coSignatoryChoice', 'coSignatoryIdDocumentType', 'coSignatoryRelationship', 
+        'idNumber', 'idType', 'nameOnId', 'coSignatoryIdUrl', 'consentTimestamp'
+      ]);
+      
+      const workEmploymentFields = new Set<WorkEmploymentKey>([
+        'workExperienceIndustry', 'workExperienceYears', 'workExperienceMonths', 
+        'workExperienceProofType', 'resumeUrl', 'linkedInUrl', 'extractedYearsOfExperience', 
+        'extractedGapInLast3YearsMonths', 'extractedCurrentOrLastIndustry', 
+        'extractedCurrentOrLastJobRole', 'isCurrentlyWorking', 'monthlySalary', 
+        'salaryCurrency', 'familyMonthlySalary', 'familySalaryCurrency', 'consentTimestamp'
+      ]);
+
+      for (const [key, value] of Object.entries(combinedData)) {
+        if (value === undefined || value === null) continue;
+
+        if (coSignatoryFields.has(key as CoSignatoryKey)) {
+          if (!professionalKycToSave.coSignatory) {
+            professionalKycToSave.coSignatory = {};
+          }
+          (professionalKycToSave.coSignatory as Record<string, unknown>)[key] = value;
+        } else if (workEmploymentFields.has(key as WorkEmploymentKey)) {
+          if (!professionalKycToSave.workEmployment) {
+            professionalKycToSave.workEmployment = {};
+          }
+          (professionalKycToSave.workEmployment as Record<string, unknown>)[key] = value;
+        }
+      }
+      
+      logger.debug('Saving professional KYC data', {
+        userId,
+        hasCoSignatory: !!professionalKycToSave.coSignatory,
+        hasWorkEmployment: !!professionalKycToSave.workEmployment,
+        fieldCount: Object.keys(combinedData).length
+      });
+      
+      const result = await saveUserApplicationData(userId, { 
+        professionalKyc: professionalKycToSave 
+      });
+
+      if (result.success) {
+        logger.info('Successfully saved professional KYC data', { userId });
+        
+        toast({ 
+          title: "Success!", 
+          description: "Your professional details have been saved successfully." 
+        });
+        
+        const hasOfferLetter = typeof window !== 'undefined' 
+          ? storage.get('hasOfferLetterStatus', 'false')
+          : 'false';
+        
+        logger.debug('Navigation after save', { hasOfferLetter });
+        
         if (hasOfferLetter === 'false') { 
           router.push('/loan-application/preferences');
         } else { 
-          router.push('/loan-application/lender-recommendations'); 
+          router.push('/loan-application/lender-recommendations');
         }
-    } else {
-        toast({title: "Save Failed", description: result.error || "Could not save reviewed details.", variant: "destructive"});
+      } else {
+        const error = new AppError(
+          result.error || "Failed to save professional details",
+          { action: 'save_professional_kyc' },
+          userId
+        );
+        logError(error);
+        throw error;
+      }
+    } catch (error: unknown) {
+      // Default error message and context
+      let errorMessage = "An unexpected error occurred while saving your data.";
+      const errorContext: Record<string, unknown> = { userId };
+
+      // Handle different types of errors
+      if (error instanceof AppError) {
+        errorMessage = error.message;
+        if (error.context) {
+          Object.assign(errorContext, error.context);
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+        errorContext.errorName = error.name;
+        if (error.stack) {
+          errorContext.stack = error.stack;
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String(error.message);
+      }
+
+      // Log the error with context
+      const errorDetails = {
+        error: errorMessage,
+        ...(Object.keys(errorContext).length > 0 && { context: errorContext })
+      };
+      logger.error('Error saving professional details: ' + JSON.stringify(errorDetails, null, 2));
+      
+      // Show user-friendly error toast
+      toast({ 
+        title: "Error", 
+        description: errorMessage, 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSaving(false);
     }
-  };
+  }, [userId, consentChecked, combinedData, currentTime, router]);
 
-  const displayLabels: Record<string, string> = {
-    coSignatoryChoice: "Co-Signatory Added",
-    coSignatoryIdDocumentType: "Co-Signatory ID Type",
-    coSignatoryRelationship: "Relationship with Co-Signatory",
-    idNumber: "Co-Signatory ID Number",
-    idType: "Co-Signatory Extracted ID Type",
-    nameOnId: "Name on Co-Signatory ID",
-    coSignatoryIdUrl: "Co-Signatory ID Document",
+  const getFieldsToDisplay = useCallback((data: CombinedProfessionalData): EditableCombinedDataKey[] => {
+    // Type guard to ensure we only return valid keys
+    const isValidKey = (key: string): key is EditableCombinedDataKey => {
+      return key in fieldConfig;
+    };
     
-    workExperienceIndustry: "Industry",
-    workExperienceYears: "Experience Years",
-    workExperienceMonths: "Experience Months",
-    workExperienceProofType: "Professional Proof Type",
-    resumeUrl: "Resume Document",
-    linkedInUrl: "LinkedIn Profile",
+    // Get all field keys from the config
+    const allFields = Object.keys(fieldConfig) as EditableCombinedDataKey[];
     
-    extractedYearsOfExperience: "Years of Experience (AI Extracted)",
-    extractedGapInLast3YearsMonths: "Employment Gap (AI Extracted)",
-    extractedCurrentOrLastIndustry: "Industry (AI Extracted)",
-    extractedCurrentOrLastJobRole: "Job Role (AI Extracted)",
-    
-    isCurrentlyWorking: "Currently Working",
-    monthlySalary: "Your Monthly Salary",
-    salaryCurrency: "Your Salary Currency",
-    familyMonthlySalary: "Family's Monthly Salary",
-    familySalaryCurrency: "Family's Salary Currency",
-  };
-  
-  const getFieldsToDisplay = (data: CombinedProfessionalData): EditableCombinedDataKey[] => {
-    if (!data) return [];
-    
-    const orderedFields: EditableCombinedDataKey[] = [
-      'coSignatoryChoice', 'coSignatoryIdDocumentType', 'coSignatoryRelationship', 'idNumber', 'idType', 'nameOnId', 'coSignatoryIdUrl',
-      'workExperienceIndustry', 'workExperienceYears', 'workExperienceMonths', 'workExperienceProofType', 'resumeUrl', 'linkedInUrl',
-      'extractedYearsOfExperience', 'extractedGapInLast3YearsMonths', 'extractedCurrentOrLastIndustry', 'extractedCurrentOrLastJobRole',
-      'isCurrentlyWorking', 'monthlySalary', 'salaryCurrency', 'familyMonthlySalary', 'familySalaryCurrency'
-    ];
-    
-    return orderedFields.filter(key => {
-        const value = data[key as keyof typeof data];
-        
-        if (value === undefined || value === null) return false;
-        if (data.coSignatoryChoice !== 'yes' && (key === 'coSignatoryIdDocumentType' || key === 'coSignatoryRelationship' || key === 'idNumber' || key === 'idType' || key === 'nameOnId' || key === 'coSignatoryIdUrl')) return false;
-        if (data.workExperienceProofType !== 'resume' && key === 'resumeUrl') return false;
-        if (data.workExperienceProofType !== 'linkedin' && key === 'linkedInUrl') return false;
-        if (data.isCurrentlyWorking !== 'yes' && (key === 'monthlySalary' || key === 'salaryCurrency')) return false;
-        if (data.isCurrentlyWorking !== 'no' && (key === 'familyMonthlySalary' || key === 'familySalaryCurrency')) return false;
-        
-        return true;
+    return allFields.filter((key): boolean => {
+      const config = fieldConfig[key];
+      if (!config) return false;
+      
+      const value = data[key as keyof typeof data];
+      
+      // Skip if value is not set
+      if (value === undefined || value === null || value === '') {
+        return false;
+      }
+      
+      // Apply field-specific conditions
+      if (config.condition && !config.condition(data)) {
+        return false;
+      }
+      
+      // Handle co-signatory fields visibility
+      const isCoSignatoryField = [
+        'coSignatoryIdDocumentType', 
+        'coSignatoryIdUrl',
+        'idType',
+        'nameOnId'
+      ].includes(key);
+      
+      if (isCoSignatoryField && data.coSignatoryChoice !== 'yes') {
+        return false;
+      }
+      
+      return true;
     });
-  };
+  }, []);
 
-  const fieldsToDisplay = getFieldsToDisplay(combinedData);
-
-  const renderEditableTable = () => {
-    if (!combinedData) return <p className="text-center text-white">No professional details found to review.</p>;
-    if (fieldsToDisplay.length === 0) return <p className="text-center text-white">No professional details were provided or extracted.</p>;
-
+  const renderField = useCallback((key: EditableCombinedDataKey) => {
+    const config = fieldConfig[key];
+    if (!config) {
+      logger.warn(`No configuration found for field: ${key}`);
+      return null;
+    }
+    
+    const value = combinedData[key];
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+    
+    const { label, formatValue = defaultFormatValue } = config;
+    const displayValue = formatValue ? formatValue(value) : String(value);
+    
     return (
-      <div className="space-y-6">
-        <Table className="bg-white/10 rounded-md">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-white">Field</TableHead>
-              <TableHead className="text-white">Value</TableHead>
-              <TableHead className="text-white text-right">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {fieldsToDisplay.map((key) => {
-              const value = combinedData[key as keyof CombinedProfessionalData];
-              const fieldLabel = displayLabels[key as string] || String(key).replace(/([A-Z])/g, ' $1').trim();
-              let displayValue: React.ReactNode = String(value !== undefined && value !== null && String(value).trim() !== '' ? value : 'Not Specified');
-
-              if (key === 'coSignatoryChoice') {
-                displayValue = value === 'yes' ? 'Yes' : value === 'no' ? 'No' : value === 'addLater' ? 'Add Later' : 'Not Specified';
-              } else if (key === 'isCurrentlyWorking') {
-                displayValue = value === 'yes' ? 'Yes' : value === 'no' ? 'No' : 'Not Specified';
-              } else if (key === 'coSignatoryIdUrl' || key === 'resumeUrl') {
-                displayValue = value ? <Link href={String(value)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">View Document</Link> : "Not Provided";
-              } else if (key === 'linkedInUrl' && value) {
-                 displayValue = <Link href={String(value)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{String(value)}</Link>;
-              }
-
-
-              const nonEditableFields: EditableCombinedDataKey[] = ['coSignatoryIdUrl', 'resumeUrl'];
-
-              return (
-                <TableRow key={key}>
-                  <TableCell className="font-medium capitalize text-gray-300">{fieldLabel}</TableCell>
-                  <TableCell className="text-gray-200 break-all">
-                    {editingField === key && !nonEditableFields.includes(key) ? (
-                      <Input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="bg-white/80 text-black" />
-                    ) : ( displayValue )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {editingField === key && !nonEditableFields.includes(key) ? (
-                      <Button onClick={handleSaveEdit} size="sm" className="gradient-border-button"><Save className="mr-1 h-4 w-4" /> Save</Button>
-                    ) : !nonEditableFields.includes(key) ? ( 
-                      <Button onClick={() => handleEditField(key, value)} size="sm" variant="outline" className="bg-white/20 hover:bg-white/30 text-white"><Edit3 className="mr-1 h-4 w-4" /> Edit</Button>
-                    ) : null }
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-        {renderConsentSection()}
+      <div key={key} className="mb-4 p-4 bg-gray-800 rounded-lg">
+        <div className="flex justify-between items-start">
+          <div>
+            <h3 className="text-sm font-medium text-gray-300">{label}</h3>
+            <p className="mt-1 text-sm text-white">
+              {formatValue ? formatValue(value) : String(value)}
+            </p>
+          </div>
+        </div>
       </div>
     );
-  };
+  }, [combinedData]);
 
-  const renderConsentSection = () => (
-    <div className="mt-8 space-y-6 border-t border-gray-500/50 pt-6">
-      <div className="flex items-center space-x-2">
-        <Checkbox id="consent" checked={consentChecked} onCheckedChange={(checked) => setConsentChecked(checked as boolean)} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" disabled={isSaving}/>
-        <Label htmlFor="consent" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-300">
-          I confirm that all the details mentioned above are correct.
-        </Label>
-      </div>
-      <p className="text-xs text-gray-400">Consent captured at: {currentTime}</p>
-      <div className="flex justify-center">
-        <Button onClick={handleConfirmAndContinue} disabled={!consentChecked || isLoading || isSaving} size="lg" className="gradient-border-button">
-           {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...</> : 'Confirm & Continue'}
-        </Button>
-      </div>
-    </div>
+  const fieldsToDisplay = useMemo(() => 
+    getFieldsToDisplay(combinedData), 
+    [combinedData, getFieldsToDisplay]
   );
 
+  const renderEditableTable = useCallback(() => {
+    if (!combinedData) return <p className="text-center text-white">No professional details found to review.</p>;
+    
+    return (
+      <div className="space-y-6">
+        <div className="bg-gray-900/50 rounded-lg p-6 space-y-6">
+          <h3 className="text-lg font-medium text-white mb-4">Professional Details</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {fieldsToDisplay.map((key) => renderField(key))}
+          </div>
+        </div>
+      </div>
+    );
+  }, [combinedData, fieldsToDisplay, renderField]);
 
   return (
-    <div className="flex flex-col items-center">
-      <section
-        className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] pt-[5px] px-6 pb-6 md:px-8 md:pb-8 overflow-hidden shadow-[5px_5px_10px_hsl(0,0%,0%/0.2)] shadow-[inset_0_0_2px_hsl(var(--primary)/0.8)]"
-        style={{
-          backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
-        }}
-      >
-        <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
-        <div className="relative z-10">
-          <div className="flex justify-between items-center py-4">
-            <Logo />
-             <nav>
-              <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
-                {navMenuItems.map((item) => (
-                  <li key={item}>
-                    <button onClick={() => setActiveNavItem(item)} className="text-white hover:opacity-75 transition-opacity focus:outline-none flex items-center text-xs sm:text-sm" aria-current={activeNavItem === item ? "page" : undefined}>
-                      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${activeNavItem === item ? 'progress-dot-active' : 'bg-gray-400/60'}`} aria-hidden="true"></span>{item}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-            <div className="flex items-center space-x-2 md:space-x-4">
-              <Button variant="default" size="sm">Login</Button>
-              <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
-            </div>
+    <ErrorBoundary 
+      onError={(error: Error, errorInfo: React.ErrorInfo) => {
+        // Create a new error object that includes the component stack
+        const errorWithComponentStack = new Error(error.message);
+        errorWithComponentStack.name = error.name;
+        errorWithComponentStack.stack = error.stack;
+        
+        // Add component stack as a property
+        if (errorInfo.componentStack) {
+          (errorWithComponentStack as any).componentStack = errorInfo.componentStack;
+        }
+        
+        // Log the enhanced error
+        logger.error('Error in ReviewProfessionalKYCPage', errorWithComponentStack);
+      }}
+      fallback={
+        <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white flex items-center justify-center p-6">
+          <div className="p-6 text-center">
+            <h2 className="text-xl font-bold text-red-500 mb-4">Something went wrong</h2>
+            <p className="mb-4">We're sorry, but we encountered an error while loading this page.</p>
+            <Button 
+              onClick={() => window.location.reload()}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Reload Page
+            </Button>
           </div>
-          <LoanProgressBar steps={loanAppSteps} hasOfferLetter={localStorage.getItem('hasOfferLetterStatus') === 'true'} />
-          <div className="flex items-center mb-6 mt-4"> 
-            <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/work-employment-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
+        </div>
+      }
+    >
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
+        <section className="container mx-auto px-4 py-8">
+        <div className="mb-6">
+          <div className="flex items-center space-x-2 md:space-x-4">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => router.push('/loan-application/work-employment-kyc')} 
+              className="bg-white/20 hover:bg-white/30 text-white"
+            >
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
           </div>
+          <LoanProgressBar steps={loanAppSteps} hasOfferLetter={localStorage.getItem('hasOfferLetterStatus') === 'true'} />
+        </div>
 
-          <div className="py-8">
-            <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-3xl mx-auto">
-              <div className="flex flex-col items-center text-center mb-6">
-                <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
-                    <div className="flex-shrink-0 mb-3 md:mb-0">
-                        <Image 
-                          src="/images/aveka.png" 
-                          alt="Aveka, GlobCred's Smart AI" 
-                          width={50} height={50} className="rounded-full border-2 border-white shadow-md" 
-                          data-ai-hint="robot avatar" 
-                        />
-                    </div>
-                    <div className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow transform transition-all duration-500 ease-out w-full ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
-                        <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
-                        <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
-                        <p className="text-base text-white">{avekaMessage}</p>
-                    </div>
+        <div className="py-8">
+          <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-3xl mx-auto">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
+                <div className="flex-shrink-0 mb-3 md:mb-0">
+                  <Image 
+                    src="/images/aveka.png" 
+                    alt="Aveka, GlobCred's Smart AI" 
+                    width={50} 
+                    height={50} 
+                    className="rounded-full border-2 border-white shadow-md" 
+                    data-ai-hint="robot avatar" 
+                  />
+                </div>
+                <div className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow transform transition-all duration-500 ease-out w-full ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+                  <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
+                  <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
+                  <p className="text-base text-white">{avekaMessage}</p>
                 </div>
               </div>
-
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-10">
-                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                  <p className="mt-4 text-lg text-white">Loading your professional information for review...</p>
-                </div>
-              ) : (
-                renderEditableTable()
-              )}
             </div>
+
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-10">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="mt-4 text-lg text-white">Loading your professional information for review...</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {renderEditableTable()}
+                
+                <div className="mt-8 p-4 bg-gray-800/30 rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <Checkbox 
+                      id="consent" 
+                      checked={consentChecked}
+                      onCheckedChange={(checked: boolean) => setConsentChecked(checked)}
+                      className="mt-1"
+                    />
+                    <div className="space-y-1">
+                      <label htmlFor="consent" className="text-sm font-medium leading-none">
+                        I confirm that all the information provided is accurate and complete to the best of my knowledge.
+                      </label>
+                      <p className="text-xs text-gray-400">
+                        By checking this box, you acknowledge that any false information may result in the rejection of your application.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 flex justify-end">
+                    <Button 
+                      onClick={handleConfirmAndContinue}
+                      disabled={!consentChecked || isSaving}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : 'Confirm and Continue'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </ErrorBoundary>
   );
 }

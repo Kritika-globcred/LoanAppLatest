@@ -314,18 +314,29 @@ export default function WorkEmploymentKYCPage() {
       consentTimestamp: currentTime,
     };
 
-    const result = await saveUserApplicationData(userId, {
-      professionalKyc: {
-        workEmployment: workEmploymentDataToSave
-      }
-    });
-    setIsSaving(false);
+    try {
+      // Save to Firestore
+      const result = await saveUserApplicationData(userId, {
+        professionalKyc: {
+          workEmployment: workEmploymentDataToSave
+        }
+      });
 
-    if(result.success) {
+      // Also save to localStorage for the review page
+      localStorage.setItem('workEmploymentKycData', JSON.stringify(workEmploymentDataToSave));
+      
+      setIsSaving(false);
+
+      if(result.success) {
         toast({ title: "Work & Employment Details Saved!", description: "Proceeding to review all professional details." });
         router.push('/loan-application/review-professional-kyc');
-    } else {
+      } else {
         toast({ title: "Save Failed", description: result.error || "Could not save work/employment details.", variant: "destructive"});
+      }
+    } catch (error) {
+      console.error('Error saving work employment data:', error);
+      setIsSaving(false);
+      toast({ title: "Error", description: "An error occurred while saving your data. Please try again.", variant: "destructive" });
     }
   };
 

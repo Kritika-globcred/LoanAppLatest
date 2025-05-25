@@ -40,8 +40,11 @@ next-env.d.ts
 .genkit/*
 .env*
 .env.local
+.env.production
 
 # firebase
 firebase-debug.log
 firestore-debug.log
 serviceAccountKey.json
+# Sentry Config File
+.env.sentry-build-plugin
