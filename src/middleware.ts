@@ -7,15 +7,18 @@ export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const response = NextResponse.next();
 
-  // CSP for development/preview environments - more permissive
-  // Includes 'unsafe-eval' for Next.js Fast Refresh and ws: wss: for HMR.
+  // CSP for Production - 'unsafe-eval' and 'ws:'/'wss:' removed
+  // 'unsafe-inline' is kept for script-src as Next.js might still need it for some internal operations or if noncing isn't perfect.
+  // It's also kept for style-src as UI libraries often rely on it.
   const cspHeader = [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://securetoken.googleapis.com`,
+    // IMPORTANT: 'unsafe-eval' removed for production. Test thoroughly.
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://apis.google.com https://www.gstatic.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://securetoken.googleapis.com`,
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
-    `img-src 'self' data: https: raw.githubusercontent.com placehold.co globcred.org firebasestorage.googleapis.com`,
+    `img-src 'self' data: https://raw.githubusercontent.com https://placehold.co https://globcred.org https://firebasestorage.googleapis.com`,
     `font-src 'self' https://fonts.gstatic.com data:`,
-    `connect-src 'self' https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com ws: wss:`,
+    // Removed ws: wss: from connect-src for production
+    `connect-src 'self' https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com`,
     `frame-src 'self' https://*.firebaseapp.com https://*.google.com`,
     `worker-src 'self' blob:`,
     `form-action 'self'`,
