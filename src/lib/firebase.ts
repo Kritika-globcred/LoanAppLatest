@@ -30,13 +30,15 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 
 // Initialize services
 const auth = getAuth(app);
-const db = getFirestore(app);
+
+// Initialize Firestore with explicit database name
+const db = getFirestore(app, 'customer');
 
 // Export the Firestore instance
 export const getDbInstance = () => db;
 
 // Helper function to get customers collection reference
-export const getCustomersCollection = () => collection(db, 'customers');
+export const getCustomersCollection = () => collection(db, 'customer');
 
 // Function to fetch all customers
 export const getAllCustomers = async () => {
@@ -55,13 +57,10 @@ export const getAllCustomers = async () => {
 // Function to fetch a single customer by ID
 export const getCustomerById = async (customerId: string) => {
   try {
-    const q = query(
-      getCustomersCollection(),
-      where('__name__', '==', customerId),
-      limit(1)
-    );
-    
+    const customersRef = getCustomersCollection();
+    const q = query(customersRef, where('__name__', '==', customerId), limit(1));
     const querySnapshot = await getDocs(q);
+    
     if (querySnapshot.empty) {
       return null;
     }
@@ -71,7 +70,7 @@ export const getCustomerById = async (customerId: string) => {
       ...querySnapshot.docs[0].data()
     };
   } catch (error) {
-    console.error(`Error fetching customer ${customerId}:`, error);
+    console.error('Error getting customer by ID:', error);
     throw error;
   }
 };
@@ -92,42 +91,30 @@ if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_FIREBA
   // Storage emulator
   connectStorageEmulator(storage, 'localhost', 9199);
   
-  console.log('Firebase emulators initialized');
+  console.log('Firebase emulators connected');
 }
-
-// Export types for better type safety
-export type { Auth, Firestore, FirebaseStorage };
-
-// Export the auth and storage instances
-export { auth, storage, GoogleAuthProvider };
-
-// Export initialized services and utilities
-export { 
-  app, 
-  getAuth,
-  getFirestore,
-  getStorage
-};
 
 // Export a function to get the auth instance (client-side only)
-export function getAuthInstance(): Auth {
+export const getAuthInstance = (): Auth => {
   if (typeof window === 'undefined') {
-    throw new Error('Firebase Auth is only available on the client side');
+    throw new Error('Auth is not available on the server side');
   }
   return auth;
-}
+};
 
 // Helper function to safely get error information
 export const getErrorInfo = (error: unknown): { message: string; code: string; stack?: string } => {
   if (error instanceof Error) {
+    // Type assertion to handle errors that might have a code property
+    const errorWithCode = error as Error & { code?: string };
     return {
       message: error.message,
-      code: (error as any).code || 'unknown',
+      code: errorWithCode.code || 'unknown',
       stack: error.stack
     };
   }
   return {
-    message: String(error),
+    message: 'An unknown error occurred',
     code: 'unknown'
   };
 };
