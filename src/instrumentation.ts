@@ -1,13 +1,14 @@
-import * as Sentry from '@sentry/nextjs';
 
 export async function register() {
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
-    await import('../sentry.server.config');
-  }
-
-  if (process.env.NEXT_RUNTIME === 'edge') {
-    await import('../sentry.edge.config');
+  // Sentry initialization removed.
+  // Add any other non-Sentry instrumentation here if needed.
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Custom instrumentation registered (Sentry removed).');
   }
 }
 
-export const onRequestError = Sentry.captureRequestError;
+// Sentry's onRequestError export removed.
+// If you have other request error handling, it can be exported here.
+// export const onRequestError = (error: Error, request: Request, response: Response) => {
+//   console.error('Request Error:', error);
+// };
