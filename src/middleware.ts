@@ -7,17 +7,18 @@ export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const response = NextResponse.next();
 
-  // CSP for development, allowing 'unsafe-eval' for Next.js Fast Refresh
-  // For production, strive to remove 'unsafe-eval'.
+  // CSP for production, aiming to be more secure.
+  // 'unsafe-eval' removed from script-src.
+  // 'ws:' and 'wss:' removed from connect-src.
   const cspHeader = [
     `default-src 'self'`,
-    // Added 'unsafe-eval' back for development
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://securetoken.googleapis.com`,
+    // 'unsafe-inline' is kept as Next.js with nonces might still need it for some cases,
+    // but ideally, this would also be removed if all inline scripts/styles are nonced or hashed.
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://apis.google.com https://www.gstatic.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://securetoken.googleapis.com`,
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     `img-src 'self' data: https: raw.githubusercontent.com placehold.co globcred.org firebasestorage.googleapis.com`,
     `font-src 'self' https://fonts.gstatic.com data:`,
-    // Added ws: and wss: for development HMR, ensure this is reviewed for production
-    `connect-src 'self' ws: wss: https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com`,
+    `connect-src 'self' https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com`,
     `frame-src 'self' https://*.firebaseapp.com https://*.google.com`,
     `worker-src 'self' blob:`,
     `form-action 'self'`,
