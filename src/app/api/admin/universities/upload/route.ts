@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
-import { initializeFirebaseAdmin } from '@/lib/firebase-admin';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { processCSVData } from '@/lib/university-utils';
 import { University } from '@/types/university';
 
-// Initialize Firebase Admin
-initializeFirebaseAdmin();
-const db = getFirestore();
+// Get Firestore instance
+const db = getAdminFirestore();
 
 export async function POST(request: Request) {
   try {

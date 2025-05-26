@@ -1,7 +1,6 @@
 module.exports = {
   // Basic configuration
   reactStrictMode: true,
-  swcMinify: true,
   
   // Environment variables
   env: {
@@ -60,7 +59,34 @@ module.exports = {
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   
   // Webpack configuration
-  webpack: (config) => {
+  webpack(config, { isServer }) {
+    // Add file loader for PDF files
+    config.module.rules.push({
+      test: /\.(pdf)$/,
+      use: [
+        {
+          loader: 'file-loader',
+          options: {
+            publicPath: '/_next/static/files',
+            outputPath: 'static/files',
+            name: '[name].[ext]',
+          },
+        },
+      ],
+    });
+
+    // Handle Firebase Admin
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        dns: false,
+        child_process: false,
+      };
+    }
+
     // Handle SVG imports
     config.module.rules.push({
       test: /\.svg$/,
@@ -70,7 +96,6 @@ module.exports = {
     return config;
   },
 }
-
 
 // Injected content via Sentry wizard below
 

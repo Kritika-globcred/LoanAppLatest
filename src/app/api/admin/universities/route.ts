@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
-import { initializeFirebaseAdmin } from '@/lib/firebase-admin';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import type { University } from '@/types/university';
 
-// Initialize Firebase Admin
-initializeFirebaseAdmin();
-const db = getFirestore();
+// Get Firestore instance
+const db = getAdminFirestore();
 
 export async function GET() {
   try {
