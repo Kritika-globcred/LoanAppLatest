@@ -9,17 +9,10 @@ import {
   getDoc,
   serverTimestamp,
   Timestamp,
-  initializeFirestore,
-  connectFirestoreEmulator,
-  DocumentData,
-  QueryDocumentSnapshot,
-  DocumentSnapshot,
+  Firestore,
   query,
   where,
-  getDocs,
-  Firestore,
-  FirestoreError,
-  DocumentReference
+  getDocs
 } from "firebase/firestore";
 import {
   getStorage,
@@ -36,12 +29,11 @@ let firebaseApp: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
 
-const CUSTOMER_COLLECTION = 'customer'; // This is the Firestore COLLECTION name
-const DATABASE_ID = "customer"; // This is the Firestore DATABASE INSTANCE ID you specified
+const CUSTOMER_COLLECTION = 'customer';
+const DATABASE_ID = "customer"; // The name you gave your Firestore database instance
 
 const getFirebaseConfig = () => {
   if (typeof window === "undefined") {
-    // This case should ideally not be hit for client-side SDK initialization
     console.warn("[Firebase Service] getFirebaseConfig called on the server. Client-side config will be undefined here.");
     return null;
   }
@@ -56,7 +48,7 @@ const getFirebaseConfig = () => {
   };
 
   if (!config.projectId || !config.apiKey) {
-    console.error("[Firebase Service] Firebase config not found or incomplete in environment variables. Project ID:", config.projectId || "UNKNOWN_PROJECT_ID");
+    console.error("[Firebase Service] Firebase config not found or incomplete in environment variables. Ensure .env.local is set up correctly. Project ID:", config.projectId || "UNKNOWN_PROJECT_ID");
     return null;
   }
   // console.log("[Firebase Service] Loaded Firebase config for Project ID:", config.projectId);
@@ -109,12 +101,14 @@ export const initializeFirebaseClientSDK = (): { firebaseApp: FirebaseApp | null
   }
 
   try {
-    db = getFirestore(firebaseApp, DATABASE_ID);
+    db = getFirestore(firebaseApp, DATABASE_ID); // Explicitly pass DATABASE_ID
     // @ts-ignore
     const actualDbId = db?._databaseId?.database || 'unknown';
     console.log(`[Firebase Service] Firestore CURENTLY INITIALIZED for DATABASE_ID: "${actualDbId}". Expected: "${DATABASE_ID}"`);
     if (actualDbId !== DATABASE_ID) {
         console.error(`[Firebase Service] CRITICAL MISMATCH: Firestore initialized with DB ID "${actualDbId}" but expected "${DATABASE_ID}". This WILL cause issues. Check Firebase project setup and if the database named "${DATABASE_ID}" exists and is the intended target.`);
+    } else {
+        // console.log(`[Firebase Service] Firestore successfully targeting DATABASE_ID: "${DATABASE_ID}".`);
     }
   } catch (error) {
     console.error(`[Firebase Service] Error initializing Firestore for DATABASE_ID "${DATABASE_ID}":`, error);
@@ -140,12 +134,11 @@ const ensureFirebaseInitialized = () => {
   // @ts-ignore
   const currentDbId = db?._databaseId?.database || 'unknown';
   if (currentDbId !== DATABASE_ID) {
-    console.warn(`[Firebase Service] ensureFirebaseInitialized: DB instance ID "${currentDbId}" does not match expected "${DATABASE_ID}". Re-initializing.`);
-    return initializeFirebaseClientSDK();
+      console.warn(`[Firebase Service] ensureFirebaseInitialized: DB instance ID "${currentDbId}" does not match expected "${DATABASE_ID}". Re-initializing.`);
+      return initializeFirebaseClientSDK();
   }
   return { firebaseApp, db, storage };
 }
-
 
 // --- Interfaces ---
 export interface UserApplicationData {
@@ -170,7 +163,7 @@ export interface UserApplicationData {
   personalKyc?: {
     idDocumentType?: "PAN Card" | "National ID";
     idNumber?: string;
-    idTypeFromDoc?: string;
+    idTypeFromDoc?: string; // This was likely a typo, should match idType
     passportNumber?: string;
     mothersName?: string;
     fathersName?: string;
@@ -185,7 +178,7 @@ export interface UserApplicationData {
     passportUrl?: string;
     consentTimestamp?: string;
   };
-  academicKyc?: any;
+  academicKyc?: any; // Define this more specifically later
   professionalKyc?: {
     coSignatory?: {
       coSignatoryChoice?: string | null;
@@ -217,30 +210,11 @@ export interface UserApplicationData {
     },
     reviewedTimestamp?: string;
   };
-  preferences?: any;
-  lenderRecommendations?: any;
+  preferences?: any; // Define this more specifically later
+  lenderRecommendations?: any; // Define this
   selectedLenderRecommendations?: string[];
   selectedUniversities?: string[];
 }
-
-const cleanDataForFirestore = (obj: any): any => {
-    if (obj === null || obj === undefined) return null;
-    if (obj instanceof Date) return Timestamp.fromDate(obj);
-    if (obj && typeof obj === 'object' && 'isEqual' in obj && obj.constructor.name === 'Nn') return obj; // Firestore Timestamp or FieldValue
-    if (Array.isArray(obj)) return obj.map(cleanDataForFirestore).filter(item => item !== undefined);
-    if (typeof obj === 'object') {
-      if (obj.constructor.name === 'GeoPoint' || obj.constructor.name === 'DocumentReference') return obj;
-      const cleanObj: Record<string, any> = {};
-      for (const key in obj) {
-        if (obj[key] === undefined) continue;
-        const cleanedValue = cleanDataForFirestore(obj[key]);
-        if (cleanedValue !== undefined) cleanObj[key] = cleanedValue;
-      }
-      return Object.keys(cleanObj).length > 0 ? cleanObj : undefined;
-    }
-    return obj;
-};
-
 
 export async function saveUserApplicationData(userId: string, data: Partial<UserApplicationData>): Promise<{success: boolean, error?: string}> {
   const { db: currentDb, firebaseApp: currentApp } = ensureFirebaseInitialized();
@@ -261,42 +235,43 @@ export async function saveUserApplicationData(userId: string, data: Partial<User
 
   const userDocRef = doc(currentDb, CUSTOMER_COLLECTION, userId);
 
+  // Ensure data is a plain object suitable for Firestore
   const dataToSet: any = {
-    ...data, // Spread the incoming data
-    userId,  // Ensure userId is always part of the data
-    updatedAt: serverTimestamp(), // Always set/update the updatedAt timestamp
+    ...JSON.parse(JSON.stringify(data)), // Basic sanitization / deep copy
+    userId,
+    updatedAt: serverTimestamp(),
   };
 
-  // Add createdAt only if it's explicitly passed and it's the first save (logic handled by caller)
-  if (data.createdAt && data.createdAt instanceof Timestamp) { // Ensure it's a Firestore Timestamp if passed
-    dataToSet.createdAt = data.createdAt;
-  }
+  // If data includes 'createdAt' and it's explicitly Timestamp, use it, otherwise set it if not present.
+  // This simplifies: first write should include createdAt: serverTimestamp() in the payload.
+  // Subsequent writes won't touch createdAt if it's not in 'data' due to merge:true.
 
-
-  const finalCleanedData = cleanDataForFirestore(dataToSet);
-  // console.log(`[Firebase Service] Attempting to save data for user ${userId} to path '${userDocRef.path}' in DB '${currentDbId}'. Data:`, JSON.stringify(finalCleanedData, null, 2));
-
+  console.log(`[Firebase Service] Attempting to save data for user ${userId} to path '${userDocRef.path}' in DB '${currentDbId}'. Data:`, JSON.stringify(dataToSet, null, 2));
 
   try {
-    await setDoc(userDocRef, finalCleanedData, { merge: true });
-    // console.log(`[Firebase Service] Data for user ${userId} saved successfully.`);
+    await setDoc(userDocRef, dataToSet, { merge: true });
+    // console.log(`[Firebase Service] Data for user ${userId} saved successfully to collection '${CUSTOMER_COLLECTION}' in DATABASE_ID '${currentDbId}'.`);
     return { success: true };
   } catch (error: any) {
-    console.error(`[Firebase Service] Error saving user data for ${userId} to DB_ID '${currentDbId}':`, error.code, error.message, error);
-    let detailedError = `Firestore error: ${error.message} (Code: ${error.code || 'unknown'})`;
+    console.error(`[Firebase Service] Error saving user data for ${userId} to DB_ID '${currentDbId}':`, `"${error.code}"`, `"${error.message}"`);
+    console.error('[Firebase Service] Error details:', error);
+    console.error('[Firebase Service] Data attempted:', JSON.stringify(dataToSet, null, 2));
+
+    let detailedError = error.message || 'Unknown error during Firestore save.';
     if (error.code === 'unavailable') {
       detailedError = `Failed to save data: The client is offline or unable to reach Firestore. (Code: ${error.code})`;
     } else if (error.code === 'failed-precondition' && error.message.includes('database') && error.message.includes('not found')) {
-      detailedError = `Firestore error: Database '${DATABASE_ID}' not found or not accessible. (Code: ${error.code})`;
+      detailedError = `Firestore error: Database '${DATABASE_ID}' not found or not accessible. Please check database name and project configuration. (Code: ${error.code})`;
     } else if (error.code === 'permission-denied') {
       detailedError = `Firestore error: Permission denied for path '${userDocRef.path}'. Check security rules. (Code: ${error.code})`;
     } else if (error.code === 'invalid-argument') {
-       detailedError = `Invalid data format for Firestore: ${error.message}. Path: '${userDocRef.path}'. Data: ${JSON.stringify(finalCleanedData, null, 2)}`;
+       detailedError = `Invalid data format for Firestore: ${error.message}. Path: '${userDocRef.path}'. Data: ${JSON.stringify(dataToSet, null, 2)}`;
+    } else if (error.code) {
+      detailedError = `Firestore error: ${error.message} (Code: ${error.code})`;
     }
     return { success: false, error: detailedError };
   }
 }
-
 
 export async function getUserApplicationData(userId: string): Promise<{success: boolean, data?: UserApplicationData, error?: string}> {
   const { db: currentDb, firebaseApp: currentApp } = ensureFirebaseInitialized();
@@ -335,7 +310,6 @@ export async function getUserApplicationData(userId: string): Promise<{success: 
   }
 }
 
-
 export async function uploadFileToStorage(
   userId: string,
   file: File | string,
@@ -364,10 +338,10 @@ export async function uploadFileToStorage(
         console.error("[Firebase Service] Invalid or empty data URI provided for uploadString for path:", documentPath);
         return { success: false, error: "Invalid data URI provided for upload." };
       }
-      // console.log(`[Firebase Service] Uploading data URI as base64. MimeType: ${mimeType}, Size: approx ${Math.ceil(base64String.length * 0.75 / 1024)} KB`);
+      // console.log(`[Firebase Service] Uploading data URI as base64. MimeType: ${mimeType}`);
       uploadTask = uploadString(fileStorageRefObj, base64String, 'base64', { contentType: mimeType });
     } else if (file instanceof File) {
-      // console.log(`[Firebase Service] Uploading File object. Name: ${file.name}, Type: ${file.type}, Size: ${Math.ceil(file.size / 1024)} KB`);
+      // console.log(`[Firebase Service] Uploading File object. Name: ${file.name}, Type: ${file.type}`);
       uploadTask = uploadBytesResumable(fileStorageRefObj, file);
     } else {
       console.error("[Firebase Service] Invalid file type provided for upload. Must be File object or data URI string.");
@@ -395,8 +369,6 @@ export async function uploadFileToStorage(
     return { success: false, error: detailedError };
   }
 }
-
-
 
 export async function checkUserExistsByMobile(mobileNumber: string, countryCodeVal: string): Promise<{success: boolean, exists: boolean, userId?: string, data?: UserApplicationData, error?: string}> {
   const { db: currentDb, firebaseApp: currentApp } = ensureFirebaseInitialized();
@@ -437,7 +409,6 @@ export async function checkUserExistsByMobile(mobileNumber: string, countryCodeV
     return { success: false, exists: false, error: detailedError };
   }
 }
-
 
 // --- Conceptual Admin functions (for future use, likely with Admin SDK) ---
 export async function upsertUniversity(universityId: string, data: any): Promise<void> {
