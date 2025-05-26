@@ -151,14 +151,6 @@ class Logger {
     if (process.env.NODE_ENV !== 'production') return;
 
     try {
-      // Example: Sentry integration
-      // if (typeof window !== 'undefined' && (window as any).Sentry) {
-      //   const error = new Error(message);
-      //   (window as any).Sentry.captureException(error, {
-      //     extra: context,
-      //   });
-      // }
-      
       // Example: Send to your logging service
       // fetch('/api/logs', {
       //   method: 'POST',

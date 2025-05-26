@@ -5,7 +5,6 @@ import { useEffect } from "react";
 
 export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
-    // Sentry.captureException(error); // Sentry call removed
     console.error("Global Error Boundary Caught:", error);
   }, [error]);
 

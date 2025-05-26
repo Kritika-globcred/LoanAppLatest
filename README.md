@@ -42,8 +42,7 @@ A modern loan application platform built with Next.js and Firebase, deployed on 
 Add these to your `.env.local` for enhanced error reporting:
 
 ```
-# Error Reporting
-NEXT_PUBLIC_SENTRY_DSN=your-sentry-dsn
+# App Configuration
 NEXT_PUBLIC_APP_ENV=development
 NEXT_PUBLIC_APP_VERSION=1.0.0
 

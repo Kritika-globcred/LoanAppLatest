@@ -1,1 +1,0 @@
-// Sentry edge configuration removed.
