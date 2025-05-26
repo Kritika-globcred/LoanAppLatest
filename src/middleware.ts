@@ -7,18 +7,33 @@ export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const response = NextResponse.next();
 
-  // A very basic CSP for troubleshooting - THIS IS NOT FOR PRODUCTION
+  // Production-focused CSP.
+  // Key changes:
+  // - Removed 'unsafe-eval' from script-src for better security.
+  // - Kept 'unsafe-inline' for script-src as removing it can be complex; test thoroughly if you attempt to remove it.
+  // - Refined connect-src for production.
   const cspHeader = [
     `default-src 'self'`,
-    `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://securetoken.googleapis.com`, // Added 'unsafe-eval' for dev
+    // For scripts: allow self, nonced scripts, and inline scripts (consider removing 'unsafe-inline' if possible after thorough testing).
+    // Also allow essential Google/Firebase script sources.
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://apis.google.com https://www.gstatic.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://securetoken.googleapis.com`,
+    // For styles: allow self, inline styles (common for UI libs), and Google Fonts.
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+    // For images: allow self, data URIs, https sources, and specific domains used.
     `img-src 'self' data: https: raw.githubusercontent.com placehold.co globcred.org firebasestorage.googleapis.com`,
+    // For fonts: allow self, Google Fonts, and data URIs.
     `font-src 'self' https://fonts.gstatic.com data:`,
-    `connect-src 'self' ws: wss: https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com`, // Added ws: wss: for HMR
+    // For connections: allow self and specific Firebase/Google API endpoints.
+    `connect-src 'self' https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com`,
+    // For frames: allow self and Firebase auth/widget frames.
     `frame-src 'self' https://*.firebaseapp.com https://*.google.com`,
+    // For web workers.
     `worker-src 'self' blob:`,
+    // Restrict where forms can be submitted to.
     `form-action 'self'`,
+    // Restrict the base URI.
     `base-uri 'self'`,
+    // Disallow <object>, <embed>, <applet>.
     `object-src 'none'`,
   ].join('; ');
 
@@ -41,7 +56,7 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - /images/ (publicly served images)
+     * - /images/ (publicly served images from /public/images)
      */
     '/((?!api|_next/static|_next/image|favicon.ico|images/).*)',
   ],
