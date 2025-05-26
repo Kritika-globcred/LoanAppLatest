@@ -38,11 +38,31 @@ module.exports = {
   
   // Images configuration
   images: {
-    domains: [
-      'firebasestorage.googleapis.com', 
-      'lh3.googleusercontent.com',
-      'raw.githubusercontent.com',
-      'placehold.co'
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'globcred.org',
+        port: '',
+        pathname: '/images/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'raw.githubusercontent.com',
+        port: '',
+        pathname: '/Kritika-globcred/Loan-Application-Portal/main/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
   
@@ -76,7 +96,7 @@ module.exports = {
       ],
     });
 
-    // Handle Firebase Admin
+    // Handle Firebase Admin (if you were to use it server-side with webpack)
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -96,4 +116,23 @@ module.exports = {
     
     return config;
   },
-}
+
+  // Adding custom headers (example, might not be needed if middleware handles all)
+  async headers() {
+    return [
+      {
+        source: '/:path*(woff|woff2|eot|ttf|otf)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*', // Be more specific in production if possible
+          },
+        ],
+      },
+    ];
+  },
+};
