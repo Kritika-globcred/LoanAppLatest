@@ -9,7 +9,11 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { registerHandlebarsHelpers } from './handlebars-helpers';
 import { z } from 'genkit';
+
+// Register Handlebars helpers (especially 'eq') before using any Handlebars templates
+registerHandlebarsHelpers();
 
 const ExtractProfessionalProfileInputSchema = z.object({
   profileDataSource: z
@@ -25,6 +29,7 @@ const ExtractProfessionalProfileInputSchema = z.object({
     .describe(
       "Plain text content extracted from the resume, if it was a .txt file. This will be null if profileDataSource is an image URI or LinkedIn URL."
     ),
+  isResumeImage: z.boolean().optional().describe("True if the profileDataSource is a resume image or document, false otherwise."),
 });
 export type ExtractProfessionalProfileInput = z.infer<typeof ExtractProfessionalProfileInputSchema>;
 
@@ -43,17 +48,21 @@ const extractProfilePrompt = ai.definePrompt({
   prompt: `You are an expert AI assistant specializing in extracting professional information from resumes and LinkedIn profiles.
 Analyze the provided professional profile content carefully. Prioritize text content if available.
 
-{{#if (eq sourceType "resumeText")}}
+{{#if resumeTextContent}}
 Resume Text Content:
 {{{resumeTextContent}}}
-{{else if (eq sourceType "resumeImage")}}
-Resume Document/Image (could be JPG, PNG, PDF, DOC data URI):
-{{media url=profileDataSource}}
-{{else if (eq sourceType "linkedinUrl")}}
-LinkedIn Profile URL (analyze the content at this URL):
-{{{profileDataSource}}}
 {{else}}
+  {{#if profileDataSource}}
+    {{#if isResumeImage}}
+      Resume Document/Image (could be JPG, PNG, PDF, DOC data URI):
+      {{media url=profileDataSource}}
+    {{else}}
+      LinkedIn Profile URL (analyze the content at this URL):
+      {{{profileDataSource}}}
+    {{/if}}
+  {{else}}
 No professional profile content provided.
+  {{/if}}
 {{/if}}
 
 Extract the following details and structure your response according to the defined output schema:
@@ -86,7 +95,10 @@ const extractProfessionalProfileFlow = ai.defineFlow(
         currentOrLastJobRole: "Not Specified",
       };
     }
-    const { output } = await extractProfilePrompt(input);
+    // Add isResumeImage for template logic
+    const isResumeImage = input.sourceType === 'resumeImage';
+    const patchedInput = { ...input, isResumeImage };
+    const { output } = await extractProfilePrompt(patchedInput);
     if (!output) {
         throw new Error("AI failed to process the professional profile or return valid data.");
     }

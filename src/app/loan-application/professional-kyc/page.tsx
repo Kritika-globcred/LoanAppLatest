@@ -360,7 +360,7 @@ export default function CoSignatoryKYCPage() {
             {/* Navigation removed as per requirements */}
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
-              <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
+
             </div>
           </div>
            <LoanProgressBar steps={loanAppSteps} hasOfferLetter={localStorage.getItem('hasOfferLetterStatus') === 'true'} />
@@ -394,7 +394,7 @@ export default function CoSignatoryKYCPage() {
                 <h3 className="font-semibold text-lg text-center text-white">Co-Signatory Details</h3>
                 <Label className="text-white">Do you want to add a co-signatory? <span className="text-red-400">*</span></Label>
                 <RadioGroup value={coSignatoryChoice || ''} onValueChange={(value) => { setCoSignatoryChoice(value); if (value !== 'yes') { setExtractedCoSignatoryData({}); setCoSignatoryIdFile(null); setCoSignatoryIdPreview(null); setCoSignatoryIdTextContent(null); setCoSignatoryRelationship(null); setAvekaMessage("Understood. We'll proceed without co-signatory details for now. You can always add them later if needed."); } else { setAvekaMessage(`Great! Please provide your co-signatory's ${isIndia ? "PAN Card" : "National ID"} and their relationship to you. Upload clear images (JPG, PNG) for best AI results. PDF, DOC, or TXT also accepted.`);} }} className="flex flex-wrap gap-x-4 gap-y-2 text-white">
-                  {["yes", "no", "addLater"].map(opt => (
+                  {["yes", "no", "Add Later"].map(opt => (
                     <div key={`cosign-${opt}`} className="flex items-center space-x-2">
                       <RadioGroupItem value={opt} id={`cosign-${opt}`} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" />
                       <Label htmlFor={`cosign-${opt}`}>{opt.charAt(0).toUpperCase() + opt.slice(1).replace('addLater', 'Add Later')}</Label>

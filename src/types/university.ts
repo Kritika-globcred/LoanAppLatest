@@ -3,17 +3,57 @@ export interface Country {
   name: string;
 }
 
+export interface Course {
+  name: string;
+  industry: string;
+  startDate: string; // ISO date string
+  applicationDeadline: string; // ISO date string
+  roundOfApplication: string;
+  gmatRequired: boolean;
+  greRequired: boolean;
+  gmatScore?: number;
+  greScore?: number;
+  courseFees: number;
+  level: 'bachelor' | 'master' | 'phd' | 'diploma' | 'certificate';
+  admissionFees: number;
+  otherExpenses: {
+    hostel: number;
+    books: number;
+    insurance: number;
+    living: number;
+    other: number;
+  };
+  duration: number; // in months
+  language: string;
+  intakeMonths: string[];
+  scholarshipAvailable: boolean;
+  scholarshipDetails?: string;
+}
+
 export interface University {
   // Basic Information
   id?: string;
   name: string;
   shortName: string;
+  description: string;
   alternativeNames?: string[];
+
+  /**
+   * University-level fees (tuition or total cost per year, for recommendations)
+   * Optional, number (can be in destination currency or INR as per your data model)
+   */
+  fees?: number;
+  
+  // Rankings & Stats
+  qsRanking?: number;
+  employabilityRate?: number; // percentage
+  averagePlacement?: number; // in USD
   
   // Location
   countries: string[]; // Array of country codes (ISO 3166-1 alpha-2)
   country: string; // Primary country code (ISO 3166-1 alpha-2)
   region?: string; // Region/state/province
+  state: string;
   city: string;
   address: string;
   postalCode?: string;
@@ -25,6 +65,7 @@ export interface University {
   email: string;
   phone: string;
   fax?: string;
+  logoUrl?: string;
   
   // Academic Information
   type?: 'public' | 'private' | 'for-profit' | 'non-profit';
@@ -32,8 +73,7 @@ export interface University {
   academicCalendar?: string; // e.g., 'Semester', 'Quarter', 'Trimester'
   campusSetting?: 'urban' | 'suburban' | 'rural' | 'online';
   
-  // Rankings
-  qsRanking?: number;
+  // Rankings (additional)
   qsRankingYear?: number;
   timesRanking?: number;
   timesRankingYear?: number;
@@ -49,30 +89,59 @@ export interface University {
   tuitionInternational?: number;
   financialAidAvailable?: boolean;
   
-  // Programs
-  programs?: {
-    level: 'bachelor' | 'master' | 'phd' | 'diploma' | 'certificate';
-    name: string;
-    duration: number; // in years
-    field: string;
-    language: string;
-    tuition?: number;
-  }[];
-  
+  // Programs & Courses
+  courses: string;
+
+  // Admin CSV/table fields
+  currency?: string;
+  feesDestinationCurrency?: string;
+  feesINR?: string;
+  inrSelfContributionDeposit?: string;
+  selfContributionDepositDestinationCurrency?: string;
+  scholarships?: string;
+  tatForOffer?: string;
+  employabilitySuccess?: string;
+
   // Admission Requirements
-  admissionRequirements?: {
+  admissionRequirements: {
     level: 'bachelor' | 'master' | 'phd';
-    ielts?: number;
-    toefl?: number;
+    ielts?: {
+      overall: number;
+      writing?: number;
+      speaking?: number;
+      reading?: number;
+      listening?: number;
+    };
+    toefl?: {
+      overall: number;
+      writing?: number;
+      speaking?: number;
+      reading?: number;
+      listening?: number;
+    };
     pte?: number;
-    gre?: number;
-    gmat?: number;
+    gre?: {
+      overall: number;
+      quant?: number;
+      verbal?: number;
+      awa?: number;
+    };
+    gmat?: {
+      overall: number;
+      quant?: number;
+      verbal?: number;
+      awa?: number;
+      ir?: number;
+    };
     gpa?: number;
+    workExperience?: {
+      required: boolean;
+      years?: number;
+    };
     otherRequirements?: string;
   }[];
   
   // Media
-  logoUrl?: string;
   imageUrls?: string[];
   videoTourUrl?: string;
   virtualTourUrl?: string;
@@ -87,9 +156,11 @@ export interface University {
   // Metadata
   isActive: boolean;
   lastVerified?: Date;
-  dataSource?: 'manual' | 'qs' | 'university_website' | 'other';
+  dataSource?: 'manual' | 'qs' | 'university_website' | 'other' | 'ai_enrichment';
   tags?: string[]; // For additional categorization
   notes?: string; // For internal use
+  _enrichmentError?: string; // For tracking enrichment errors
+  _enrichmentFailed?: boolean; // Flag to indicate if enrichment failed
   
   // System
   createdAt?: Date;

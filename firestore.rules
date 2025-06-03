@@ -30,7 +30,37 @@ service cloud.firestore {
     match /customer {
       allow list: if request.auth != null && request.auth.token.admin == true;
     }
+    
+    // University collection rules
+    match /universities/{universityId} {
+      // Allow read access to all authenticated users
+      allow read: if request.auth != null;
+      
+      // Only allow admins to create, update, or delete universities
+      allow create, update, delete: if request.auth != null && 
+                                   request.auth.token.email.matches('.*@globcred\.org$');
+    }
+    
+    // Allow listing of universities for all authenticated users
+    match /universities {
+      allow list: if request.auth != null;
+    }
 
+    // Lenders collection rules
+    match /lenders/{lenderId} {
+      // Allow read access to all authenticated users
+      allow read: if request.auth != null;
+      
+      // Only allow admins to create, update, or delete lenders
+      allow create, update, delete: if request.auth != null && 
+                                   request.auth.token.admin == true;
+    }
+    
+    // Allow listing of lenders for all authenticated users
+    match /lenders {
+      allow list: if request.auth != null;
+    }
+    
     // Default deny all other requests
     match /{document=**} {
       allow read, write: if false;

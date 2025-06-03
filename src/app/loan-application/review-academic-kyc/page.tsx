@@ -146,16 +146,21 @@ export default function ReviewAcademicKYCPage() {
   
   const renderSection = (title: string, dataObject: Record<string, any> | undefined, fieldLabels: Record<string, string>) => {
     if (!dataObject || Object.values(dataObject).every(val => val === null || val === undefined || String(val).trim() === '' || String(val).trim() === 'Not Specified')) {
-        if ((title === "Graduation Details" || title === "Post-Graduation Details") && dataObject.level === "Not applicable" && dataObject.naReason) {
-            // Allow rendering if "Not applicable" is chosen and reason is provided
-        } else {
-            return null;
-        }
+      if (
+        dataObject &&
+        (title === "Graduation Details" || title === "Post-Graduation Details") &&
+        dataObject?.level === "Not applicable" &&
+        dataObject?.naReason
+      ) {
+        // Allow rendering if "Not applicable" is chosen and reason is provided
+      } else {
+        return null;
+      }
     }
 
     const detailsToRender = Object.entries(fieldLabels)
         .map(([key, label]) => {
-            let value = dataObject[key];
+            let value = dataObject?.[key];
             
             if (value === null || value === undefined || String(value).trim() === '') {
                 if(key === 'naReason' && dataObject.level !== 'Not applicable') return null; 
@@ -279,7 +284,7 @@ export default function ReviewAcademicKYCPage() {
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
               <Link href="/loan-application/mobile" passHref>
-                <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
+
               </Link>
             </div>
           </div>

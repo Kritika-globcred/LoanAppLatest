@@ -11,7 +11,7 @@ import { Sparkles, Landmark, Smile, Signal } from 'lucide-react';
 
 export default function Home() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
-  const navMenuItems = ['Loan', 'Study', 'Work'];
+  const navMenuItems = ['Loan', 'Study'];
 
   const initialLoanDisbursed = 25000000; // $25M
   const initialHappyStudents = 50000; // 50K

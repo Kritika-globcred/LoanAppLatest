@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDbInstance, getCustomersCollection } from '@/lib/firebase';
+import { getCustomersCollection } from '@/lib/firebase';
 import { getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 interface CustomerData {

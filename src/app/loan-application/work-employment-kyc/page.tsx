@@ -28,6 +28,36 @@ const yearOptions = Array.from({ length: 26 }, (_, i) => String(i));
 const monthOptions = Array.from({ length: 12 }, (_, i) => String(i));
 const currencyOptions = ["USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY", "Other"];
 
+const industryOptions = [
+  "Information Technology",
+  "Banking & Financial Services",
+  "Consulting",
+  "Engineering",
+  "Healthcare",
+  "Pharmaceuticals & Biotech",
+  "Education",
+  "Telecommunications",
+  "Manufacturing",
+  "Retail",
+  "FMCG",
+  "Media & Entertainment",
+  "Hospitality & Tourism",
+  "Automotive",
+  "Real Estate & Construction",
+  "Energy & Utilities",
+  "Logistics & Supply Chain",
+  "Legal Services",
+  "Government & Public Sector",
+  "NGO & Social Services",
+  "Aerospace & Defense",
+  "Agriculture",
+  "Insurance",
+  "Advertising & Marketing",
+  "E-commerce",
+  "Research & Development",
+  "Others"
+];
+
 interface WorkEmploymentDataToSave {
   workExperienceIndustry?: string;
   workExperienceYears?: string;
@@ -59,7 +89,7 @@ export default function WorkEmploymentKYCPage() {
   const [avekaMessage, setAvekaMessage] = useState("Co-signatory details noted (or understood). Now, let's discuss your work experience. Please provide your industry and years of experience. Sharing your resume (image, PDF, DOC, TXT) or LinkedIn is optional but can help us process your application faster.");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
 
-  const [workExperienceIndustry, setWorkExperienceIndustry] = useState('');
+  const [workExperienceIndustry, setWorkExperienceIndustry] = useState(industryOptions[0]);
   const [workExperienceYears, setWorkExperienceYears] = useState<string | undefined>();
   const [workExperienceMonths, setWorkExperienceMonths] = useState<string | undefined>();
   const [workExperienceProofType, setWorkExperienceProofType] = useState<'resume' | 'linkedin' | null>(null);
@@ -78,9 +108,9 @@ export default function WorkEmploymentKYCPage() {
   const [showEmploymentStatus, setShowEmploymentStatus] = useState(false);
   const [isCurrentlyWorking, setIsCurrentlyWorking] = useState<'yes' | 'no' | null>(null);
   const [monthlySalary, setMonthlySalary] = useState('');
-  const [salaryCurrency, setSalaryCurrency] = useState<string | undefined>();
+  const [salaryCurrency, setSalaryCurrency] = useState<string | undefined>('INR');
   const [familyMonthlySalary, setFamilyMonthlySalary] = useState('');
-  const [familySalaryCurrency, setFamilySalaryCurrency] = useState<string | undefined>();
+  const [familySalaryCurrency, setFamilySalaryCurrency] = useState<string | undefined>('INR');
 
   const [consentChecked, setConsentChecked] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
@@ -431,7 +461,7 @@ export default function WorkEmploymentKYCPage() {
             </nav>
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
-              <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
+
             </div>
           </div>
           <LoanProgressBar steps={loanAppSteps} hasOfferLetter={localStorage.getItem('hasOfferLetterStatus') === 'true'} />
@@ -466,7 +496,14 @@ export default function WorkEmploymentKYCPage() {
                 <h3 className="font-semibold text-lg text-center text-white">Work Experience</h3>
                 <div>
                   <Label htmlFor="workExperienceIndustry" className="text-white">Industry you are working in <span className="text-red-400">*</span></Label>
-                  <Input id="workExperienceIndustry" value={workExperienceIndustry} onChange={(e) => setWorkExperienceIndustry(e.target.value)} className="bg-white/80 text-black" placeholder="E.g., Information Technology" disabled={isSaving}/>
+                  <Select value={workExperienceIndustry} onValueChange={setWorkExperienceIndustry} disabled={isSaving}>
+                    <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Select Industry" /></SelectTrigger>
+                    <SelectContent className="bg-white text-black">
+                      {industryOptions.map(ind => (
+                        <SelectItem key={ind} value={ind} className="hover:bg-gray-100">{ind}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

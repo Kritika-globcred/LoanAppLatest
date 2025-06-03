@@ -118,7 +118,7 @@ export default function AcademicKYCPage() {
     if (gradLevel === "Pursuing") {
       return gradPursuingCourse && gradPursuingType && gradExpectedCompletionYear && gradExpectedCompletionMonth && gradExpectedCompletionDay;
     }
-    if (gradLevel === "Not applicable") {
+    if (gradLevel === "In Senior Secondary School") {
       return gradNaReason.trim() !== '';
     }
     return false;
@@ -281,11 +281,11 @@ export default function AcademicKYCPage() {
 
   const renderGraduationDetails = () => (
     <div className="space-y-6 p-4 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
-      <h3 className="font-semibold text-lg text-center text-white">Graduation Details</h3>
+      <h3 className="font-semibold text-lg text-center text-white">Under Graduation (UG) Details</h3>
       <div className="space-y-2">
         <Label className="text-white">Which level of graduation have you completed?</Label>
         <RadioGroup value={gradLevel || ''} onValueChange={setGradLevel} className="flex flex-wrap gap-x-4 gap-y-2 text-white">
-          {["Degree", "Diploma", "Pursuing", "Not applicable"].map(level => (
+          {["Degree", "Diploma", "Pursuing", "In Senior Secondary School"].map(level => (
             <div key={`grad-${level}`} className="flex items-center space-x-2">
               <RadioGroupItem value={level} id={`grad-${level}`} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/>
               <Label htmlFor={`grad-${level}`}>{level}</Label>
@@ -332,7 +332,7 @@ export default function AcademicKYCPage() {
           </div>
         </>
       )}
-      { gradLevel === "Not applicable" && (<div><Label htmlFor="gradNaReason" className="text-white">Please explain reason</Label><Textarea id="gradNaReason" value={gradNaReason} onChange={(e) => setGradNaReason(e.target.value)} className="bg-white/80 text-black" /></div>)}
+      { gradLevel === "In Senior Secondary School" && (<div><Label htmlFor="gradNaReason" className="text-white">Please explain reason</Label><Textarea id="gradNaReason" value={gradNaReason} onChange={(e) => setGradNaReason(e.target.value)} className="bg-white/80 text-black" /></div>)}
     </div>
   );
 
@@ -589,7 +589,7 @@ export default function AcademicKYCPage() {
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
               <Link href="/loan-application/mobile" passHref>
-                <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
+
               </Link>
             </div>
           </div>

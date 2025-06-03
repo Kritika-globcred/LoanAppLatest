@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Upload, FileText, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { parseLenderFile } from '@/lib/parseLenderFile';
+import { bulkUploadLenders } from '@/services/lender-service';
 
 type UploadStatus = 'idle' | 'uploading' | 'processing' | 'completed' | 'error';
 type FileWithPreview = File & { preview: string };
@@ -37,6 +39,7 @@ export function LenderBulkUpload({
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
     },
     maxFiles: 1,
+    maxSize: 10 * 1024 * 1024, // 10MB
     onDrop: (acceptedFiles) => {
       setFiles(
         acceptedFiles.map((file) =>
@@ -54,71 +57,88 @@ export function LenderBulkUpload({
     setResult(null);
   };
 
-  const uploadFile = async () => {
+  const uploadFile = useCallback(async (): Promise<void> => {
     if (files.length === 0) return;
 
-    const formData = new FormData();
-    formData.append('file', files[0]);
-
-    setStatus('uploading');
+    setStatus('processing');
     setProgress(0);
 
     try {
-      const response = await fetch('/api/admin/lenders/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Upload failed');
+      // Parse the file
+      const parseResult = await parseLenderFile(files[0]);
+      
+      if (!parseResult.data || parseResult.data.length === 0) {
+        throw new Error('No valid lender data found in the file');
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let resultText = '';
+      // Update progress
+      setProgress(50);
+      
+      // Upload lenders in chunks
+      const chunkSize = 10;
+      const totalLenders = parseResult.data.length;
+      let processed = 0;
+      let failed = 0;
+      const allErrors = [...(parseResult.errors || [])];
 
-      while (true) {
-        const { done, value } = await reader!.read();
-        if (done) break;
+      for (let i = 0; i < totalLenders; i += chunkSize) {
+        const chunk = parseResult.data.slice(i, i + chunkSize);
         
-        // Update progress
-        const chunk = decoder.decode(value, { stream: true });
-        resultText += chunk;
-        
-        // Try to parse the JSON if it's complete
         try {
-          const data = JSON.parse(resultText);
-          if (data.progress) {
-            setProgress(data.progress);
+          const result = await bulkUploadLenders(chunk);
+          processed += result.success;
+          failed += result.failed;
+          
+          if (result.errors) {
+            allErrors.push(...result.errors);
           }
-          if (data.status === 'processing') {
-            setStatus('processing');
-          }
-          if (data.status === 'completed') {
-            setStatus('completed');
-            setResult({
-              success: true,
-              message: data.message,
-              processed: data.processed,
-              failed: data.failed,
-              newColumns: data.newColumns,
-              errors: data.errors,
-            });
-            onComplete?.();
-            break;
-          }
-          resultText = ''; // Reset if we've successfully parsed
-        } catch (e) {
-          // JSON is incomplete, wait for more data
-          continue;
+          
+          // Update progress
+          const currentProgress = 50 + Math.round((i / totalLenders) * 50);
+          setProgress(currentProgress);
+        } catch (error) {
+          console.error('Error uploading chunk:', error);
+          failed += chunk.length;
+          allErrors.push({
+            row: i + 1,
+            error: error instanceof Error ? error.message : 'Failed to process chunk',
+          });
         }
       }
+
+      // Update result
+      setStatus('completed');
+      setResult({
+        success: failed === 0,
+        message: failed === 0 
+          ? `Successfully processed ${processed} lenders`
+          : `Processed ${processed} lenders with ${failed} errors`,
+        processed,
+        failed,
+        newColumns: parseResult.newColumns || [],
+        errors: allErrors.length > 0 ? allErrors : undefined,
+      });
+      
+      // Trigger completion callback
+      onComplete?.();
     } catch (error) {
       console.error('Upload error:', error);
       setStatus('error');
+      setResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to process file',
+        processed: 0,
+        failed: 0,
+        errors: [{
+          row: 0,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }],
+      });
       toast.error('Failed to process file. Please try again.');
+    } finally {
+      setStatus('idle');
     }
-  };
+  }, [files, onComplete]);
 
   return (
     <div className="space-y-6">
@@ -130,21 +150,24 @@ export function LenderBulkUpload({
       </div>
 
       {status === 'idle' && (
-        <div
-          {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-            isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-primary/50'
-          }`}
-        >
-          <input {...getInputProps()} />
-          <div className="flex flex-col items-center justify-center space-y-2">
-            <Upload className="h-10 w-10 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              {isDragActive
-                ? 'Drop the file here'
-                : 'Drag & drop a file here, or click to select'}
-            </p>
-            <p className="text-xs text-muted-foreground">Supports PDF, CSV, DOC, DOCX (Max 10MB)</p>
+        <div className="p-6">
+          <div className="mb-2 text-xs text-red-600 font-medium">Maximum file size allowed is 10MB.</div>
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+              isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-primary/50'
+            }`}
+          >
+            <input {...getInputProps()} />
+            <div className="flex flex-col items-center justify-center space-y-2">
+              <Upload className="h-10 w-10 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                {isDragActive
+                  ? 'Drop the file here'
+                  : 'Drag & drop a file here, or click to select'}
+              </p>
+              <p className="text-xs text-muted-foreground">Supports PDF, CSV, DOC, DOCX (Max 10MB)</p>
+            </div>
           </div>
         </div>
       )}

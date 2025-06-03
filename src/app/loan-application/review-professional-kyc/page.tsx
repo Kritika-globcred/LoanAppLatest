@@ -293,7 +293,12 @@ const fieldConfig: FieldConfig = {
   salaryCurrency: {
     label: 'Salary Currency',
     isEditable: true,
-    formatValue: defaultFormatValue
+    formatValue: (value: unknown) => {
+      if (!value) return 'Not provided';
+      if (value === 'INR') return '₹ INR';
+      if (value === 'USD') return '$ USD';
+      return String(value);
+    }
   },
   familyMonthlyIncome: {
     label: 'Family Monthly Income',
@@ -307,7 +312,12 @@ const fieldConfig: FieldConfig = {
   familySalaryCurrency: {
     label: 'Family Income Currency',
     isEditable: true,
-    formatValue: defaultFormatValue
+    formatValue: (value: unknown) => {
+      if (!value) return 'Not provided';
+      if (value === 'INR') return '₹ INR';
+      if (value === 'USD') return '$ USD';
+      return String(value);
+    }
   },
   extractedCurrentOrLastIndustry: {
     label: 'Current/Last Industry',
@@ -351,12 +361,11 @@ export default function ReviewProfessionalKYCPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingField, setEditingField] = useState<EditableCombinedDataKey | null>(null);
   const [editValue, setEditValue] = useState<string>('');
+  const [userEditedFields, setUserEditedFields] = useState<Set<EditableCombinedDataKey>>(new Set());
   const [consentChecked, setConsentChecked] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [avekaMessage, setAvekaMessage] = useState<string>("Let's review all your professional details. Please check everything carefully.");
   const [avekaMessageVisible, setAvekaMessageVisible] = useState<boolean>(false);
-
-  const navMenuItems = ['Loan', 'Study', 'Work'];
 
   useEffect(() => {
     const timer = setTimeout(() => setAvekaMessageVisible(true), 500);
@@ -372,21 +381,21 @@ export default function ReviewProfessionalKYCPage() {
   const loadDataForReview = useCallback(() => {
     setIsLoading(true);
     setAvekaMessage("Loading your professional information for review...");
-    
+
     try {
       // Get data from local storage
       const professionalData = localStorage.getItem('professionalKycData');
       const workData = localStorage.getItem('workEmploymentKycData');
       const coSignatoryData = localStorage.getItem('coSignatoryKycData');
-      
+
       if (!professionalData && !workData && !coSignatoryData) {
         const noDataMsg = "No professional data found. Please complete the professional details section first.";
         logger.warn('No professional data found in local storage');
-        
-        toast({ 
-          title: "No Data", 
+
+        toast({
+          title: "No Data",
           description: noDataMsg,
-          variant: "destructive"
+          variant: "destructive",
         });
         setAvekaMessage(noDataMsg);
         setIsLoading(false);
@@ -402,44 +411,43 @@ export default function ReviewProfessionalKYCPage() {
       setFormData({
         professional: parsedProfessionalData,
         work: parsedWorkData,
-        coSignatory: parsedCoSignatoryData
+        coSignatory: parsedCoSignatoryData,
       });
 
       // Also set the combined data for backward compatibility
       setCombinedData({
         ...(parsedCoSignatoryData || {}),
-        ...(parsedWorkData || {})
+        ...(parsedWorkData || {}),
       });
 
       setAvekaMessage("Please review your professional details before proceeding.");
       logger.info('Successfully loaded professional KYC data from local storage');
-      
     } catch (error) {
       logger.error('Error loading professional data:', error);
       const errorMsg = "Failed to load your data. Please try again.";
-      
+
       // Log the error with context
       const errorContext = {
         action: 'load_professional_data',
         component: 'ReviewProfessionalKYC',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
-      
+
       const errorObj = new AppError(
         error instanceof Error ? error.message : 'Unknown error',
-        errorContext
+        errorContext,
       );
-      
+
       logError(errorObj, errorContext);
-      
+
       // Show error to user
-      toast({ 
-        title: "Error Loading Data", 
-        description: errorMsg, 
+      toast({
+        title: "Error Loading Data",
+        description: errorMsg,
         variant: "destructive",
-        duration: 8000 // Show for 8 seconds
+        duration: 8000, // Show for 8 seconds
       });
-      
+
       setAvekaMessage(errorMsg);
     } finally {
       setIsLoading(false);
@@ -454,55 +462,56 @@ export default function ReviewProfessionalKYCPage() {
         logger.error('Unhandled error in loadDataForReview', error);
       }
     };
-    
+
     loadData();
   }, [userId, loadDataForReview]);
 
   const handleEditField = (key: EditableCombinedDataKey, currentValue: unknown) => {
     setEditingField(key);
-    const stringValue = currentValue !== undefined && currentValue !== null 
-      ? String(currentValue) 
+    const stringValue = currentValue !== undefined && currentValue !== null
+      ? String(currentValue)
       : '';
     setEditValue(stringValue);
   };
 
+  const handleCancelEdit = () => {
+    setEditingField(null);
+    setEditValue('');
+  };
+
   const handleSaveEdit = useCallback(() => {
     if (!editingField) return;
-    
+
     try {
-      setCombinedData(prev => {
+      setCombinedData((prev) => {
         const updatedData = { ...prev, [editingField]: editValue };
-        
+        setUserEditedFields((prevFields) => new Set(prevFields).add(editingField));
         logger.debug('Field updated', {
           field: editingField,
           value: editValue,
-          previousValue: prev[editingField as keyof typeof prev]
+          previousValue: prev[editingField as keyof typeof prev],
         });
-        
-        const fieldLabel = fieldConfig[editingField]?.label || 
+        const fieldLabel = fieldConfig[editingField]?.label ||
           String(editingField).replace(/([A-Z])/g, ' $1').trim();
-        
         toast({
           title: 'Field Updated',
           description: `${fieldLabel} has been updated.`,
         });
-        
         return updatedData;
       });
-      
       setEditingField(null);
       setEditValue('');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const errorObj = new AppError(
         errorMessage,
-        { 
+        {
           action: 'save_field_edit',
           field: editingField,
           value: editValue,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         },
-        userId
+        userId,
       );
       logError(errorObj);
       toast({
@@ -511,32 +520,32 @@ export default function ReviewProfessionalKYCPage() {
         variant: 'destructive',
       });
     }
-  }, [editingField, editValue, toast]);
+  }, [editingField, editValue, toast, userId]);
 
   const handleConfirmAndContinue = useCallback(async () => {
     if (!userId) {
-      toast({ 
-        title: "Error", 
-        description: "User ID not found. Please refresh the page and try again.", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "User ID not found. Please refresh the page and try again.",
+        variant: "destructive",
       });
       return;
     }
-    
+
     if (!consentChecked) {
-      toast({ 
-        title: "Consent Required", 
-        description: "Please confirm that all details are correct by checking the box.", 
-        variant: "destructive" 
+      toast({
+        title: "Consent Required",
+        description: "Please confirm that all details are correct by checking the box.",
+        variant: "destructive",
       });
       return;
     }
-    
+
     setIsSaving(true);
-    
+
     try {
       logger.info('Saving professional KYC data', { userId });
-      
+
       const professionalKycToSave: UserApplicationData['professionalKyc'] = {
         coSignatory: {},
         workEmployment: {},
@@ -544,16 +553,33 @@ export default function ReviewProfessionalKYCPage() {
       };
 
       const coSignatoryFields = new Set<CoSignatoryKey>([
-        'coSignatoryChoice', 'coSignatoryIdDocumentType', 'coSignatoryRelationship', 
-        'idNumber', 'idType', 'nameOnId', 'coSignatoryIdUrl', 'consentTimestamp'
+        'coSignatoryChoice',
+        'coSignatoryIdDocumentType',
+        'coSignatoryRelationship',
+        'idNumber',
+        'idType',
+        'nameOnId',
+        'coSignatoryIdUrl',
+        'consentTimestamp',
       ]);
-      
+
       const workEmploymentFields = new Set<WorkEmploymentKey>([
-        'workExperienceIndustry', 'workExperienceYears', 'workExperienceMonths', 
-        'workExperienceProofType', 'resumeUrl', 'linkedInUrl', 'extractedYearsOfExperience', 
-        'extractedGapInLast3YearsMonths', 'extractedCurrentOrLastIndustry', 
-        'extractedCurrentOrLastJobRole', 'isCurrentlyWorking', 'monthlySalary', 
-        'salaryCurrency', 'familyMonthlySalary', 'familySalaryCurrency', 'consentTimestamp'
+        'workExperienceIndustry',
+        'workExperienceYears',
+        'workExperienceMonths',
+        'workExperienceProofType',
+        'resumeUrl',
+        'linkedInUrl',
+        'extractedYearsOfExperience',
+        'extractedGapInLast3YearsMonths',
+        'extractedCurrentOrLastIndustry',
+        'extractedCurrentOrLastJobRole',
+        'isCurrentlyWorking',
+        'monthlySalary',
+        'salaryCurrency',
+        'familyMonthlySalary',
+        'familySalaryCurrency',
+        'consentTimestamp',
       ]);
 
       for (const [key, value] of Object.entries(combinedData)) {
@@ -571,42 +597,44 @@ export default function ReviewProfessionalKYCPage() {
           (professionalKycToSave.workEmployment as Record<string, unknown>)[key] = value;
         }
       }
-      
+
       logger.debug('Saving professional KYC data', {
         userId,
         hasCoSignatory: !!professionalKycToSave.coSignatory,
         hasWorkEmployment: !!professionalKycToSave.workEmployment,
-        fieldCount: Object.keys(combinedData).length
+        fieldCount: Object.keys(combinedData).length,
       });
-      
-      const result = await saveUserApplicationData(userId, { 
-        professionalKyc: professionalKycToSave 
+
+      const result = await saveUserApplicationData(userId, {
+        professionalKyc: professionalKycToSave,
       });
 
       if (result.success) {
         logger.info('Successfully saved professional KYC data', { userId });
-        
-        toast({ 
-          title: "Success!", 
-          description: "Your professional details have been saved successfully." 
+
+        toast({
+          title: "Success!",
+          description: "Your professional details have been saved successfully.",
         });
-        
-        const hasOfferLetter = typeof window !== 'undefined' 
+
+        const hasOfferLetter = typeof window !== 'undefined'
           ? storage.get('hasOfferLetterStatus', 'false')
           : 'false';
-        
+
         logger.debug('Navigation after save', { hasOfferLetter });
-        
-        if (hasOfferLetter === 'false') { 
+
+        // If offer letter is NO and applicationType is 'study' or 'loan', go to preferences, then university recommendations
+        const applicationType = (typeof window !== 'undefined' && localStorage.getItem('applicationType')) || 'loan';
+        if (hasOfferLetter === 'false' && (applicationType === 'study' || applicationType === 'loan')) {
           router.push('/loan-application/preferences');
-        } else { 
+        } else {
           router.push('/loan-application/lender-recommendations');
         }
       } else {
         const error = new AppError(
           result.error || "Failed to save professional details",
           { action: 'save_professional_kyc' },
-          userId
+          userId,
         );
         logError(error);
         throw error;
@@ -637,15 +665,15 @@ export default function ReviewProfessionalKYCPage() {
       // Log the error with context
       const errorDetails = {
         error: errorMessage,
-        ...(Object.keys(errorContext).length > 0 && { context: errorContext })
+        ...(Object.keys(errorContext).length > 0 && { context: errorContext }),
       };
       logger.error('Error saving professional details: ' + JSON.stringify(errorDetails, null, 2));
-      
+
       // Show user-friendly error toast
-      toast({ 
-        title: "Error", 
-        description: errorMessage, 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
       });
     } finally {
       setIsSaving(false);
@@ -657,38 +685,38 @@ export default function ReviewProfessionalKYCPage() {
     const isValidKey = (key: string): key is EditableCombinedDataKey => {
       return key in fieldConfig;
     };
-    
+
     // Get all field keys from the config
     const allFields = Object.keys(fieldConfig) as EditableCombinedDataKey[];
-    
+
     return allFields.filter((key): boolean => {
       const config = fieldConfig[key];
       if (!config) return false;
-      
+
       const value = data[key as keyof typeof data];
-      
+
       // Skip if value is not set
       if (value === undefined || value === null || value === '') {
         return false;
       }
-      
+
       // Apply field-specific conditions
       if (config.condition && !config.condition(data)) {
         return false;
       }
-      
+
       // Handle co-signatory fields visibility
       const isCoSignatoryField = [
-        'coSignatoryIdDocumentType', 
+        'coSignatoryIdDocumentType',
         'coSignatoryIdUrl',
         'idType',
-        'nameOnId'
+        'nameOnId',
       ].includes(key);
-      
+
       if (isCoSignatoryField && data.coSignatoryChoice !== 'yes') {
         return false;
       }
-      
+
       return true;
     });
   }, []);
@@ -699,51 +727,122 @@ export default function ReviewProfessionalKYCPage() {
       logger.warn(`No configuration found for field: ${key}`);
       return null;
     }
-    
+
     const value = combinedData[key];
     if (value === undefined || value === null || value === '') {
       return null;
     }
-    
-    const { label, formatValue = defaultFormatValue } = config;
+
+    const isUserEdited = userEditedFields.has(key);
+    // For now, treat all fields as AI-extracted unless edited
+    const isAIExtracted = !isUserEdited;
+    const { label, formatValue = defaultFormatValue, isEditable, inputType } = config;
     const displayValue = formatValue ? formatValue(value) : String(value);
-    
+
     return (
-      <div key={key} className="mb-4 p-4 bg-gray-800 rounded-lg">
-        <div className="flex justify-between items-start">
-          <div>
-            <h3 className="text-sm font-medium text-gray-300">{label}</h3>
-            <p className="mt-1 text-sm text-white">
-              {formatValue ? formatValue(value) : String(value)}
-            </p>
+      <div key={key} className="mb-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
+        <div className="flex justify-between items-center">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium text-gray-300">{label}</h3>
+              {isAIExtracted && (
+                <span className="ml-1 px-2 py-0.5 text-xs bg-blue-900 text-blue-300 rounded-full">
+                  AI
+                </span>
+              )}
+              {isUserEdited && (
+                <span className="ml-1 px-2 py-0.5 text-xs bg-green-900 text-green-300 rounded-full">
+                  Edited
+                </span>
+              )}
+            </div>
+            {editingField === key ? (
+              <div className="flex items-center gap-2 mt-2">
+                {inputType === 'checkbox' ? (
+                  <input
+                    type="checkbox"
+                    checked={editValue === 'true'}
+                    onChange={(e) => setEditValue(e.target.checked ? 'true' : 'false')}
+                    className="w-4 h-4"
+                  />
+                ) : (
+                  <Input
+                    type={inputType || 'text'}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    className="w-48"
+                  />
+                )}
+                <Button size="sm" onClick={handleSaveEdit} disabled={isSaving}>
+                  Save
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleCancelEdit} disabled={isSaving}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-white flex items-center">
+                {displayValue}
+                {isEditable && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="ml-2"
+                    onClick={() => handleEditField(key, value)}
+                    disabled={isSaving}
+                  >
+                    <Pencil size={16} />
+                  </Button>
+                )}
+              </p>
+            )}
           </div>
         </div>
       </div>
     );
-  }, [combinedData]);
+  }, [combinedData, editingField, editValue, isSaving, handleEditField, handleSaveEdit, handleCancelEdit, userEditedFields]);
 
-  const fieldsToDisplay = useMemo(() => 
-    getFieldsToDisplay(combinedData), 
-    [combinedData, getFieldsToDisplay]
-  );
+  const fieldsToDisplay = useMemo(() => getFieldsToDisplay(combinedData), [combinedData, getFieldsToDisplay]);
 
   const renderEditableTable = useCallback(() => {
     if (!combinedData) return <p className="text-center text-white">No professional details found to review.</p>;
-    
+
+    // Group fields: co-signatory vs. work/employment
+    const coSignatoryFields = fieldsToDisplay.filter((key) => [
+      'coSignatoryChoice',
+      'coSignatoryIdDocumentType',
+      'coSignatoryIdUrl',
+      'idType',
+      'nameOnId',
+      'coSignatoryRelationship',
+      'idNumber',
+      'consentTimestamp',
+    ].includes(key));
+
+    const workFields = fieldsToDisplay.filter((key) => !coSignatoryFields.includes(key));
+
     return (
-      <div className="space-y-6">
-        <div className="bg-gray-900/50 rounded-lg p-6 space-y-6">
-          <h3 className="text-lg font-medium text-white mb-4">Professional Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {fieldsToDisplay.map((key) => renderField(key))}
-          </div>
+      <div className="space-y-8">
+        <div className="bg-gray-900/70 rounded-lg p-6 space-y-6 border border-gray-700">
+          <h2 className="text-lg font-semibold text-blue-200 mb-2">Co-Signatory Details</h2>
+          {coSignatoryFields.length === 0 && (
+            <p className="text-gray-400 italic">No co-signatory details provided.</p>
+          )}
+          {coSignatoryFields.map(renderField)}
+        </div>
+        <div className="bg-gray-900/70 rounded-lg p-6 space-y-6 border border-gray-700">
+          <h2 className="text-lg font-semibold text-green-200 mb-2">Professional & Employment Details</h2>
+          {workFields.length === 0 && (
+            <p className="text-gray-400 italic">No work/employment details provided.</p>
+          )}
+          {workFields.map(renderField)}
         </div>
       </div>
     );
   }, [combinedData, fieldsToDisplay, renderField]);
 
   return (
-    <ErrorBoundary 
+    <ErrorBoundary
       onError={(error: Error, errorInfo: React.ErrorInfo) => {
         // Create a new error object that includes the component stack
         const errorWithComponentStack = new Error(error.message);

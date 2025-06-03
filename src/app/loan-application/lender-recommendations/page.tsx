@@ -37,7 +37,7 @@ interface PersonalKycData {
 
 export default function LenderRecommendationsPage() {
   const [activeNavItem, setActiveNavItem] = useState('Loan');
-  const navMenuItems = ['Loan', 'Study', 'Work'];
+  const navMenuItems = ['Loan', 'Study'];
   const router = useRouter();
   const { toast } = useToast();
   const userId = getOrGenerateUserId();
@@ -138,10 +138,12 @@ export default function LenderRecommendationsPage() {
       const recommended = await enrichLenderRecommendationsGemini(input);
       // Split lenders into domestic/foreign
       const userCountry = userProfile.personalKyc?.countryOfUser?.toLowerCase() || '';
-      const courseFees = parseFloat(userProfile.admissionKyc?.admissionFees?.replace(/[^\d.]/g, '') || '0');
-      const courseFeesCurrency = userProfile.admissionKyc?.courseFeesCurrency || userProfile.admissionKyc?.currency || 'INR';
+      // Always use offer letter values for currency and course fees
+      const offerLetterFeesRaw = userProfile.admissionKyc?.admissionFees || '';
+      const offerLetterCurrency = userProfile.admissionKyc?.courseFeesCurrency || userProfile.admissionKyc?.currency || '';
+      const offerLetterFees = parseFloat(offerLetterFeesRaw.replace(/[^\d.]/g, ''));
       // Show 80%-85% of course fees as range, with offer letter currency
-      const estimateAmount = (min: number, max: number) => courseFees ? `${Math.round(courseFees*min)} - ${Math.round(courseFees*max)} ${courseFeesCurrency}` : 'N/A';
+      const estimateAmount = (min: number, max: number) => (offerLetterFees && offerLetterCurrency) ? `${Math.round(offerLetterFees*min)} - ${Math.round(offerLetterFees*max)} ${offerLetterCurrency}` : 'N/A';
       // Improved classification logic using mobile country code and lender currency
       // For India: if user selected +91 (IN), show lenders with INR as domestic, others as foreign
       // DEBUG: Output user mobile country code
@@ -241,7 +243,35 @@ export default function LenderRecommendationsPage() {
         <div className="flex flex-col items-end space-y-1 ml-2 min-w-[120px]">
           <span className="font-bold text-xl text-primary">{lender.rateOfInterest ?? (lender.interestRate ? `${lender.interestRate}%` : 'N/A')}</span>
           <span className="font-semibold text-base text-white">
-            {lender.estimatedLoanAmount ?? 'N/A'}
+            {/* Approval Amount: 80%-85% of course fees */}
+            {(() => {
+              const feesRaw = userProfile?.admissionKyc?.admissionFees || '';
+              // Remove any non-numeric, non-dot, non-comma chars, then replace comma with dot if needed
+              let sanitized = feesRaw.replace(/[^\d.,]/g, '');
+              // If both comma and dot exist, assume comma is thousand separator and remove it
+              if (sanitized.includes(',') && sanitized.includes('.')) {
+                sanitized = sanitized.replace(/,/g, '');
+              } else if (sanitized.includes(',') && !sanitized.includes('.')) {
+                // If only comma exists, treat it as decimal separator
+                sanitized = sanitized.replace(/,/g, '.');
+              }
+              const fees = parseFloat(sanitized);
+              let currency = userProfile?.admissionKyc?.courseFeesCurrency || userProfile?.admissionKyc?.currency || '';
+              // Fallback: try to extract currency from feesRaw if not found
+              if (!currency && typeof feesRaw === 'string') {
+                const match = feesRaw.match(/[A-Za-z€$£₹¥]+/);
+                if (match) currency = match[0];
+              }
+              if (!isNaN(fees) && fees > 0) {
+                return `Approval Amount: ${Math.round(fees*0.8)} - ${Math.round(fees*0.85)}${currency ? ' ' + currency : ''}`;
+              } else {
+                return 'Approval Amount: N/A';
+              }
+            })()}
+          </span>
+          {/* Show course fees from offer letter */}
+          <span className="text-xs text-gray-300">
+            Course Fees: {userProfile?.admissionKyc?.admissionFees ? `${userProfile.admissionKyc.admissionFees} ${userProfile.admissionKyc.courseFeesCurrency || userProfile.admissionKyc.currency || ''}` : 'N/A'}
           </span>
         </div>
         <div className="flex items-center">
@@ -253,7 +283,7 @@ export default function LenderRecommendationsPage() {
               className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
               disabled={isSaving || isSubmitted}
             />
-            <Label htmlFor={`lender-select-${type}-${(lender.name ?? 'UnknownLender').replace(/\s+/g, '-')}`} className="text-sm">Select</Label>
+
           </div>
         </div>
       </div>
@@ -394,21 +424,25 @@ export default function LenderRecommendationsPage() {
                   </div>
                 )}
                 
-                {!isLoadingRecommendations && (domesticLenders.length > 0 || foreignLenders.length > 0) && (
+                {!isLoadingRecommendations && (
                   <div className="w-full space-y-8 mt-6 text-left">
+                    {/* Always show Recommended Lenders section */}
+                    <section>
+                      <h2 className="text-2xl font-semibold mb-4 text-center text-primary">Recommended Lenders</h2>
+                      <div className="space-y-4">
+                        {foreignLenders.length > 0 ? (
+                          foreignLenders.map((lender, idx) => renderLenderCard(lender, 'foreign', idx))
+                        ) : (
+                          <div className="text-center text-gray-400">No recommended lenders found for your profile.</div>
+                        )}
+                      </div>
+                    </section>
+                    {/* Show Domestic Lenders only if any exist */}
                     {domesticLenders.length > 0 && (
                       <section>
                         <h2 className="text-2xl font-semibold mb-4 text-center text-primary">Domestic Lenders</h2>
                         <div className="space-y-4">
                           {domesticLenders.map((lender, idx) => renderLenderCard(lender, 'domestic', idx))}
-                        </div>
-                      </section>
-                    )}
-                    {foreignLenders.length > 0 && (
-                      <section>
-                        <h2 className="text-2xl font-semibold mb-4 text-center text-primary">Recommended Lenders</h2>
-                        <div className="space-y-4">
-                          {foreignLenders.map((lender, idx) => renderLenderCard(lender, 'foreign', idx))}
                         </div>
                       </section>
                     )}

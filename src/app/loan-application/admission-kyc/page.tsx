@@ -565,7 +565,7 @@ export default function AdmissionKYCPage() {
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
               <Link href="/loan-application/mobile" passHref>
-                <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
+
               </Link>
             </div>
           </div>

@@ -185,134 +185,84 @@ export default function ReviewPersonalKYCPage() {
       toast({ title: "Consent Required", description: "Please provide your consent to proceed.", variant: "destructive" });
       return;
     }
-     if (!extractedData) {
+    if (!extractedData) {
       toast({ title: "Error", description: "No data to save.", variant: "destructive" });
       return;
     }
     setIsSaving(true);
+    try {
+      const docsForReview = JSON.parse(localStorage.getItem('personalDocsForReview') || '{}');
 
-    const docsForReview = JSON.parse(localStorage.getItem('personalDocsForReview') || '{}');
-
-    // Create a clean copy with only valid, serializable fields
-    const cleanValue = (value: any): any => {
-      if (value === null || value === undefined) return undefined;
-      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        return value;
-      }
-      if (Array.isArray(value)) {
-        return value.map(cleanValue).filter(v => v !== undefined);
-      }
-      return undefined;
-    };
-
-    const personalKycDataToSave: Record<string, any> = {};
-    
-    // Process extractedData
-    if (extractedData) {
-      Object.entries(extractedData).forEach(([key, value]) => {
-        const cleanVal = cleanValue(value);
-        if (cleanVal !== undefined) {
-          personalKycDataToSave[key] = cleanVal;
+      // Create a clean copy with only valid, serializable fields
+      const cleanValue = (value: any): any => {
+        if (value === null || value === undefined) return undefined;
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          return value;
         }
-      });
-    }
+        if (Array.isArray(value)) {
+          return value.map(cleanValue).filter(v => v !== undefined);
+        }
+        return undefined;
+      };
 
-    // Validate and add document URLs
-    const isValidUrl = (url: any): boolean => {
-      if (typeof url !== 'string') return false;
-      try {
-        // Basic URL validation
-        new URL(url);
-        return url.length < 2000; // Reasonable length limit
-      } catch {
-        return false;
+      const personalKycDataToSave: Record<string, any> = {};
+      
+      // Process extractedData
+      if (extractedData) {
+        Object.entries(extractedData).forEach(([key, value]) => {
+          const cleanVal = cleanValue(value);
+          if (cleanVal !== undefined) {
+            personalKycDataToSave[key] = cleanVal;
+          }
+        });
       }
-    };
 
-    if (isValidUrl(docsForReview.idDocumentDataUri)) {
-      personalKycDataToSave.idDocumentUrl = docsForReview.idDocumentDataUri;
-    } else {
-      console.warn('Invalid or missing ID document URL');
-    }
+      // Validate and add document URLs
+      const isValidUrl = (url: any): boolean => {
+        if (typeof url !== 'string') return false;
+        try {
+          // Basic URL validation
+          new URL(url);
+          return url.length < 2000; // Reasonable length limit
+        } catch {
+          return false;
+        }
+      };
 
-    if (isValidUrl(docsForReview.passportDataUri)) {
-      personalKycDataToSave.passportUrl = docsForReview.passportDataUri;
-    } else {
-      console.warn('Invalid or missing passport URL');
-    }
-    
-    // Add timestamp
-    personalKycDataToSave.consentTimestamp = new Date().toISOString();
-    
-    // Log the sanitized data
-    console.log('Sanitized personalKyc data:', JSON.stringify(personalKycDataToSave, null, 2));
-    
-    localStorage.removeItem('personalDocsForReview');
-
-    const result = await saveUserApplicationData(userId, { personalKyc: personalKycDataToSave });
-    setIsSaving(false);
-
-    if (result.success) {
-        toast({ title: "Personal KYC Confirmed!", description: "Proceeding to Academic KYC." });
-        router.push('/loan-application/academic-kyc'); 
-    } else {
-        toast({ title: "Save Failed", description: result.error || "Could not save personal KYC details.", variant: "destructive"});
+      if (isValidUrl(docsForReview.idDocumentDataUri)) {
+        personalKycDataToSave.idDocumentUrl = docsForReview.idDocumentDataUri;
+      } else {
+        console.warn('Invalid or missing ID document URL');
+      }
+      if (isValidUrl(docsForReview.passportDataUri)) {
+        personalKycDataToSave.passportUrl = docsForReview.passportDataUri;
+      } else {
+        console.warn('Invalid or missing passport URL');
+      }
+      personalKycDataToSave.consentTimestamp = new Date().toISOString();
+      localStorage.removeItem('personalDocsForReview');
+      const result = await saveUserApplicationData(userId, { personalKyc: personalKycDataToSave });
+      if (result.success) {
+        toast({ title: "Personal KYC Saved!", description: "Proceeding to next step." });
+        // Determine next step: for both 'loan' and 'study' (if no offer letter), always go to academic KYC after personal KYC
+        const applicationType = (typeof window !== 'undefined' && localStorage.getItem('applicationType')) || 'loan';
+        let nextStep = '/loan-application/academic-kyc'; // Default: academic KYC for both study and loan
+        if (applicationType === 'work') {
+          nextStep = '/loan-application/professional-kyc';
+        }
+        // Only skip to recommendations if later steps (like offer letter) dictate
+        router.push(nextStep);
+      } else {
+        toast({ title: "Save Failed", description: result.error || "Could not save personal KYC details.", variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error?.message || "An error occurred while saving your details.", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const renderEditableTable = () => {
-    if (!extractedData) return null;
-    const dataEntries = Object.entries(extractedData) as [keyof EditableKycOutput, string | number | undefined][];
-
-    return (
-      <div className="space-y-6">
-        <Table className="bg-white/10 rounded-md">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-white">Field</TableHead>
-              <TableHead className="text-white">Value</TableHead>
-              <TableHead className="text-white text-right">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {dataEntries.map(([key, value]) => {
-              const fieldLabel = String(key).replace(/([A-Z])/g, ' $1').trim();
-              const isAgeField = key === 'ageInYears';
-              return (
-                <TableRow key={key}>
-                  <TableCell className="font-medium capitalize text-gray-300">{fieldLabel}</TableCell>
-                  <TableCell className="text-gray-200">
-                    {editingField === key && !isAgeField ? (
-                      <Input
-                        type="text"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="bg-white/80 text-black"
-                      />
-                    ) : (
-                      String(value !== undefined && value !== null && String(value).trim() !== '' ? value : 'Not Specified')
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {editingField === key && !isAgeField ? (
-                      <Button onClick={handleSaveEdit} size="sm" className="gradient-border-button">
-                        <Save className="mr-1 h-4 w-4" /> Save
-                      </Button>
-                    ) : !isAgeField ? (
-                      <Button onClick={() => handleEditField(key, value)} size="sm" variant="outline" className="bg-white/20 hover:bg-white/30 text-white">
-                        <Edit3 className="mr-1 h-4 w-4" /> Edit
-                      </Button>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-        {renderConsentSection()}
-      </div>
-    );
-  };
+  const dataEntries = extractedData ? (Object.entries(extractedData) as [keyof EditableKycOutput, string | number | undefined][]) : [];
 
   const renderConsentSection = () => (
     <div className="mt-8 space-y-6 border-t border-gray-500/50 pt-6">
@@ -331,6 +281,53 @@ export default function ReviewPersonalKYCPage() {
     </div>
   );
 
+  const renderEditableTable = () => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="text-white">Field</TableHead>
+          <TableHead className="text-white">Value</TableHead>
+          <TableHead className="text-white text-right">Action</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {dataEntries.map(([key, value]) => {
+          const fieldLabel = String(key).replace(/([A-Z])/g, ' $1').trim();
+          const isAgeField = key === 'ageInYears';
+          return (
+            <TableRow key={key}>
+              <TableCell className="font-medium capitalize text-gray-300">{fieldLabel}</TableCell>
+              <TableCell className="text-gray-200">
+                {editingField === key && !isAgeField ? (
+                  <Input
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    className="bg-white/80 text-black"
+                  />
+                ) : (
+                  String(value !== undefined && value !== null && String(value).trim() !== '' ? value : 'Not Specified')
+                )}
+              </TableCell>
+              <TableCell className="text-right">
+                {editingField === key && !isAgeField ? (
+                  <Button onClick={handleSaveEdit} size="sm" className="gradient-border-button">
+                    <Save className="mr-1 h-4 w-4" /> Save
+                  </Button>
+                ) : !isAgeField ? (
+                  <Button onClick={() => handleEditField(key, value)} size="sm" variant="outline" className="bg-white/20 hover:bg-white/30 text-white">
+                    <Edit3 className="mr-1 h-4 w-4" /> Edit
+                  </Button>
+                ) : null}
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+
+  // Only JSX and valid expressions below
   return (
     <div className="flex flex-col items-center">
       <section
@@ -344,7 +341,7 @@ export default function ReviewPersonalKYCPage() {
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
-             <nav>
+            <nav>
               <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
                 {navMenuItems.map((item) => (
                   <li key={item}>
@@ -370,7 +367,7 @@ export default function ReviewPersonalKYCPage() {
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
               <Link href="/loan-application/mobile" passHref>
-                <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
+
               </Link>
             </div>
           </div>
@@ -414,7 +411,10 @@ export default function ReviewPersonalKYCPage() {
                   <p className="text-sm text-gray-300">This might take a few moments.</p>
                 </div>
               ) : (
-                renderEditableTable()
+                <>
+                  {renderEditableTable()}
+                  {renderConsentSection()}
+                </>
               )}
             </div>
           </div>
@@ -423,3 +423,4 @@ export default function ReviewPersonalKYCPage() {
     </div>
   );
 }
+

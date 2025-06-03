@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
-import { saveUserApplicationData } from '@/services/firebase-service';
+import { saveUserApplicationData, checkUserExistsByMobile } from '@/services/firebase-service';
 import { getOrGenerateUserId } from '@/lib/user-utils';
 import { serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
@@ -117,59 +117,70 @@ export default function MobileVerificationPage() {
       nextStep = '/loan-application/personal-kyc';
     }
 
-    if (!userId) {
-        toast({ title: "Error", description: "User ID not found. Please refresh.", variant: "destructive" });
-        return;
-    }
     setIsSaving(true);
-    console.log("[Mobile Page] Attempting to save initial data to Firestore...");
+    try {
+      const selectedCountryInfo = [...defaultCountryCodes, ...globalCountryCodesSample].find(c => c.value === countryCode);
+      const formattedMobile = mobileNumber.trim();
+      const dialCode = selectedCountryInfo?.dialCode || '';
+      // Check if user exists by mobile number and country code
+      const checkResult = await checkUserExistsByMobile(formattedMobile, dialCode);
+      let resolvedUserId = checkResult && checkResult.success && checkResult.exists && checkResult.userId ? checkResult.userId : undefined;
 
-    const selectedCountryInfo = [...defaultCountryCodes, ...globalCountryCodesSample].find(c => c.value === countryCode);
+      const initialData = {
+        userId: resolvedUserId,
+        mobileNumber: formattedMobile,
+        countryCode: dialCode,
+        countryShortName: selectedCountryInfo?.countryShortName,
+        createdAt: serverTimestamp() as Timestamp,
+        applicationType: applicationType as 'loan' | 'study' | 'work'
+      };
 
-    const initialData = {
-      userId: userId,
-      mobileNumber: mobileNumber.trim(),
-      countryCode: selectedCountryInfo?.dialCode,
-      countryShortName: selectedCountryInfo?.countryShortName,
-      createdAt: serverTimestamp() as Timestamp,
-      applicationType: applicationType as 'loan' | 'study' | 'work'
-    };
-
-    const result = await saveUserApplicationData(userId, initialData);
-    console.log("[Mobile Page] Firestore save result:", result);
-
-    if (result.success) {
-        toast({
-            title: "Mobile Verified!",
-            description: "Proceeding to the next step.",
-        });
+      const result = await saveUserApplicationData(resolvedUserId, initialData);
+      if (result.success) {
+        // Store userId for session continuity
+        if (result.userId) {
+          setUserId(result.userId);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('userId', result.userId);
+          }
+        }
         if (typeof window !== 'undefined') {
           localStorage.setItem('selectedCountryValue', countryCode);
         }
-        console.log(`[Mobile Page] Save successful. Application type: ${applicationType}`);
-        console.log(`[Mobile Page] Attempting to navigate to ${nextStep} in 100ms`);
-        setTimeout(() => {
-            try {
-              router.push(nextStep);
-              console.log("[Mobile Page] router.push called successfully after delay.");
-            } catch (navError) {
-              console.error("[Mobile Page] Error during router.push (after delay):", navError);
-              toast({
-                title: "Navigation Error",
-                description: "Could not navigate to the next page. Please try again or check the console.",
-                variant: "destructive",
-              });
-            } finally {
-               setIsSaving(false);
-            }
-        }, 100);
-    } else {
         toast({
-            title: "Save Failed",
-            description: result.error || "Could not save mobile verification details. Please check console for more info.",
-            variant: "destructive",
+          title: "Mobile Verified!",
+          description: "Proceeding to the next step.",
+        });
+        setTimeout(() => {
+          try {
+            router.push(nextStep);
+          } catch (navError) {
+            console.error("[Mobile Page] Error during router.push (after delay):", navError);
+            toast({
+              title: "Navigation Error",
+              description: "Could not navigate to the next page. Please try again or check the console.",
+              variant: "destructive",
+            });
+          } finally {
+            setIsSaving(false);
+          }
+        }, 100);
+      } else {
+        toast({
+          title: "Save Failed",
+          description: result.error || "Could not save mobile verification details. Please check console for more info.",
+          variant: "destructive",
         });
         setIsSaving(false);
+      }
+    } catch (error: any) {
+      console.error("[Mobile Page] Error in handleSaveAndContinue:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "An error occurred during mobile verification.",
+        variant: "destructive",
+      });
+      setIsSaving(false);
     }
   };
 

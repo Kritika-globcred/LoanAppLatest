@@ -140,14 +140,15 @@ export default function BulkUploadDialog({ isOpen, onClose, onUploadComplete }: 
                                 className="relative cursor-pointer rounded-md bg-white font-medium text-indigo-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:text-indigo-500"
                               >
                                 <span>Upload a file</span>
+                                <div className="mb-2 text-xs text-red-600 font-medium">Maximum file size allowed is 10MB.</div>
                                 <input
                                   id="file-upload"
                                   name="file-upload"
                                   type="file"
-                                  className="sr-only"
                                   accept=".csv,.xlsx"
                                   onChange={handleFileChange}
                                   disabled={isUploading}
+                                  className="hidden"
                                 />
                               </label>
                               <p className="pl-1">or drag and drop</p>

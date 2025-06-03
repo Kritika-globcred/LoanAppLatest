@@ -1,8 +1,23 @@
-
 'use client';
 
 import type { ChangeEvent } from 'react';
 import { useState, useEffect, useRef } from 'react';
+import React from "react";
+
+// Utility function to convert dataURL to File
+function dataURLtoFile(dataUrl: string, filename: string): File {
+  const arr = dataUrl.split(',');
+  const mimeMatch = arr[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : '';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while(n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], filename, {type: mime});
+}
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -99,12 +114,11 @@ export default function PersonalKYCPage() {
         setAvekaMessage(`Next, I need your ${idDocumentType}. For best AI results, please upload a clear IMAGE (JPG, PNG). Other formats like PDF, DOC or TXT are also accepted.`);
       }
     }
-    
+
     return () => {
       shouldUpdate = false;
     };
   }, [idDocumentFile, idDocumentPreview, idDocumentTextContent, showPassportSection, idDocumentType]);
-
 
   useEffect(() => {
     if (showCameraFor) {
@@ -160,14 +174,14 @@ export default function PersonalKYCPage() {
         };
         reader.readAsText(file);
       } else if (file.type === 'application/pdf' || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
-         const reader = new FileReader();
+        const reader = new FileReader();
         reader.onloadend = () => {
-          setPreviewState(reader.result as string); 
+          setPreviewState(reader.result as string);
         };
         reader.readAsDataURL(file);
-         toast({ title: `${file.name} Selected`, description: `AI extraction works best with clear images or TXT files for this type.` });
+        toast({ title: `${file.name} Selected`, description: `AI extraction works best with clear images or TXT files for this type.` });
       } else {
-        toast({ title: "Unsupported File", description: "Please upload an image, PDF, DOC, or TXT file.", variant: "destructive"});
+        toast({ title: "Unsupported File", description: "Please upload an image, PDF, DOC, or TXT file.", variant: "destructive" });
         setFileState(null);
         return;
       }
@@ -193,138 +207,86 @@ export default function PersonalKYCPage() {
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/png');
-        const capturedFile = new File([dataURLtoBlob(dataUrl)], `${showCameraFor}_capture.png`, { type: 'image/png' });
-
+        const capturedFile = dataURLtoFile(dataUrl, `${showCameraFor}_capture`);
         if (showCameraFor === 'id') {
           setIdDocumentFile(capturedFile);
           setIdDocumentPreview(dataUrl);
-          setIdDocumentTextContent(null);
-          // setShowPassportSection(true); // Handled by useEffect
-          // setAvekaMessage(`Thanks for the ${idDocumentType}! Now, please upload your Passport.`);
-          toast({ title: `${idDocumentType} Captured`, description: "The Passport section is now visible below. Please upload your Passport." });
-        } else if (showCameraFor === 'passport') {
+        } else {
           setPassportFile(capturedFile);
           setPassportPreview(dataUrl);
-          setPassportTextContent(null);
-          setAvekaMessage("Excellent! You've captured both documents. Ready to review them and let AI extract the details?");
-          toast({ title: "Passport Captured", description: "Excellent! You can now proceed to review your documents." });
         }
-        setShowCameraFor(null);
       }
     }
   };
 
-  const dataURLtoBlob = (dataurl: string) => {
-    const arr = dataurl.split(',');
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    if (!mimeMatch) throw new Error("Invalid data URL");
-    const mime = mimeMatch[1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while(n--){
-        u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new Blob([u8arr], {type:mime});
-  }
-
   const handleProceedToReview = async () => {
-    if (!idDocumentFile && !idDocumentPreview && !idDocumentTextContent) {
-      toast({ title: "ID Document Missing", description: `Please upload your ${idDocumentType}.`, variant: "destructive" });
-      return;
-    }
-    if (!passportFile && !passportPreview && !passportTextContent) {
-      toast({ title: "Passport Missing", description: "Please upload your Passport.", variant: "destructive" });
-      return;
-    }
-    if (!userId) {
-      toast({ title: "Error", description: "User session not found. Please refresh.", variant: "destructive" });
-      return;
-    }
-
     setIsUploading(true);
-    let idDocFirebaseUrl: string | undefined = undefined;
-    let passportFirebaseUrl: string | undefined = undefined;
+    const idFileToUpload = idDocumentFile || (idDocumentPreview ? dataURLtoFile(idDocumentPreview, 'id_capture') : null);
+    const passportFileToUpload = passportFile || (passportPreview ? dataURLtoFile(passportPreview, 'passport_capture') : null);
 
-    try {
-      const idFileToUpload = idDocumentFile || (idDocumentPreview ? dataURLtoBlob(idDocumentPreview) : null);
-      if (idFileToUpload) {
-        const idUploadResult = await uploadFileToStorage(userId, idFileToUpload, `personal_id/${(idDocumentFile || {name: 'id_doc_capture.png'}).name}`);
-        if (idUploadResult.success && idUploadResult.downloadURL) {
-            idDocFirebaseUrl = idUploadResult.downloadURL;
-            toast({ title: `${idDocumentType} Uploaded!`, description: "Successfully uploaded to secure storage."});
-        } else {
-            toast({ title: `${idDocumentType} Upload Failed`, description: idUploadResult.error || `Could not upload ${idDocumentType}. Check console for details. (Possible CORS issue on Firebase Storage)`, variant: "destructive" });
-            setIsUploading(false);
-            return;
-        }
-      }
+    if (idFileToUpload) {
+      const idUploadResult = await uploadFileToStorage(userId, idFileToUpload, `id/${(idFileToUpload.name)}`);
+      if (idUploadResult.success && idUploadResult.downloadURL) {
+        const idDocFirebaseUrl = idUploadResult.downloadURL;
+        if (passportFileToUpload) {
+          const passportUploadResult = await uploadFileToStorage(userId, passportFileToUpload, `passport/${(passportFileToUpload.name)}`);
+          if (passportUploadResult.success && passportUploadResult.downloadURL) {
+            const passportFirebaseUrl = passportUploadResult.downloadURL;
+            // Store data URIs for AI if they exist (image/pdf/doc), or text content for TXT
+            localStorage.setItem('personalDocsForReview', JSON.stringify({
+              idDocumentDataUri: idDocumentFile?.type === 'text/plain' ? null : idDocumentPreview,
+              idDocumentTextContent: idDocumentTextContent,
+              passportDataUri: passportFile?.type === 'text/plain' ? null : passportPreview,
+              passportTextContent: passportTextContent,
+              idDocumentType: idDocumentType,
+              idDocumentFirebaseUrl: idDocFirebaseUrl,
+              passportFirebaseUrl: passportFirebaseUrl,
+            }));
 
-      const passportFileToUpload = passportFile || (passportPreview ? dataURLtoBlob(passportPreview) : null);
-      if (passportFileToUpload) {
-        const passportUploadResult = await uploadFileToStorage(userId, passportFileToUpload, `passport/${(passportFile || {name: 'passport_capture.png'}).name}`);
-        if (passportUploadResult.success && passportUploadResult.downloadURL) {
-            passportFirebaseUrl = passportUploadResult.downloadURL;
-            toast({ title: "Passport Uploaded!", description: "Successfully uploaded to secure storage."});
-        } else {
+            toast({ title: "Proceeding to Review", description: "Let's review your personal details." });
+            router.push('/loan-application/review-personal-kyc');
+          } else {
             toast({ title: "Passport Upload Failed", description: passportUploadResult.error || "Could not upload Passport. Check console for details. (Possible CORS issue on Firebase Storage)", variant: "destructive" });
             setIsUploading(false);
             return;
+          }
         }
+      } else {
+        toast({ title: "ID Upload Failed", description: idUploadResult.error || "Could not upload ID. Check console for details. (Possible CORS issue on Firebase Storage)", variant: "destructive" });
+        setIsUploading(false);
+        return;
       }
-
-      // Store data URIs for AI if they exist (image/pdf/doc), or text content for TXT
-      localStorage.setItem('personalDocsForReview', JSON.stringify({
-          idDocumentDataUri: idDocumentFile?.type === 'text/plain' ? null : idDocumentPreview, 
-          idDocumentTextContent: idDocumentTextContent,
-          passportDataUri: passportFile?.type === 'text/plain' ? null : passportPreview,
-          passportTextContent: passportTextContent,
-          idDocumentType: idDocumentType,
-          idDocumentFirebaseUrl: idDocFirebaseUrl,
-          passportFirebaseUrl: passportFirebaseUrl,
-      }));
-
-      toast({ title: "Proceeding to Review", description: "Let's review your personal details." });
-      router.push('/loan-application/review-personal-kyc');
-
-    } catch (error) {
-      console.error("Error during document processing or upload:", error);
-      toast({ title: "Processing Error", description: "An unexpected error occurred. Please try again. Check console for details. (Possible CORS issue on Firebase Storage)", variant: "destructive"});
-    } finally {
-      setIsUploading(false);
     }
   };
 
   const renderPrimaryAvekaMessage = () => (
-      <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
-        <div className="flex-shrink-0 mb-3 md:mb-0">
-            <Image
-            src="/images/aveka.png"
-            alt="Aveka, GlobCred's Smart AI"
-            width={50}
-            height={50}
-            className="rounded-full border-2 border-white shadow-md"
-            data-ai-hint="robot avatar"
-            />
-        </div>
-        <div
-            className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow
+    <div className="mb-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
+      <div className="flex-shrink-0 mb-3 md:mb-0">
+        <Image
+          src="/images/aveka.png"
+          alt="Aveka, GlobCred's Smart AI"
+          width={50}
+          height={50}
+          className="rounded-full border-2 border-white shadow-md"
+          data-ai-hint="robot avatar"
+        />
+      </div>
+      <div
+        className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow
                         transform transition-all duration-500 ease-out
                         ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
-        >
-            <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
-            <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
-            <p className="text-base text-white">{avekaMessage}</p>
-        </div>
+      >
+        <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
+        <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
+        <p className="text-base text-white">{avekaMessage}</p>
       </div>
-    );
+    </div>
+  );
 
-
-  // Memoize the component to prevent unnecessary re-renders
   const AvekaPassportPromptComponent = () => {
     // Only render if the passport prompt should be visible
     if (!avekaPassportPromptVisible) return null;
-    
+
     return (
       <div className="my-6 flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
         <div className="flex-shrink-0 mb-3 md:mb-0">
@@ -353,9 +315,9 @@ export default function PersonalKYCPage() {
     docType: 'id' | 'passport',
     title: string,
     file: File | null,
-    preview: string | null, 
-    textContent: string | null, 
-    fileInputRef: React.RefObject<HTMLInputElement>,
+    preview: string | null,
+    textContent: string | null,
+    fileInputRef: React.RefObject<HTMLInputElement> | null,
     disabled: boolean = false
   ) => (
     <div className={`space-y-4 p-4 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -363,31 +325,31 @@ export default function PersonalKYCPage() {
       {(preview || textContent || file) ? (
         <div className="text-center">
           {preview && file?.type.startsWith("image/") && (
-            <Image src={preview} alt={`${title} Preview`} width={200} height={120} className="rounded-md mx-auto object-contain max-h-40" data-ai-hint="document ID passport"/>
+            <Image src={preview} alt={`${title} Preview`} width={200} height={120} className="rounded-md mx-auto object-contain max-h-40" data-ai-hint="document ID passport" />
           )}
-          {preview && !file?.type.startsWith("image/") && file?.type !== 'text/plain' && ( 
+          {preview && !file?.type.startsWith("image/") && file?.type !== 'text/plain' && (
             <p className="text-sm text-gray-300 mt-2">Uploaded: {file?.name} (Preview not available for this type)</p>
           )}
           {textContent && file?.type === 'text/plain' && (
-             <div className="bg-gray-800 p-2 rounded-md max-h-32 overflow-y-auto mt-2">
-                <p className="text-xs text-gray-300 whitespace-pre-wrap">{textContent.substring(0,300)}{textContent.length > 300 ? "..." : ""}</p>
+            <div className="bg-gray-800 p-2 rounded-md max-h-32 overflow-y-auto mt-2">
+              <p className="text-xs text-gray-300 whitespace-pre-wrap">{textContent.substring(0, 300)}{textContent.length > 300 ? "..." : ""}</p>
             </div>
           )}
-          {file && !preview && !textContent && <p className="text-sm text-gray-300 mt-2">Uploaded: {file.name}</p> }
+          {file && !preview && !textContent && <p className="text-sm text-gray-300 mt-2">Uploaded: {file.name}</p>}
 
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-                if (docType === 'id') {
-                    setIdDocumentFile(null); setIdDocumentPreview(null); setIdDocumentTextContent(null);
-                    // setShowPassportSection(false); // Handled by useEffect now
-                    // setAvekaPassportPromptVisible(false);
-                    setAvekaMessage(`Next, I need your ${idDocumentType}. Please upload a clear image, PDF, DOC or TXT file...`);
-                } else {
-                    setPassportFile(null); setPassportPreview(null); setPassportTextContent(null);
-                    setAvekaMessage("Got it. Now please upload your passport again or take a picture.");
-                }
+              if (docType === 'id') {
+                setIdDocumentFile(null); setIdDocumentPreview(null); setIdDocumentTextContent(null);
+                // setShowPassportSection(false); // Handled by useEffect now
+                // setAvekaPassportPromptVisible(false);
+                setAvekaMessage(`Next, I need your ${idDocumentType}. Please upload a clear image, PDF, DOC or TXT file...`);
+              } else {
+                setPassportFile(null); setPassportPreview(null); setPassportTextContent(null);
+                setAvekaMessage("Got it. Now please upload your passport again or take a picture.");
+              }
             }}
             className="mt-2 bg-white/20 hover:bg-white/30 text-white"
             disabled={isUploading}
@@ -397,10 +359,10 @@ export default function PersonalKYCPage() {
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-          <Button onClick={() => !disabled && fileInputRef.current?.click()} className="gradient-border-button w-auto" disabled={isUploading || disabled}>
+          <Button onClick={() => !disabled && fileInputRef?.current?.click()} className="gradient-border-button w-auto" disabled={isUploading || disabled}>
             <UploadCloud className="mr-2 h-5 w-5" /> Upload {title}
           </Button>
-          <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(e, docType)} className="hidden" accept="image/jpeg,image/png,.pdf,.doc,.docx,.txt" disabled={disabled || isUploading} />
+          <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(e, docType)} className="hidden" accept="image/jpeg,image/png,image/jpg,image/heic,image/heif,image/webp,image/pef,.pdf,.doc,.docx,.txt" disabled={disabled || isUploading} />
           <Button onClick={() => !disabled && setShowCameraFor(docType)} className="gradient-border-button w-auto" disabled={isUploading || disabled}>
             <Camera className="mr-2 h-5 w-5" /> Take Picture
           </Button>
@@ -436,11 +398,11 @@ export default function PersonalKYCPage() {
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
               <Link href="/loan-application/mobile" passHref>
-                <Button variant="default" size="sm" className="gradient-border-button">Get Started</Button>
+
               </Link>
             </div>
           </div>
-           <LoanProgressBar steps={loanAppSteps} hasOfferLetter={localStorage.getItem('hasOfferLetterStatus') === 'true'} />
+          <LoanProgressBar steps={loanAppSteps} hasOfferLetter={localStorage.getItem('hasOfferLetterStatus') === 'true'} />
           <div className="flex items-center mb-6 mt-4">
             <Button variant="outline" size="sm" onClick={() => router.push(backPath)} className="bg-white/20 hover:bg-white/30 text-white">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -458,12 +420,12 @@ export default function PersonalKYCPage() {
                   idDocumentFile,
                   idDocumentPreview,
                   idDocumentTextContent,
-                  idFileInputRef
+                  idFileInputRef as React.RefObject<HTMLInputElement> | null
                 )}
 
                 {showPassportSection && (idDocumentPreview || idDocumentTextContent || idDocumentFile) && (
                   <div className="mt-6 w-full">
-                     <AvekaPassportPromptComponent />
+                    <AvekaPassportPromptComponent />
                   </div>
                 )}
 
@@ -476,7 +438,7 @@ export default function PersonalKYCPage() {
                       passportFile,
                       passportPreview,
                       passportTextContent,
-                      passportFileInputRef,
+                      passportFileInputRef as React.RefObject<HTMLInputElement> | null,
                       !(idDocumentFile || idDocumentPreview || idDocumentTextContent) // Disable passport if ID doc is not yet provided
                     )}
                   </div>

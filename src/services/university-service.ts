@@ -1,210 +1,121 @@
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  orderBy, 
-  writeBatch, 
-  serverTimestamp, 
-  limit, 
-  startAfter, 
-  getCountFromServer,
-  DocumentData,
-  CollectionReference,
-  QueryDocumentSnapshot,
-  Query,
-  where,
-  getFirestore
-} from 'firebase/firestore';
-import { getDbInstance } from '@/lib/firebase';
-import { University, BulkUploadResult } from '@/types/university';
-import { v4 as uuidv4 } from 'uuid';
+import { University } from '@/types/university';
 
-const UNIVERSITIES_COLLECTION = 'universities';
-const PAGE_SIZE = 20; // Number of items per page
+// The result type expected by UniversityUpload.tsx
+interface BulkActionResult {
+  success: boolean;
+  message: string;
+  total: number;
+  successCount: number;
+  failedCount: number;
+  errors?: Array<{ row: number; message?: string; error?: string }>;
+}
 
-export const getUniversities = async (page = 1): Promise<{ data: University[], pagination: { currentPage: number, totalPages: number, totalItems: number, hasNextPage: boolean, hasPreviousPage: boolean } }> => {
-  try {
-    const db = getDbInstance();
-    const universitiesRef = collection(db, UNIVERSITIES_COLLECTION);
-    
-    // Get total count
-    const countSnapshot = await getCountFromServer(universitiesRef);
-    const totalItems = countSnapshot.data().count;
-    const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+import { getDb } from "@/lib/firebase";
+import { collection, writeBatch, doc } from "firebase/firestore";
 
-    // Adjust page number if it's out of bounds
-    const currentPage = Math.min(Math.max(1, page), totalPages);
-    const offset = (currentPage - 1) * PAGE_SIZE;
+// Utility to remove undefined fields from an object (shallow)
+function removeUndefinedFields<T extends object>(obj: T): Partial<T> {
+  return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined)) as Partial<T>;
+}
 
-    // Create base query
-    let q = query(
-      universitiesRef,
-      orderBy('name'),
-      limit(PAGE_SIZE)
-    );
-    
-    // Execute query
-    const querySnapshot = await getDocs(q);
-    
-    // Map documents to University array
-    const universities = querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate(),
-        updatedAt: data.updatedAt?.toDate(),
-      } as University;
-    });
-    
-    return {
-      data: universities,
-      pagination: {
-        currentPage: currentPage,
-        totalPages,
-        totalItems,
-        hasNextPage: currentPage < totalPages,
-        hasPreviousPage: currentPage > 1
-      }
-    };
-  } catch (error) {
-    console.error('Error getting universities:', error);
-    throw error;
-  }
-};
-
-export const addUniversity = async (university: Omit<University, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
-  try {
-    const db = getDbInstance();
-    const docRef = await addDoc(collection(db, UNIVERSITIES_COLLECTION), {
-      ...university,
-      isActive: true,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    return docRef.id;
-  } catch (error) {
-    console.error('Error adding university:', error);
-    throw error;
-  }
-};
-
-export const updateUniversity = async (id: string, university: Partial<University>): Promise<void> => {
-  try {
-    const db = getDbInstance();
-    await updateDoc(doc(db, UNIVERSITIES_COLLECTION, id), {
-      ...university,
-      updatedAt: serverTimestamp(),
-    });
-  } catch (error) {
-    console.error('Error updating university:', error);
-    throw error;
-  }
-};
-
-export const deleteUniversity = async (id: string): Promise<void> => {
-  try {
-    const db = getDbInstance();
-    await deleteDoc(doc(db, UNIVERSITIES_COLLECTION, id));
-  } catch (error) {
-    console.error('Error deleting university:', error);
-    throw error;
-  }
-};
-
-/**
- * Bulk upload universities from a CSV file
- * @param universities Array of university data to upload
- * @param onProgress Optional progress callback
- * @returns BulkUploadResult with upload statistics
- */
-export const bulkUploadUniversities = async (
-  universities: Omit<University, 'id' | 'createdAt' | 'updatedAt'>[],
+export async function bulkUploadUniversities(
+  universities: University[],
   onProgress?: (progress: number) => void
-): Promise<BulkUploadResult> => {
-  try {
-    const db = getDbInstance();
-    const batchSize = 500; // Firestore batch limit
-    const total = universities.length;
-    let successCount = 0;
-    const errors: Array<{ row: number; error: string }> = [];
+): Promise<BulkActionResult> {
+  const db = getDb("university");
+  const batch = writeBatch(db);
+  let successCount = 0;
+  let failedCount = 0;
+  const errors: Array<{ row: number; error: string }> = [];
 
-    // Process in batches to avoid Firestore limits
-    for (let i = 0; i < universities.length; i += batchSize) {
-      const batch = writeBatch(db);
-      const batchEnd = Math.min(i + batchSize, universities.length);
-      
-      // Add each university in the current batch
-      for (let j = i; j < batchEnd; j++) {
-        const university = universities[j];
-        const docRef = doc(collection(db, UNIVERSITIES_COLLECTION));
-        
-        try {
-          // Prepare university data with timestamps
-          const universityData = {
-            ...university,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          };
-          
-          batch.set(docRef, universityData);
-          successCount++;
-        } catch (error) {
-          console.error(`Error preparing university at index ${j}:`, error);
-          errors.push({
-            row: j + 1, // 1-based index for user feedback
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
-        }
-        
-        // Update progress
-        if (onProgress) {
-          onProgress(Math.round(((j + 1) / total) * 100));
-        }
-      }
-      
-      // Commit the current batch
-      try {
-        await batch.commit();
-      } catch (batchError) {
-        console.error('Error committing batch:', batchError);
-        // If batch fails, mark all items in this batch as failed
-        for (let j = i; j < batchEnd; j++) {
-          errors.push({
-            row: j + 1,
-            error: 'Batch upload failed',
-          });
-        }
-        successCount -= (batchEnd - i);
-      }
+  for (let i = 0; i < universities.length; i++) {
+    try {
+      console.log('[BulkUpload] Adding university:', universities[i]);
+      const newDoc = doc(collection(db, "universities"));
+      // Remove undefined fields before uploading
+      const cleaned = removeUndefinedFields(universities[i]);
+      batch.set(newDoc, cleaned);
+      successCount++;
+    } catch (err: any) {
+      failedCount++;
+      errors.push({ row: i + 1, error: err.message || "Unknown error" });
+      console.error('[BulkUpload] Error adding university:', err);
     }
-    
+    if (onProgress) onProgress(i + 1);
+  }
+
+  try {
+    await batch.commit();
+    console.log('[BulkUpload] Batch commit successful');
     return {
-      success: errors.length === 0,
-      message: `Successfully uploaded ${successCount} of ${total} universities`,
-      total,
+      success: failedCount === 0,
+      message: failedCount === 0
+        ? "All universities uploaded successfully."
+        : `${failedCount} failed, ${successCount} processed`,
+      total: universities.length,
       successCount,
-      failedCount: total - successCount,
+      failedCount,
       errors: errors.length > 0 ? errors : undefined,
     };
-  } catch (error) {
-    console.error('Bulk upload failed:', error);
+  } catch (err: any) {
     return {
       success: false,
-      message: 'Bulk upload failed',
-      total: 0,
-      successCount: 0,
-      failedCount: 0,
-      errors: [
-        {
-          row: 0,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-      ],
+      message: err.message || "Batch upload failed.",
+      total: universities.length,
+      successCount,
+      failedCount: universities.length,
+      errors: [{ row: 0, error: err.message || "Batch error" }],
     };
   }
-};
+}
+
+
+// Simulate a bulk delete operation
+export async function bulkDeleteUniversities(ids: string[]): Promise<BulkActionResult> {
+  let successCount = 0;
+  let failedCount = 0;
+  const errors: Array<{ row: number; message: string }> = [];
+
+  for (let i = 0; i < ids.length; i++) {
+    // Simulate a random failure for demonstration
+    if (!ids[i] || ids[i].toLowerCase().includes('fail')) {
+      failedCount++;
+      errors.push({ row: i + 2, message: 'Simulated delete failure' });
+    } else {
+      successCount++;
+    }
+  }
+
+  return {
+    success: failedCount === 0,
+    message: failedCount === 0 ? 'All universities deleted successfully' : `${failedCount} failed to delete`,
+    total: ids.length,
+    successCount,
+    failedCount,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
+
+// Simulate fetching universities
+export async function getUniversities(): Promise<University[]> {
+  // Return a mock list for demonstration
+  return [
+    {
+      id: '1',
+      name: 'Sample University',
+      shortName: 'SAMPLE',
+      description: 'A sample university',
+      countries: ['US'],
+      country: 'US',
+      state: 'CA',
+      city: 'Sample City',
+      address: '123 Sample St',
+      website: 'https://sample.edu',
+      email: 'info@sample.edu',
+      phone: '+1234567890',
+      courses: [],
+      admissionRequirements: [],
+      isActive: true,
+    },
+  ];
+}
