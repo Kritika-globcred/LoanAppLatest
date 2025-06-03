@@ -17,7 +17,7 @@ import { ArrowLeft, RefreshCw, Send, Loader2 } from 'lucide-react';
 import type { GenerateRecommendationsInput, GenerateRecommendationsOutput, UniversityRecommendation } from '@/ai/flows/generate-recommendations-flow';
 import { generateRecommendations } from '@/ai/flows/generate-recommendations-flow';
 import { getOrGenerateUserId } from '@/lib/user-utils';
-import { getUserApplicationData, saveUserApplicationData } from '@/services/firebase-service';
+import { getUserApplicationData, saveUserApplicationData, getAllUniversities } from '@/services/firebase-service';
 
 
 interface PreferencesData {
@@ -67,18 +67,34 @@ export default function RecommendationsPage() {
       return;
     }
     setIsLoadingRecommendations(true);
-    setRecommendations([]); 
+    setRecommendations([]);
     setAvekaMessage("I'm searching for the best options based on your preferences. This might take a moment...");
     try {
+      // Fetch all valid universities from Firestore
+      const allUniversities = await getAllUniversities();
+      const validUniversityNames = new Set(
+        allUniversities.map((u: any) => (u.name || '').trim().toLowerCase())
+      );
+      // Debug: Log all university names from Firestore
+      console.log('[DEBUG] Firestore university names:', Array.from(validUniversityNames));
+
       const input: GenerateRecommendationsInput = {
         preferredCountry1: preferences.preferredCountry1 || "Any",
         preferredCountry2: preferences.preferredCountry2 || null,
         courseLevel: preferences.courseLevel || "Any",
-        courseField: preferences.courseName || "Any", 
+        courseField: preferences.courseName || "Any",
+        validUniversityNames: allUniversities.map((u: any) => u.name || '').filter(Boolean),
       };
       const result: GenerateRecommendationsOutput = await generateRecommendations(input);
-      setRecommendations(result.recommendations || []);
-      if (result.recommendations && result.recommendations.length > 0) {
+      // Debug: Log all AI-recommended university names
+      const aiNames = (result.recommendations || []).map(rec => (rec.universityName || '').trim().toLowerCase());
+      console.log('[DEBUG] AI-recommended university names:', aiNames);
+      // Filter AI recommendations to only those present in Firestore (case-insensitive, trimmed)
+      const filteredRecs = (result.recommendations || []).filter(
+        (rec) => validUniversityNames.has((rec.universityName || '').trim().toLowerCase())
+      );
+      setRecommendations(filteredRecs);
+      if (filteredRecs.length > 0) {
         setAvekaMessage("Here are some recommendations I found for you! Review them and select the ones you're interested in.");
       } else {
         setAvekaMessage("I couldn't find specific recommendations based on the current preferences. You can try refreshing or adjusting your preferences.");
@@ -163,7 +179,7 @@ export default function RecommendationsPage() {
             </nav>
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
-              <Link href="/loan-application/mobile" passHref><Button variant="default" size="sm" className="gradient-border-button">Get Started</Button></Link>
+
             </div>
           </div>
           <LoanProgressBar steps={loanAppSteps} hasOfferLetter={localStorage.getItem('hasOfferLetterStatus') === 'true'} />
@@ -231,22 +247,32 @@ export default function RecommendationsPage() {
                               <CardDescription className="text-gray-300">{rec.universitySummary}</CardDescription>
                             </div>
                             <div className="flex items-center space-x-2 pt-1">
-                                <Checkbox
-                                    id={`uni-select-${index}`}
-                                    checked={selectedUniversities.includes(rec.universityName)}
-                                    onCheckedChange={(checked) => handleUniversitySelection(rec.universityName, !!checked)}
-                                    className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                                    disabled={isSaving}
-                                />
-                                <Label htmlFor={`uni-select-${index}`} className="text-sm">Select</Label>
+                              <Checkbox
+                                id={`uni-select-${index}`}
+                                checked={selectedUniversities.includes(rec.universityName)}
+                                onCheckedChange={(checked) => handleUniversitySelection(rec.universityName, !!checked)}
+                                className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                                disabled={isSaving}
+                              />
                             </div>
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-2 text-sm">
-                          <p><strong className="text-gray-300">Course:</strong> {rec.recommendedCourseName}</p>
-                          <p><strong className="text-gray-300">Duration:</strong> {rec.courseDuration}</p>
-                          <p><strong className="text-gray-300">Est. Fees:</strong> {rec.estimatedFees}</p>
-                          <p><strong className="text-gray-300">Tests Required:</strong> {rec.testsRequired}</p>
+                          {/* Fees and details */}
+                          {(() => {
+                            const userCountryCode = (typeof window !== 'undefined' && localStorage.getItem('selectedCountryValue')) || '';
+                            const isIndia = userCountryCode?.toUpperCase().includes('IN');
+                            let fees = Number(rec.estimatedFees) || 0;
+                            let feesDisplay = isIndia ? `INR ${fees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : `$${Math.round(fees / 85).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+                            if (!fees) feesDisplay = 'N/A';
+                            return [
+                              <div className="text-sm" key="fees">Fees: {feesDisplay}</div>,
+                              <div className="text-sm" key="deposit">Self Contribution / Deposit: {feesDisplay}</div>,
+                              <div className="text-sm" key="course">Recommended Course: {rec.recommendedCourseName || 'N/A'}</div>,
+                              <div className="text-sm" key="duration">Course Duration: {rec.courseDuration || 'N/A'}</div>,
+                              <div className="text-sm" key="tests">Tests Required: {rec.testsRequired || 'N/A'}</div>
+                            ];
+                          })()}
                         </CardContent>
                       </Card>
                     ))}

@@ -17,9 +17,11 @@ const GenerateRecommendationsInputSchema = z.object({
   preferredCountry2: z.string().nullable().describe("The user's second preferred country (optional)."),
   courseLevel: z.string().describe("The desired academic level (e.g., Graduation, Post-Graduation, Masters, PhD)."),
   courseField: z.string().describe("The desired field or name of the course (e.g., Computer Science, MBA)."),
+  validUniversityNames: z.array(z.string()).describe("A list of valid university names to choose from. Only recommend from this list."),
   // Future considerations: academicScores (string), testScores (string), workExperience (string)
 });
 export type GenerateRecommendationsInput = z.infer<typeof GenerateRecommendationsInputSchema>;
+
 
 const UniversityRecommendationSchema = z.object({
   universityName: z.string().describe("The name of the recommended university."),
@@ -41,6 +43,12 @@ const generateRecommendationsPrompt = ai.definePrompt({
   input: { schema: GenerateRecommendationsInputSchema },
   output: { schema: GenerateRecommendationsOutputSchema },
   prompt: `You are an expert academic advisor AI. Your role is to provide university and course recommendations based on the user's preferences.
+
+IMPORTANT: Only recommend universities from the following list of valid university names. Do not recommend any university not in this list. Here is the list:
+{{#each validUniversityNames}}
+- {{this}}
+{{/each}}
+
 The user is looking for options in the following field: {{{courseField}}} at the {{{courseLevel}}} level.
 Their preferred countries are:
 1. {{{preferredCountry1}}}
