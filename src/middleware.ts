@@ -32,7 +32,7 @@ export function middleware(request: NextRequest) {
         `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
         `img-src 'self' data: blob: https: http: https://raw.githubusercontent.com https://placehold.co https://globcred.org https://firebasestorage.googleapis.com`,
         `font-src 'self' https://fonts.gstatic.com data:`,
-        `connect-src 'self' ws: wss: https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com`,
+        `connect-src 'self' ws: wss: https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://live-mt-server.wati.io`,
         `frame-src 'self' https://*.firebaseapp.com https://*.google.com`,
         `worker-src 'self' blob:`,
         `form-action 'self'`,
