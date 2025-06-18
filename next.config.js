@@ -133,6 +133,15 @@ module.exports = {
           },
         ],
       },
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "connect-src 'self' ws: wss: https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://live-mt-server.wati.io"
+          }
+        ]
+      }
     ];
   },
 };
