@@ -31,14 +31,14 @@ export default function Home() {
   }, []);
 
   const lenders = [
-    { name: "Avanse", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/avanse_lender.jpeg", hint: "Avanse logo" },
-    { name: "HDFC Credila", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/hdfc_lender.avif", hint: "HDFC logo" },
-    { name: "ICICI Bank", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/icici_lender.png", hint: "ICICI logo" },
-    { name: "MPOWER Financing", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/mpower3.jpeg", hint: "MPOWER logo" },
-    { name: "State Bank of India", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/SBI_lender.jpg", hint: "SBI logo" },
-    { name: "Propelled", logo: "https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/propelled_lender.jpeg", hint: "Propelled logo" }
+    { name: "Avanse", logo: "/images/LenderLogo/Avanse.png", hint: "Avanse logo" },
+    { name: "HDFC Credila", logo: "/images/LenderLogo/HDFC.png", hint: "HDFC logo" },
+    { name: "MPOWER Financing", logo: "/images/LenderLogo/Mpower.png", hint: "MPOWER logo" },
+    { name: "State Bank of India", logo: "/images/LenderLogo/SBI.png", hint: "SBI logo" },
+    { name: "Propelled", logo: "/images/LenderLogo/Propelled.png", hint: "Propelled logo" }
   ];
-  const duplicatedLenders = [...lenders, ...lenders]; // For seamless marquee
+  // Create enough duplicates for smooth marquee effect
+  const marqueeLenders = [...lenders, ...lenders, ...lenders];
 
   const testimonials = [
     {
@@ -87,10 +87,19 @@ export default function Home() {
     <div className="flex flex-col items-center">
       <section
         className="relative w-full bg-cover bg-center rounded-2xl mx-[5%] mt-[2.5%] md:mx-[20%] pt-[5px] px-6 pb-6 md:px-8 md:pb-8 overflow-hidden shadow-[5px_5px_10px_hsl(0,0%,0%/0.2)] shadow-[inset_0_0_2px_hsl(var(--primary)/0.8)]"
-        style={{
-          backgroundImage: "url('https://raw.githubusercontent.com/Kritika-globcred/Loan-Application-Portal/main/Untitled%20design.png')",
-        }}
       >
+        {/* Optimized background image with next/image */}
+        <div className="absolute inset-0 -z-10">
+          <Image
+            src="/images/hero-bg.png"
+            alt=""
+            fill
+            priority
+            className="object-cover rounded-2xl"
+            quality={80}
+            sizes="(max-width: 768px) 100vw, 80vw"
+          />
+        </div>
         <div
           className="absolute inset-0 bg-[hsl(var(--primary))/0.10] rounded-2xl z-0 backdrop-blur-lg"
         />
@@ -117,14 +126,17 @@ export default function Home() {
 
             <div className="mt-10 flex flex-col md:flex-row items-center justify-center md:items-start md:space-x-6 max-w-3xl mx-auto">
               <div className="flex-shrink-0 mb-4 md:mb-0">
-                <Image
-                  src="/images/aveka.png" 
-                  alt="Aveka, GlobCred's Smart AI"
-                  width={50}
-                  height={50}
-                  className="rounded-full border-2 border-white shadow-lg"
-                  data-ai-hint="robot avatar"
-                />
+                <div className="relative w-[50px] h-[50px] rounded-full border-2 border-white shadow-lg overflow-hidden">
+                  <Image
+                    src="/images/aveka.png" 
+                    alt="Aveka, GlobCred's Smart AI"
+                    fill
+                    sizes="50px"
+                    className="object-cover"
+                    data-ai-hint="robot avatar"
+                    priority
+                  />
+                </div>
               </div>
               <div
                 className={`bg-[hsl(var(--card)/0.25)] backdrop-blur-sm p-4 rounded-xl shadow-md text-left md:flex-grow
@@ -207,23 +219,33 @@ export default function Home() {
           </section>
           {/* End Testimonials Section */}
 
-          {/* Top Lenders Section */}
+          {/* Top Lenders Section - Optimized */}
           <section className="py-12 text-white">
             <h2 className="text-3xl font-bold text-center mb-10">Our Top Lending Partners</h2>
             <div className="relative w-full overflow-hidden">
               <div className="flex animate-marquee whitespace-nowrap">
-                {duplicatedLenders.map((lender, index) => (
-                  <div key={`${lender.name}-${index}`} className="mx-4 flex-shrink-0 flex items-center justify-center h-20">
-                    <Image 
-                      src={lender.logo} 
-                      alt={lender.name} 
-                      width={150} 
-                      height={60} 
-                      className="h-auto max-h-full w-auto max-w-full object-contain"
-                      data-ai-hint={lender.hint}
-                    />
-                  </div>
-                ))}
+                {marqueeLenders.map((lender, index) => {
+                  const isFirstOccurrence = index === lenders.findIndex(l => l.name === lender.name);
+                  return (
+                    <div 
+                      key={`${lender.name}-${index}`} 
+                      className="mx-4 flex-shrink-0 flex items-center justify-center h-20 w-[150px]"
+                    >
+                      <Image 
+                        src={lender.logo} 
+                        alt={lender.name}
+                        width={150}
+                        height={60}
+                        className="h-full w-auto object-contain"
+                        data-ai-hint={lender.hint}
+                        priority={isFirstOccurrence && index < 3} // Only preload first occurrence of first 3 logos
+                        loading={isFirstOccurrence ? 'eager' : 'lazy'}
+                        quality={75} // Reduce quality for better performance
+                        sizes="(max-width: 768px) 100vw, 150px"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </section>

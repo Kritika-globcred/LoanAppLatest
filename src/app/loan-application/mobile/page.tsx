@@ -1,10 +1,11 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast } from "@/components/ui/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 import { Input } from "@/components/ui/input";
@@ -24,8 +25,9 @@ import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar
 import { loanAppSteps } from '@/lib/loan-steps';
 import { saveUserApplicationData, checkUserExistsByMobile } from '@/services/firebase-service';
 import { getOrGenerateUserId } from '@/lib/user-utils';
-import { serverTimestamp, Timestamp } from 'firebase/firestore';
-import { Loader2 } from 'lucide-react';
+import { serverTimestamp, Timestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { Loader2, ArrowLeft } from 'lucide-react';
+import { sendOTP, verifyOTP } from '@/services/wati-service';
 
 interface CountryInfo {
   value: string;
@@ -63,7 +65,11 @@ export default function MobileVerificationPage() {
   const [avekaMessageVisible, setAvekaMessageVisible] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const [applicationType, setApplicationType] = useState('loan'); // Default to 'loan'
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [otpError, setOtpError] = useState('');
 
   // Get application type from URL query params
   useEffect(() => {
@@ -84,8 +90,11 @@ export default function MobileVerificationPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleGetOtpClick = () => {
+  const handleGetOtpClick = async () => {
+    console.log('[DEBUG] handleGetOtpClick called');
+    
     if (!mobileNumber.trim() || !/^\d{7,15}$/.test(mobileNumber.trim())) {
+      console.log('[DEBUG] No valid mobile number provided');
       toast({
         title: "Invalid Mobile Number",
         description: "Please enter a valid mobile number (7-15 digits).",
@@ -93,38 +102,176 @@ export default function MobileVerificationPage() {
       });
       return;
     }
-    setOtpSent(true);
-    toast({
-      title: "OTP Sent!",
-      description: "An OTP has been sent to your mobile number (default: 9999).",
-    });
+
+    setIsSendingOtp(true);
+    setOtpError('');
+    
+    try {
+      console.log('[DEBUG] Setting loading to true');
+      const selectedCountry = [...defaultCountryCodes, ...globalCountryCodesSample].find(c => c.value === countryCode);
+      const fullPhoneNumber = `${selectedCountry?.dialCode}${mobileNumber}`.replace(/\+/g, '');
+      
+      console.log('[DEBUG] Calling sendOTP with:', fullPhoneNumber);
+      
+      // Add a timeout to catch if the promise never resolves
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('OTP request timed out')), 10000)
+      );
+      
+      // Call sendOTP with timeout and proper error handling
+      let result;
+      try {
+        result = await Promise.race([
+          sendOTP(fullPhoneNumber),
+          timeoutPromise
+        ]) as Awaited<ReturnType<typeof sendOTP>>;
+      } catch (error) {
+        console.error('Error in OTP sending promise:', error);
+        result = {
+          success: false,
+          message: error instanceof Error ? error.message : 'Failed to send OTP',
+          isRetryable: true,
+          error: {
+            name: error instanceof Error ? error.name : 'UnknownError',
+            message: error instanceof Error ? error.message : 'An unknown error occurred',
+            ...(error instanceof Error && error instanceof Object ? error : {})
+          }
+        };
+      }
+      
+      console.log('[DEBUG] OTP Send Result:', result);
+      
+      if (result.success) {
+        setOtpSent(true);
+        // Start 5-minute countdown
+        setCountdown(300);
+        const timer = setInterval(() => {
+          setCountdown(prev => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+        
+        toast({
+          title: "OTP Sent!",
+          description: `A 4-digit OTP has been sent to your WhatsApp number.`,
+        });
+      } else {
+        // Log the full error for debugging
+        const errorDetails = result.error 
+          ? `${result.error.name} (${result.error.status || 'no-status'}): ${result.error.message}`
+          : result.message;
+        
+        console.error('OTP Send Error:', errorDetails, result);
+        
+        // Default error message
+        let errorMessage = 'Failed to send OTP. Please try again.';
+        let isRetryable = result.isRetryable !== false; // Default to true if not specified
+        
+        // Handle specific error cases
+        if (result.error) {
+          const { name, message, status } = result.error;
+          
+          switch (name) {
+            case 'WATIServerError':
+              errorMessage = 'Temporary service issue. Please try again in a few minutes.';
+              isRetryable = true;
+              break;
+            case 'AbortError':
+              errorMessage = 'Request timed out. Please check your connection and try again.';
+              isRetryable = true;
+              break;
+            case 'TypeError':
+              errorMessage = 'Network error. Please check your internet connection.';
+              isRetryable = true;
+              break;
+            case 'ParseError':
+              errorMessage = 'Error processing response from OTP service.';
+              isRetryable = true;
+              break;
+            default:
+              if (status === 429) {
+                errorMessage = 'Too many requests. Please wait before requesting another OTP.';
+                isRetryable = true;
+              } else if (status === 401) {
+                errorMessage = 'Authentication failed. Please contact support.';
+                isRetryable = false;
+              } else if (status === 400) {
+                errorMessage = 'Invalid phone number format. Please check and try again.';
+                isRetryable = true;
+              } else if (message) {
+                errorMessage = message;
+              }
+          }
+        }
+        
+        const toastConfig = {
+          title: "Failed to send OTP",
+          description: errorMessage,
+          variant: "destructive" as const,
+          action: isRetryable ? (
+            <ToastAction 
+              altText="Try again" 
+              onClick={() => handleGetOtpClick()}
+            >
+              Try Again
+            </ToastAction>
+          ) : undefined,
+        };
+        
+        toast(toastConfig);
+      }
+    } catch (error) {
+      console.error("Error sending OTP:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send OTP. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingOtp(false);
+    }
   };
 
   const handleSaveAndContinue = async () => {
-    if (enteredOtp !== '9999') {
-      toast({
-        title: "Invalid OTP",
-        description: "The OTP you entered is incorrect. Please try again.",
-        variant: "destructive",
-      });
+    if (!enteredOtp || enteredOtp.length !== 4) {
+      setOtpError('Please enter a valid 4-digit OTP');
       return;
     }
-    
-    // Determine the next step based on application type
-    let nextStep = '/loan-application/admission-kyc';
-    if (applicationType === 'study' || applicationType === 'work') {
-      // Skip admission KYC for study and work applications
-      nextStep = '/loan-application/personal-kyc';
-    }
 
-    setIsSaving(true);
+    setIsVerifying(true);
+    setOtpError('');
+    
     try {
+      const selectedCountry = [...defaultCountryCodes, ...globalCountryCodesSample].find(c => c.value === countryCode);
+      const fullPhoneNumber = `${selectedCountry?.dialCode}${mobileNumber}`.replace(/\+/g, '');
+      
+      const verification = await verifyOTP(fullPhoneNumber, enteredOtp);
+      
+      if (!verification.success) {
+        setOtpError(verification.message || 'Invalid OTP');
+        return;
+      }
+      
+      // Only proceed with saving if OTP is verified
+      let nextStep = '/loan-application/admission-kyc';
+      if (applicationType === 'study' || applicationType === 'work') {
+        // Skip admission KYC for study and work applications
+        nextStep = '/loan-application/personal-kyc';
+      }
+
       const selectedCountryInfo = [...defaultCountryCodes, ...globalCountryCodesSample].find(c => c.value === countryCode);
       const formattedMobile = mobileNumber.trim();
       const dialCode = selectedCountryInfo?.dialCode || '';
+      
       // Check if user exists by mobile number and country code
       const checkResult = await checkUserExistsByMobile(formattedMobile, dialCode);
-      let resolvedUserId = checkResult && checkResult.success && checkResult.exists && checkResult.userId ? checkResult.userId : undefined;
+      let resolvedUserId = checkResult?.success && checkResult.exists && checkResult.userId 
+        ? checkResult.userId 
+        : userId || getOrGenerateUserId(); // Ensure we always have a valid userId
 
       const initialData = {
         userId: resolvedUserId,
@@ -132,61 +279,74 @@ export default function MobileVerificationPage() {
         countryCode: dialCode,
         countryShortName: selectedCountryInfo?.countryShortName,
         createdAt: serverTimestamp() as Timestamp,
-        applicationType: applicationType as 'loan' | 'study' | 'work'
+        applicationType: applicationType as 'loan' | 'study' | 'work',
+        mobileVerified: true,
+        mobileVerificationDate: serverTimestamp() as Timestamp
       };
 
       const result = await saveUserApplicationData(resolvedUserId, initialData);
+      
       if (result.success) {
         // Store userId for session continuity
-        if (result.userId) {
-          setUserId(result.userId);
+        const finalUserId = result.userId || resolvedUserId;
+        if (finalUserId) {
+          setUserId(finalUserId);
           if (typeof window !== 'undefined') {
-            localStorage.setItem('userId', result.userId);
+            localStorage.setItem('userId', finalUserId);
           }
-        }
-        if (typeof window !== 'undefined') {
+          
+          // Store mobile verification status
+          localStorage.setItem('mobileVerified', 'true');
           localStorage.setItem('selectedCountryValue', countryCode);
+          
+          toast({
+            title: "Mobile Verified!",
+            description: "Proceeding to the next step.",
+          });
+          
+          // Navigate after a short delay
+          setTimeout(() => {
+            try {
+              router.push(nextStep);
+            } catch (navError) {
+              console.error("Navigation error:", navError);
+              toast({
+                title: "Navigation Error",
+                description: "Could not navigate to the next page. Please try again.",
+                variant: "destructive",
+              });
+            } finally {
+              setIsSaving(false);
+              setIsVerifying(false);
+            }
+          }, 100);
         }
-        toast({
-          title: "Mobile Verified!",
-          description: "Proceeding to the next step.",
-        });
-        setTimeout(() => {
-          try {
-            router.push(nextStep);
-          } catch (navError) {
-            console.error("[Mobile Page] Error during router.push (after delay):", navError);
-            toast({
-              title: "Navigation Error",
-              description: "Could not navigate to the next page. Please try again or check the console.",
-              variant: "destructive",
-            });
-          } finally {
-            setIsSaving(false);
-          }
-        }, 100);
       } else {
-        toast({
-          title: "Save Failed",
-          description: result.error || "Could not save mobile verification details. Please check console for more info.",
-          variant: "destructive",
-        });
-        setIsSaving(false);
+        throw new Error(result.error || "Failed to save user data");
       }
     } catch (error: any) {
-      console.error("[Mobile Page] Error in handleSaveAndContinue:", error);
+      console.error("Error in handleSaveAndContinue:", error);
       toast({
         title: "Error",
-        description: error?.message || "An error occurred during mobile verification.",
+        description: error?.message || "An error occurred during verification.",
         variant: "destructive",
       });
+    } finally {
       setIsSaving(false);
+      setIsVerifying(false);
     }
   };
 
   const handleGoBackToMobileEntry = () => {
     setOtpSent(false);
     setEnteredOtp('');
+    setOtpError('');
+  };
+  
+  const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -234,8 +394,8 @@ export default function MobileVerificationPage() {
                         <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
                         <p className="text-base text-white">
                           {otpSent 
-                            ? "We just sent you a code to verify - kindly enter it below to complete mobile verification"
-                            : "Awesome! Lets get started with your application. Lets verify your mobile number (make sure its active on whatsapp! dont worry - we dont spam you)"
+                            ? `We've sent a 4-digit verification code to your WhatsApp number. Please enter it below.`
+                            : "Awesome! Let's get started with your application. We'll verify your mobile number via WhatsApp. Make sure it's active on WhatsApp! (Don't worry, we don't spam)"
                           }
                         </p>
                     </div>
@@ -290,31 +450,63 @@ export default function MobileVerificationPage() {
                     </div>
                     <div className="flex justify-center">
                         <Button
-                        onClick={handleGetOtpClick}
-                        variant="default"
-                        size="sm"
-                        className="gradient-border-button w-auto"
-                        disabled={isSaving}
+                          onClick={handleGetOtpClick}
+                          variant="default"
+                          size="sm"
+                          className="gradient-border-button w-auto"
+                          disabled={isSaving || isSendingOtp || countdown > 0}
                         >
-                        Get OTP
+                          {isSendingOtp ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Sending...
+                            </>
+                          ) : countdown > 0 ? (
+                            `Resend in ${formatCountdown(countdown)}`
+                          ) : (
+                            'Send OTP via WhatsApp'
+                          )}
                         </Button>
                     </div>
                   </div>
                 ) : (
                   <div className="w-full space-y-4">
                     <div>
-                      <Label htmlFor="otp" className="block text-sm font-medium text-left mb-1 text-white">Enter OTP</Label>
-                      <Input
-                        id="otp"
-                        type="text"
-                        placeholder="Enter 4-digit OTP"
-                        value={enteredOtp}
-                        onChange={(e) => setEnteredOtp(e.target.value)}
-                        className="w-1/2 mx-auto bg-white text-black placeholder:text-gray-500 border-gray-300 focus:ring-ring focus:border-ring text-center tracking-[0.5em]"
-                        maxLength={4}
-                        disabled={isSaving}
-                      />
-                       <p className="text-xs text-gray-300 mt-2">Default OTP is 9999 for testing.</p>
+                      <div className="w-full">
+                        <Label htmlFor="otp" className="block text-sm font-medium text-left mb-1 text-white">Enter OTP</Label>
+                        <div className="flex flex-col items-center space-y-2">
+                          <Input
+                            id="otp"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="\d*"
+                            placeholder="_ _ _ _"
+                            value={enteredOtp}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                              setEnteredOtp(value);
+                              setOtpError('');
+                            }}
+                            className="w-48 h-14 mx-auto bg-white/90 text-black text-2xl font-bold text-center tracking-[0.5em] border-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                            maxLength={4}
+                            disabled={isSaving || isVerifying}
+                          />
+                          {otpError && (
+                            <p className="text-sm text-red-400 text-center">{otpError}</p>
+                          )}
+                          <div className="flex items-center space-x-1">
+                            <p className="text-xs text-gray-300">Didn't receive code?</p>
+                            <button 
+                              type="button" 
+                              onClick={countdown === 0 ? handleGetOtpClick : undefined}
+                              className={`text-xs ${countdown === 0 ? 'text-primary hover:underline' : 'text-gray-400'}`}
+                              disabled={countdown > 0}
+                            >
+                              {countdown > 0 ? `Request new code in ${formatCountdown(countdown)}` : 'Resend OTP'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex flex-col items-center space-y-3 sm:flex-row sm:justify-center sm:space-y-0 sm:space-x-4 mt-4">
                         <Button
@@ -331,9 +523,14 @@ export default function MobileVerificationPage() {
                           variant="default"
                           size="sm"
                           className="gradient-border-button w-auto"
-                          disabled={isSaving}
+                          disabled={isSaving || isVerifying}
                         >
-                          {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save & Continue'}
+                          {isVerifying || isSaving ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              {isVerifying ? 'Verifying...' : 'Saving...'}
+                            </>
+                          ) : 'Verify & Continue'}
                         </Button>
                     </div>
                   </div>

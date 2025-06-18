@@ -11,8 +11,17 @@ import { Logo } from "@/components/layout/logo";
 import { Input } from "@/components/ui/input";
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PercentageSlider } from "@/components/ui/percentage-slider";
+import { DatePicker } from "@/components/ui/date-picker";
+import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { LoanProgressBar } from '@/components/loan-application/loan-progress-bar';
 import { loanAppSteps } from '@/lib/loan-steps';
@@ -48,28 +57,20 @@ export default function AcademicKYCPage() {
 
   // Graduation State
   const [gradLevel, setGradLevel] = useState<string | null>(null);
-  const [gradCgpa, setGradCgpa] = useState('');
-  const [gradCgpaScale, setGradCgpaScale] = useState<string | null>(null);
-  const [gradCompletionDay, setGradCompletionDay] = useState<string | undefined>();
-  const [gradCompletionMonth, setGradCompletionMonth] = useState<string | undefined>();
-  const [gradCompletionYear, setGradCompletionYear] = useState<string | undefined>();
+  const [gradPercentage, setGradPercentage] = useState('0');
+  const [gradCompletionDate, setGradCompletionDate] = useState<Date | undefined>();
   const [gradPursuingCourse, setGradPursuingCourse] = useState('');
   const [gradPursuingType, setGradPursuingType] = useState<string | null>(null);
-  const [gradExpectedCompletionDay, setGradExpectedCompletionDay] = useState<string | undefined>();
   const [gradExpectedCompletionMonth, setGradExpectedCompletionMonth] = useState<string | undefined>();
   const [gradExpectedCompletionYear, setGradExpectedCompletionYear] = useState<string | undefined>();
   const [gradNaReason, setGradNaReason] = useState('');
 
   // Post-Graduation State
   const [postGradLevel, setPostGradLevel] = useState<string | null>(null);
-  const [postGradCgpa, setPostGradCgpa] = useState('');
-  const [postGradCgpaScale, setPostGradCgpaScale] = useState<string | null>(null);
-  const [postGradCompletionDay, setPostGradCompletionDay] = useState<string | undefined>();
-  const [postGradCompletionMonth, setPostGradCompletionMonth] = useState<string | undefined>();
-  const [postGradCompletionYear, setPostGradCompletionYear] = useState<string | undefined>();
+  const [postGradPercentage, setPostGradPercentage] = useState('0');
+  const [postGradCompletionDate, setPostGradCompletionDate] = useState<Date | undefined>();
   const [postGradPursuingCourse, setPostGradPursuingCourse] = useState('');
   const [postGradPursuingType, setPostGradPursuingType] = useState<string | null>(null);
-  const [postGradExpectedCompletionDay, setPostGradExpectedCompletionDay] = useState<string | undefined>();
   const [postGradExpectedCompletionMonth, setPostGradExpectedCompletionMonth] = useState<string | undefined>();
   const [postGradExpectedCompletionYear, setPostGradExpectedCompletionYear] = useState<string | undefined>();
   const [postGradNaReason, setPostGradNaReason] = useState('');
@@ -79,19 +80,18 @@ export default function AcademicKYCPage() {
   const [languageTestType, setLanguageTestType] = useState<string | null>(null); 
   const [languageTestOtherName, setLanguageTestOtherName] = useState(''); 
   const [languageTestScore, setLanguageTestScore] = useState('');
-  const [languageTestDay, setLanguageTestDay] = useState<string | undefined>();
-  const [languageTestMonth, setLanguageTestMonth] = useState<string | undefined>();
-  const [languageTestYear, setLanguageTestYear] = useState<string | undefined>();
-  const [ieltsAbove65, setIeltsAbove65] = useState<string | null>(null); 
+  const [languageTestDate, setLanguageTestDate] = useState<Date | undefined>();
+  const [ieltsAbove65, setIeltsAbove65] = useState<string | null>(null);
+  const [pteAbove585, setPteAbove585] = useState<string | null>(null);
+  const [skipLanguageTest, setSkipLanguageTest] = useState(false);
+
 
   // Course Test State
   const [courseTestGiven, setCourseTestGiven] = useState<string | null>(null);
   const [courseTestType, setCourseTestType] = useState<string | null>(null); 
   const [courseTestOtherName, setCourseTestOtherName] = useState(''); 
   const [courseTestScore, setCourseTestScore] = useState('');
-  const [courseTestDay, setCourseTestDay] = useState<string | undefined>();
-  const [courseTestMonth, setCourseTestMonth] = useState<string | undefined>();
-  const [courseTestYear, setCourseTestYear] = useState<string | undefined>();
+  const [courseTestDate, setCourseTestDate] = useState<Date | undefined>();
 
   // Section Visibility & Progression
   const [showGraduation, setShowGraduation] = useState(true);
@@ -106,6 +106,16 @@ export default function AcademicKYCPage() {
       const code = countryVal.split('_')[1];
       setUserCountryCode(code || null);
       setIsAsianCountry(ASIAN_COUNTRY_CODES.includes(code || ''));
+
+      // determine if user is from English-speaking country (skip language test)
+      const ENGLISH_SPEAKING_CODES = ['+1', '+44', 'US', 'USA', 'UNITED STATES', 'UK', 'UNITED KINGDOM'];
+      if (ENGLISH_SPEAKING_CODES.includes((code || '').toUpperCase())) {
+        setSkipLanguageTest(true);
+        setShowLanguageTest(false);
+        setLanguageTestGiven('No');
+      } else {
+        setSkipLanguageTest(false);
+      }
     }
     return () => clearTimeout(timer);
   }, []);
@@ -113,10 +123,10 @@ export default function AcademicKYCPage() {
   const isGraduationComplete = () => {
     if (!gradLevel) return false;
     if (gradLevel === "Degree" || gradLevel === "Diploma") {
-      return gradCgpa && gradCompletionYear && gradCompletionMonth && gradCompletionDay;
+      return gradPercentage && gradCompletionDate;
     }
     if (gradLevel === "Pursuing") {
-      return gradPursuingCourse && gradPursuingType && gradExpectedCompletionYear && gradExpectedCompletionMonth && gradExpectedCompletionDay;
+      return gradPursuingCourse && gradPursuingType && gradExpectedCompletionMonth && gradExpectedCompletionYear;
     }
     if (gradLevel === "In Senior Secondary School") {
       return gradNaReason.trim() !== '';
@@ -127,24 +137,25 @@ export default function AcademicKYCPage() {
   const isPostGraduationComplete = () => {
     if (!postGradLevel) return false;
     if (postGradLevel === "Degree" || postGradLevel === "Diploma") {
-      return postGradCgpa && postGradCompletionYear && postGradCompletionMonth && postGradCompletionDay;
+      return postGradPercentage && postGradCompletionDate;
     }
     if (postGradLevel === "Pursuing") {
-      return postGradPursuingCourse && postGradPursuingType && postGradExpectedCompletionYear && postGradExpectedCompletionMonth && postGradExpectedCompletionDay;
+      return postGradPursuingCourse && postGradPursuingType && postGradExpectedCompletionMonth && postGradExpectedCompletionYear;
     }
-    // Removed the requirement for naReason when postGradLevel is "Not applicable"
     return true;
   };
   
   const isLanguageTestComplete = () => {
+    if (skipLanguageTest) return true;
     if (!languageTestGiven) return false;
     if (languageTestGiven === 'no') return true;
     if (languageTestGiven === 'yet_to_appear') {
-      return languageTestDay && languageTestMonth && languageTestYear;
+      return languageTestDate;
     }
     if (languageTestGiven === 'yes') {
       if (isAsianCountry) { 
         if (languageTestType === 'IELTS') return ieltsAbove65 !== null;
+        if (languageTestType === 'PTE') return pteAbove585 !== null;
         if (languageTestType === 'Other') return languageTestOtherName.trim() !== '' && languageTestScore.trim() !== '';
       } else { 
         if (!languageTestType) return false; 
@@ -159,7 +170,7 @@ export default function AcademicKYCPage() {
     if (!courseTestGiven) return false;
     if (courseTestGiven === 'no') return true;
     if (courseTestGiven === 'yet_to_appear') {
-      return courseTestDay && courseTestMonth && courseTestYear;
+      return courseTestDate;
     }
     if (courseTestGiven === 'yes') {
       if (!courseTestType) return false;
@@ -175,58 +186,62 @@ export default function AcademicKYCPage() {
       setAvekaMessage("Great! Now, please tell me about your post-graduation, if any.");
       setShowPostGraduation(true);
     }
-  }, [gradLevel, gradCgpa, gradCompletionYear, gradCompletionMonth, gradCompletionDay, gradPursuingCourse, gradPursuingType, gradExpectedCompletionYear, gradExpectedCompletionMonth, gradExpectedCompletionDay, gradNaReason, showPostGraduation, isGraduationComplete]);
+  }, [gradLevel, gradPercentage, gradCompletionDate, gradPursuingCourse, gradPursuingType, gradExpectedCompletionMonth, gradExpectedCompletionYear, gradNaReason, showPostGraduation, isGraduationComplete]);
 
   useEffect(() => {
-    if (showPostGraduation && isPostGraduationComplete() && !showLanguageTest) {
-      setAvekaMessage("Thanks! Let's move on to language proficiency tests. Have you appeared for any?");
-      setShowLanguageTest(true);
+    if (showPostGraduation && isPostGraduationComplete() && !showLanguageTest && !showCourseTest) {
+      if (skipLanguageTest) {
+        setAvekaMessage("Since you don't need a language proficiency test, let's move on to course exams like GRE or GMAT.");
+        setShowCourseTest(true);
+      } else {
+        setAvekaMessage("Thanks! Let's move on to language proficiency tests. Have you appeared for any?");
+        setShowLanguageTest(true);
+      }
     }
-  }, [postGradLevel, postGradCgpa, postGradCompletionYear, postGradCompletionMonth, postGradCompletionDay, postGradPursuingCourse, postGradPursuingType, postGradExpectedCompletionYear, postGradExpectedCompletionMonth, postGradExpectedCompletionDay, postGradNaReason, showPostGraduation, showLanguageTest, isPostGraduationComplete]);
+  }, [postGradLevel, postGradPercentage, postGradCompletionDate, postGradPursuingCourse, postGradPursuingType, postGradExpectedCompletionMonth, postGradExpectedCompletionYear, postGradNaReason, showPostGraduation, showLanguageTest, showCourseTest, skipLanguageTest, isPostGraduationComplete]);
 
   useEffect(() => {
     if (showLanguageTest && isLanguageTestComplete() && !showCourseTest) {
       setAvekaMessage("Almost there! Lastly, any specific course tests like GMAT or GRE?");
       setShowCourseTest(true);
     }
-  }, [languageTestGiven, languageTestType, ieltsAbove65, languageTestOtherName, languageTestScore, languageTestDay, languageTestMonth, languageTestYear, isAsianCountry, showLanguageTest, showCourseTest, isLanguageTestComplete]);
+  }, [languageTestGiven, languageTestType, ieltsAbove65, languageTestOtherName, languageTestScore, languageTestDate, isAsianCountry, showLanguageTest, showCourseTest, isLanguageTestComplete]);
   
   useEffect(() => {
     if (showCourseTest && isCourseTestComplete()) {
       setAvekaMessage("Fantastic! You've completed the academic details. Please click 'Save & Continue' to proceed to the review page.");
     }
-  }, [courseTestGiven, courseTestType, courseTestOtherName, courseTestScore, courseTestDay, courseTestMonth, courseTestYear, showCourseTest, isCourseTestComplete]);
+  }, [courseTestGiven, courseTestType, courseTestOtherName, courseTestScore, courseTestDate, showCourseTest, isCourseTestComplete]);
 
+
+  const constructDateString = (year?: string, month?: string, day?: string): string | undefined => {
+    if (year && month && day) {
+      const formattedMonth = month.padStart(2, '0');
+      const formattedDay = day.padStart(2, '0');
+      return `${year}-${formattedMonth}-${formattedDay}`;
+    }
+    return undefined;
+  };
 
   const handleSaveAndContinue = () => {
-    const constructDateString = (year?: string, month?: string, day?: string): string | undefined => {
-      if (year && month && day) {
-        const formattedMonth = month.padStart(2, '0');
-        const formattedDay = day.padStart(2, '0');
-        return `${year}-${formattedMonth}-${formattedDay}`;
-      }
-      return undefined;
-    };
 
     const academicData = {
       graduation: { 
         level: gradLevel, 
-        cgpa: gradCgpa, 
-        scale: gradCgpaScale, 
-        completionDate: constructDateString(gradCompletionYear, gradCompletionMonth, gradCompletionDay),
+        percentage: gradPercentage, 
+        completionDate: gradCompletionDate ? format(gradCompletionDate, 'yyyy-MM-dd') : undefined,
         pursuingCourse: gradPursuingCourse, 
         pursuingType: gradPursuingType, 
-        expectedCompletion: constructDateString(gradExpectedCompletionYear, gradExpectedCompletionMonth, gradExpectedCompletionDay),
+        expectedCompletion: gradExpectedCompletionMonth && gradExpectedCompletionYear ? `${gradExpectedCompletionYear}-${gradExpectedCompletionMonth}` : undefined,
         naReason: gradNaReason 
       },
       postGraduation: { 
         level: postGradLevel, 
-        cgpa: postGradCgpa, 
-        scale: postGradCgpaScale, 
-        completionDate: constructDateString(postGradCompletionYear, postGradCompletionMonth, postGradCompletionDay), 
+        percentage: postGradPercentage, 
+        completionDate: postGradCompletionDate ? format(postGradCompletionDate, 'yyyy-MM-dd') : undefined, 
         pursuingCourse: postGradPursuingCourse, 
         pursuingType: postGradPursuingType, 
-        expectedCompletion: constructDateString(postGradExpectedCompletionYear, postGradExpectedCompletionMonth, postGradExpectedCompletionDay),
+        expectedCompletion: postGradExpectedCompletionMonth && postGradExpectedCompletionYear ? `${postGradExpectedCompletionYear}-${postGradExpectedCompletionMonth}` : undefined,
         naReason: postGradNaReason 
       },
       languageTest: { 
@@ -235,14 +250,14 @@ export default function AcademicKYCPage() {
         ieltsScore: ieltsAbove65, 
         otherName: languageTestOtherName, 
         score: languageTestScore, 
-        date: constructDateString(languageTestYear, languageTestMonth, languageTestDay)
+        date: languageTestDate ? format(languageTestDate, 'yyyy-MM-dd') : undefined
       },
       courseTest: { 
         given: courseTestGiven, 
         type: courseTestType, 
         otherName: courseTestOtherName, 
         score: courseTestScore, 
-        date: constructDateString(courseTestYear, courseTestMonth, courseTestDay)
+        date: courseTestDate ? format(courseTestDate, 'yyyy-MM-dd') : undefined
       },
     };
     
@@ -251,31 +266,73 @@ export default function AcademicKYCPage() {
     router.push('/loan-application/review-academic-kyc');
   };
 
-  const renderDateDropdowns = (
-    dayValue: string | undefined, onDayChange: (value: string) => void,
-    monthValue: string | undefined, onMonthChange: (value: string) => void,
-    yearValue: string | undefined, onYearChange: (value: string) => void,
-    yearOptions: string[]
-  ) => (
-    <div className="grid grid-cols-3 gap-2 items-center">
-      <Select value={dayValue} onValueChange={onDayChange}>
-        <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Day" /></SelectTrigger>
-        <SelectContent className="bg-white text-black">
-          {days.map(d => <SelectItem key={`day-${d}`} value={d} className="hover:bg-gray-100">{d}</SelectItem>)}
-        </SelectContent>
-      </Select>
-      <Select value={monthValue} onValueChange={onMonthChange}>
-        <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Month" /></SelectTrigger>
-        <SelectContent className="bg-white text-black">
-          {months.map(m => <SelectItem key={`month-${m.value}`} value={m.value} className="hover:bg-gray-100">{m.label}</SelectItem>)}
-        </SelectContent>
-      </Select>
-      <Select value={yearValue} onValueChange={onYearChange}>
-        <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Year" /></SelectTrigger>
-        <SelectContent className="bg-white text-black">
-          {yearOptions.map(y => <SelectItem key={`year-${y}`} value={y} className="hover:bg-gray-100">{y}</SelectItem>)}
-        </SelectContent>
-      </Select>
+  const renderDateField = (
+    label: string,
+    value: Date | undefined,
+    onChange: (date: Date | undefined) => void
+  ) => {
+    const isMonthYearPicker =
+      label === "Expected Completion Date" || label.includes("Month & Year");
+
+    const handleDateChange = (date: Date | undefined) => {
+      if (isMonthYearPicker && date) {
+        const adjustedDate = new Date(date);
+        adjustedDate.setDate(1);
+        onChange(adjustedDate);
+      } else {
+        onChange(date);
+      }
+    };
+
+    return (
+      <div className="w-full">
+        <Label className="text-white">{label}</Label>
+        <DatePicker
+          value={value}
+          onChange={handleDateChange}
+          placeholder="Select date"
+          fromYear={1950}
+          toYear={new Date().getFullYear() + 10}
+          maxDate={isMonthYearPicker ? undefined : new Date()}
+          pickerMode={isMonthYearPicker ? "monthYear" : "date"}
+        />
+      </div>
+    );
+  };
+
+  const isFormComplete = () => {
+    // Check if graduation details are complete if shown
+    if (showGraduation && !isGraduationComplete()) {
+      return false;
+    }
+    
+    // Check if post-graduation details are complete if shown
+    if (showPostGraduation && !isPostGraduationComplete()) {
+      return false;
+    }
+    
+    // Check if language test details are complete if shown
+    if (languageTestGiven === 'Yes' && !isLanguageTestComplete()) {
+      return false;
+    }
+    
+    // Check if course test details are complete if shown
+    if (courseTestGiven === 'Yes' && !isCourseTestComplete()) {
+      return false;
+    }
+    
+    return true;
+  };
+
+  const renderSaveButton = () => (
+    <div className="mt-8 flex justify-end">
+      <Button
+        onClick={handleSaveAndContinue}
+        disabled={!isFormComplete()}
+        variant="default" className="px-8 py-6 text-lg"
+      >
+        Save & Continue
+      </Button>
     </div>
   );
 
@@ -296,21 +353,19 @@ export default function AcademicKYCPage() {
 
       { (gradLevel === "Degree" || gradLevel === "Diploma") && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><Label htmlFor="gradCgpa" className="text-white">CGPA/Percentage</Label><Input id="gradCgpa" type="number" value={gradCgpa} onChange={(e) => setGradCgpa(e.target.value)} className="bg-white/80 text-black" /></div>
-            <div>
-              <Label htmlFor="gradCgpaScale" className="text-white">CGPA Scale (if applicable)</Label>
-              <Select value={gradCgpaScale || ''} onValueChange={setGradCgpaScale}>
-                <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Select scale" /></SelectTrigger>
-                <SelectContent className="bg-white text-black">
-                  {[4, 5, 7, 8, 10].map(s => <SelectItem key={`grad-scale-${s}`} value={String(s)} className="hover:bg-gray-100">{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <div className="w-full">
+          <Label className="text-white">Percentage</Label>
+          <PercentageSlider
+            value={gradPercentage}
+            onChange={setGradPercentage}
+            min={0}
+            max={100}
+            step={0.1}
+            className="mt-4"
+          />
+        </div>
           <div>
-            <Label className="text-white">Month & Year of Completion</Label>
-            {renderDateDropdowns(gradCompletionDay, setGradCompletionDay, gradCompletionMonth, setGradCompletionMonth, gradCompletionYear, setGradCompletionYear, pastYears)}
+            {renderDateField("Month & Year of Completion", gradCompletionDate, setGradCompletionDate)}
           </div>
         </>
       )}
@@ -327,12 +382,229 @@ export default function AcademicKYCPage() {
             </RadioGroup>
           </div>
            <div>
-            <Label className="text-white">Expected Month & Year of Completion</Label>
-            {renderDateDropdowns(gradExpectedCompletionDay, setGradExpectedCompletionDay, gradExpectedCompletionMonth, setGradExpectedCompletionMonth, gradExpectedCompletionYear, setGradExpectedCompletionYear, futureYearsShort)}
-          </div>
+             {renderDateField(
+               "Expected Completion Date",
+               gradExpectedCompletionMonth && gradExpectedCompletionYear
+                 ? new Date(parseInt(gradExpectedCompletionYear), parseInt(gradExpectedCompletionMonth) - 1, 1)
+                 : undefined,
+               (date) => {
+                 if (date) {
+                   setGradExpectedCompletionMonth(String(date.getMonth() + 1));
+                   setGradExpectedCompletionYear(String(date.getFullYear()));
+                 } else {
+                   setGradExpectedCompletionMonth(undefined);
+                   setGradExpectedCompletionYear(undefined);
+                 }
+               }
+             )}
+           </div>
         </>
       )}
       { gradLevel === "In Senior Secondary School" && (<div><Label htmlFor="gradNaReason" className="text-white">Please explain reason</Label><Textarea id="gradNaReason" value={gradNaReason} onChange={(e) => setGradNaReason(e.target.value)} className="bg-white/80 text-black" /></div>)}
+    </div>
+  );
+
+  const renderLanguageTestDetails = () => (
+    <div className="bg-white/10 backdrop-blur-sm p-6 rounded-lg shadow-lg mt-6 space-y-4">
+      <h3 className="text-xl font-semibold text-white mb-4">Language Test Details</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label className="text-white">Have you taken any language proficiency tests?</Label>
+          <div className="flex space-x-4 mt-2">
+            <Button
+              variant={languageTestGiven === 'Yes' ? 'default' : 'outline'}
+              onClick={() => {
+                setLanguageTestGiven('Yes');
+                setShowLanguageTest(true);
+              }}
+              className={`${languageTestGiven === 'Yes' ? 'bg-primary' : 'bg-transparent border-white/50 text-white hover:bg-white/10'}`}
+            >
+              Yes
+            </Button>
+            <Button
+              variant={languageTestGiven === 'No' ? 'default' : 'outline'}
+              onClick={() => {
+                setLanguageTestGiven('No');
+                setShowLanguageTest(false);
+                setShowCourseTest(true);
+                setAvekaMessage('Great, let\'s proceed to course exams like GRE or GMAT.');
+              }}
+              className={`${languageTestGiven === 'No' ? 'bg-primary' : 'bg-transparent border-white/50 text-white hover:bg-white/10'}`}
+            >
+              No
+            </Button>
+          </div>
+        </div>
+
+        {languageTestGiven === 'Yes' && (
+          <>
+            <div>
+              <Label className="text-white">Test Type</Label>
+              <Select
+                value={languageTestType || ''}
+                onValueChange={(value) => {
+                  setLanguageTestType(value);
+                  if (value !== 'Other') {
+                    setLanguageTestOtherName('');
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-white/80 text-black">
+                  <SelectValue placeholder="Select test type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="IELTS">IELTS</SelectItem>
+                  <SelectItem value="TOEFL">TOEFL</SelectItem>
+                  <SelectItem value="PTE">PTE</SelectItem>
+                  <SelectItem value="Duolingo">Duolingo</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              {languageTestType === 'Other' && (
+                <Input
+                  value={languageTestOtherName}
+                  onChange={(e) => setLanguageTestOtherName(e.target.value)}
+                  placeholder="Please specify test name"
+                  className="mt-2 bg-white/80 text-black"
+                />
+              )}
+            </div>
+
+            <div>
+              <Label className="text-white">Test Score</Label>
+
+              {languageTestType === 'IELTS' && (
+                <div className="mt-2 space-x-4">
+                  <span className="text-white mr-2">Band ≥ 6.5 ?</span>
+                  <Button
+                    variant={ieltsAbove65 === 'yes' ? 'default' : 'outline'}
+                    onClick={() => setIeltsAbove65('yes')}
+                    className={`${ieltsAbove65 === 'yes' ? 'bg-primary' : 'bg-transparent border-white/50 text-white hover:bg-white/10'}`}
+                  >Yes</Button>
+                  <Button
+                    variant={ieltsAbove65 === 'no' ? 'default' : 'outline'}
+                    onClick={() => setIeltsAbove65('no')}
+                    className={`${ieltsAbove65 === 'no' ? 'bg-primary' : 'bg-transparent border-white/50 text-white hover:bg-white/10'}`}
+                  >No</Button>
+                </div>
+              )}
+
+              {languageTestType === 'PTE' && (
+                <div className="mt-2 space-x-4">
+                  <span className="text-white mr-2">Score ≥ 58.5 ?</span>
+                  <Button
+                    variant={pteAbove585 === 'yes' ? 'default' : 'outline'}
+                    onClick={() => setPteAbove585('yes')}
+                    className={`${pteAbove585 === 'yes' ? 'bg-primary' : 'bg-transparent border-white/50 text-white hover:bg-white/10'}`}
+                  >Yes</Button>
+                  <Button
+                    variant={pteAbove585 === 'no' ? 'default' : 'outline'}
+                    onClick={() => setPteAbove585('no')}
+                    className={`${pteAbove585 === 'no' ? 'bg-primary' : 'bg-transparent border-white/50 text-white hover:bg-white/10'}`}
+                  >No</Button>
+                </div>
+              )}
+
+              {languageTestType && !['IELTS', 'PTE'].includes(languageTestType) && (
+                <Input
+                  value={languageTestScore}
+                  onChange={(e) => setLanguageTestScore(e.target.value)}
+                  placeholder="Enter your score"
+                  className="bg-white/80 text-black mt-2"
+                />
+              )}
+            </div>
+
+            <div>
+              {renderDateField("Test Date", languageTestDate, setLanguageTestDate)}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderCourseTestDetails = () => (
+    <div className="bg-white/10 backdrop-blur-sm p-6 rounded-lg shadow-lg mt-6 space-y-4">
+      <h3 className="text-xl font-semibold text-white mb-4">Course Test Details</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label className="text-white">Have you taken any course-related tests?</Label>
+          <div className="flex space-x-4 mt-2">
+            <Button
+              variant={courseTestGiven === 'Yes' ? 'default' : 'outline'}
+              onClick={() => {
+                setCourseTestGiven('Yes');
+                setShowCourseTest(true);
+              }}
+              className={`${courseTestGiven === 'Yes' ? 'bg-primary' : 'bg-transparent border-white/50 text-white hover:bg-white/10'}`}
+            >
+              Yes
+            </Button>
+            <Button
+              variant={courseTestGiven === 'No' ? 'default' : 'outline'}
+              onClick={() => {
+                setCourseTestGiven('No');
+                // keep section visible so user can review
+                 //setShowCourseTest(false);
+              }}
+              className={`${courseTestGiven === 'No' ? 'bg-primary' : 'bg-transparent border-white/50 text-white hover:bg-white/10'}`}
+            >
+              No
+            </Button>
+          </div>
+        </div>
+
+        {courseTestGiven === 'Yes' && (
+          <>
+            <div>
+              <Label className="text-white">Test Type</Label>
+              <Select
+                value={courseTestType || ''}
+                onValueChange={(value) => {
+                  setCourseTestType(value);
+                  if (value !== 'Other') {
+                    setCourseTestOtherName('');
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-white/80 text-black">
+                  <SelectValue placeholder="Select test type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GRE">GRE</SelectItem>
+                  <SelectItem value="GMAT">GMAT</SelectItem>
+                  <SelectItem value="SAT">SAT</SelectItem>
+                  <SelectItem value="ACT">ACT</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              {courseTestType === 'Other' && (
+                <Input
+                  value={courseTestOtherName}
+                  onChange={(e) => setCourseTestOtherName(e.target.value)}
+                  placeholder="Please specify test name"
+                  className="mt-2 bg-white/80 text-black"
+                />
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="courseTestScore" className="text-white">Test Score</Label>
+              <Input
+                id="courseTestScore"
+                value={courseTestScore}
+                onChange={(e) => setCourseTestScore(e.target.value)}
+                placeholder="Enter your score"
+                className="bg-white/80 text-black"
+              />
+            </div>
+            <div>
+              {renderDateField("Test Date", courseTestDate, setCourseTestDate)}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 
@@ -353,21 +625,19 @@ export default function AcademicKYCPage() {
         </div>
         { (postGradLevel === "Degree" || postGradLevel === "Diploma") && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><Label htmlFor="postGradCgpa" className="text-white">CGPA/Percentage</Label><Input id="postGradCgpa" type="number" value={postGradCgpa} onChange={(e) => setPostGradCgpa(e.target.value)} className="bg-white/80 text-black" /></div>
-              <div>
-                <Label htmlFor="postGradCgpaScale" className="text-white">CGPA Scale (if applicable)</Label>
-                <Select value={postGradCgpaScale || ''} onValueChange={setPostGradCgpaScale}>
-                  <SelectTrigger className="bg-white/80 text-black"><SelectValue placeholder="Select scale" /></SelectTrigger>
-                  <SelectContent className="bg-white text-black">
-                    {[4, 5, 7, 8, 10].map(s => <SelectItem key={`postgrad-scale-${s}`} value={String(s)} className="hover:bg-gray-100">{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="w-full">
+              <Label className="text-white">Percentage</Label>
+              <PercentageSlider
+                value={postGradPercentage}
+                onChange={setPostGradPercentage}
+                min={0}
+                max={100}
+                step={0.1}
+                className="mt-4"
+              />
             </div>
             <div>
-              <Label className="text-white">Month & Year of Completion</Label>
-              {renderDateDropdowns(postGradCompletionDay, setPostGradCompletionDay, postGradCompletionMonth, setPostGradCompletionMonth, postGradCompletionYear, setPostGradCompletionYear, pastYears)}
+              {renderDateField("Month & Year of Completion", postGradCompletionDate, setPostGradCompletionDate)}
             </div>
           </>
         )}
@@ -384,168 +654,28 @@ export default function AcademicKYCPage() {
               </RadioGroup>
             </div>
              <div>
-              <Label className="text-white">Expected Month & Year of Completion</Label>
-              {renderDateDropdowns(postGradExpectedCompletionDay, setPostGradExpectedCompletionDay, postGradExpectedCompletionMonth, setPostGradExpectedCompletionMonth, postGradExpectedCompletionYear, setPostGradExpectedCompletionYear, futureYearsShort)}
+              <div className="grid grid-cols-1 gap-4 items-end">
+                {renderDateField(
+                  "Expected Completion Date",
+                  postGradExpectedCompletionYear && postGradExpectedCompletionMonth 
+                    ? new Date(parseInt(postGradExpectedCompletionYear), parseInt(postGradExpectedCompletionMonth) - 1, 1)
+                    : undefined,
+                  (date) => {
+                    if (date) {
+                      const year = date.getFullYear().toString();
+                      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                      setPostGradExpectedCompletionYear(year);
+                      setPostGradExpectedCompletionMonth(month);
+                    } else {
+                      setPostGradExpectedCompletionYear(undefined);
+                      setPostGradExpectedCompletionMonth(undefined);
+                    }
+                  }
+                )}
+              </div>
             </div>
           </>
         )}
-      </div>
-    )
-  );
-  
-  const renderLanguageTestDetails = () => (
-    showLanguageTest && (
-      <div className="space-y-6 p-4 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
-        <h3 className="font-semibold text-lg text-center text-white">Language Test Details</h3>
-        <Label className="text-white">Have you appeared for any language proficiency test (e.g., IELTS, TOEFL)?</Label>
-        <RadioGroup value={languageTestGiven || ''} onValueChange={setLanguageTestGiven} className="flex flex-wrap gap-x-4 gap-y-2 text-white">
-          {[{value: 'yes', label: 'Yes'}, {value: 'no', label: 'No'}, {value: 'yet_to_appear', label: 'Yet to Appear'}].map(opt => (
-            <div key={`lang-given-${opt.value}`} className="flex items-center space-x-2">
-              <RadioGroupItem value={opt.value} id={`lang-given-${opt.value}`} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/>
-              <Label htmlFor={`lang-given-${opt.value}`}>{opt.label}</Label>
-            </div>
-          ))}
-        </RadioGroup>
-
-        {languageTestGiven === 'yes' && (
-          <div className="space-y-4">
-            {isAsianCountry === null && <p className="text-white text-sm">Loading country information...</p>}
-            {isAsianCountry === true && ( 
-              <>
-                <Label className="text-white">Which test have you appeared for?</Label>
-                <RadioGroup value={languageTestType || ''} onValueChange={(value) => { setLanguageTestType(value); setLanguageTestOtherName(''); setLanguageTestScore(''); setIeltsAbove65(null); }} className="flex space-x-4 text-white">
-                    <div className="flex items-center space-x-2"><RadioGroupItem value="IELTS" id="lang-ielts" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/><Label htmlFor="lang-ielts">IELTS</Label></div>
-                    <div className="flex items-center space-x-2"><RadioGroupItem value="Other" id="lang-other-asian" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/><Label htmlFor="lang-other-asian">Other (e.g., PTE, TOEFL)</Label></div>
-                </RadioGroup>
-
-                {languageTestType === 'IELTS' && (
-                  <div>
-                    <Label className="text-white">Have you scored above 6.5 overall in IELTS?</Label>
-                    <RadioGroup value={ieltsAbove65 || ''} onValueChange={setIeltsAbove65} className="flex space-x-4 text-white">
-                        <div className="flex items-center space-x-2"><RadioGroupItem value="yes" id="ielts-yes" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/><Label htmlFor="ielts-yes">Yes</Label></div>
-                        <div className="flex items-center space-x-2"><RadioGroupItem value="no" id="ielts-no" className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/><Label htmlFor="ielts-no">No</Label></div>
-                    </RadioGroup>
-                  </div>
-                )}
-                {languageTestType === 'Other' && ( 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                    <div>
-                        <Label htmlFor="languageTestOtherNameAsian" className="text-white">Specify Test Name</Label>
-                        <Input id="languageTestOtherNameAsian" value={languageTestOtherName} onChange={(e) => setLanguageTestOtherName(e.target.value)} className="bg-white/80 text-black w-full" />
-                    </div>
-                    <div>
-                        <Label htmlFor="languageTestScoreAsian" className="text-white">Your Score</Label>
-                        <Input id="languageTestScoreAsian" value={languageTestScore} onChange={(e) => setLanguageTestScore(e.target.value)} className="bg-white/80 text-black w-full" />
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-            {isAsianCountry === false && ( 
-              <>
-                <Label className="text-white">Which test have you appeared for?</Label>
-                 <Select value={languageTestType || ''} onValueChange={(value) => {setLanguageTestType(value); if (value !== 'Other Test') {setLanguageTestOtherName('');} setLanguageTestScore(''); }}>
-                  <SelectTrigger className="bg-white/80 text-black w-full md:w-auto"><SelectValue placeholder="Select test" /></SelectTrigger>
-                  <SelectContent className="bg-white text-black">
-                    {['TOEFL', 'PTE', 'Duolingo', 'Other Test'].map(test => <SelectItem key={`lang-test-nonasian-${test}`} value={test} className="hover:bg-gray-100">{test}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                
-                {languageTestType === 'Other Test' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end mt-2">
-                      <div>
-                          <Label htmlFor="languageTestOtherNameNonAsian" className="text-white">Specify Test Name</Label>
-                          <Input id="languageTestOtherNameNonAsian" value={languageTestOtherName} onChange={(e) => setLanguageTestOtherName(e.target.value)} className="bg-white/80 text-black w-full" />
-                      </div>
-                      <div>
-                          <Label htmlFor="languageTestScoreNonAsianOther" className="text-white">Your Score</Label>
-                          <Input id="languageTestScoreNonAsianOther" value={languageTestScore} onChange={(e) => setLanguageTestScore(e.target.value)} className="bg-white/80 text-black w-full" />
-                      </div>
-                  </div>
-                )}
-                {(languageTestType && languageTestType !== '' && languageTestType !== 'Other Test') && ( 
-                    <div className="mt-4"> 
-                        <Label htmlFor="languageTestScoreNonAsianDirect" className="text-white">Your Score for {languageTestType}</Label>
-                        <Input id="languageTestScoreNonAsianDirect" value={languageTestScore} onChange={(e) => setLanguageTestScore(e.target.value)} className="bg-white/80 text-black w-full md:w-1/2" />
-                    </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-        {languageTestGiven === 'yet_to_appear' && (
-          <div>
-            <Label className="text-white">Expected Test Date</Label>
-            {renderDateDropdowns(languageTestDay, setLanguageTestDay, languageTestMonth, setLanguageTestMonth, languageTestYear, setLanguageTestYear, futureYearsTest)}
-          </div>
-        )}
-      </div>
-    )
-  );
-  
-  const renderCourseTestDetails = () => (
-    showCourseTest && (
-      <div className="space-y-6 p-4 border border-gray-600/30 rounded-lg bg-[hsl(var(--card)/0.15)] backdrop-blur-xs mt-4">
-        <h3 className="font-semibold text-lg text-center text-white">Course Test Details</h3>
-        <Label className="text-white">Have you appeared for any course-specific test (e.g., GMAT, GRE)?</Label>
-        <RadioGroup value={courseTestGiven || ''} onValueChange={setCourseTestGiven} className="flex flex-wrap gap-x-4 gap-y-2 text-white">
-            {[{value: 'yes', label: 'Yes'}, {value: 'no', label: 'No'}, {value: 'yet_to_appear', label: 'Yet to Appear'}].map(opt => (
-                <div key={`course-given-${opt.value}`} className="flex items-center space-x-2">
-                <RadioGroupItem value={opt.value} id={`course-given-${opt.value}`} className="border-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"/>
-                <Label htmlFor={`course-given-${opt.value}`}>{opt.label}</Label>
-                </div>
-            ))}
-        </RadioGroup>
-
-        {courseTestGiven === 'yes' && (
-            <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                    <div>
-                        <Label className="text-white">Which test have you appeared for?</Label>
-                        <Select value={courseTestType || ''} onValueChange={(value) => {setCourseTestType(value); if (value !== 'Other') setCourseTestOtherName(''); setCourseTestScore(''); }}>
-                            <SelectTrigger className="bg-white/80 text-black w-full"><SelectValue placeholder="Select test" /></SelectTrigger>
-                            <SelectContent className="bg-white text-black">
-                                {['GMAT', 'GRE', 'Other'].map(test => <SelectItem key={`course-test-${test}`} value={test} className="hover:bg-gray-100">{test}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                     {(courseTestType && courseTestType !== '' && courseTestType !== 'Other') && (
-                        <div>
-                            <Label htmlFor="courseTestScoreDirect" className="text-white">Your Score</Label>
-                            <Input id="courseTestScoreDirect" value={courseTestScore} onChange={(e) => setCourseTestScore(e.target.value)} className="bg-white/80 text-black w-full" />
-                        </div>
-                    )}
-                </div>
-                {courseTestType === 'Other' && (
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end mt-2">
-                        <div>
-                            <Label htmlFor="courseTestOtherName" className="text-white">Specify Test Name</Label>
-                            <Input id="courseTestOtherName" value={courseTestOtherName} onChange={(e) => setCourseTestOtherName(e.target.value)} className="bg-white/80 text-black w-full" />
-                        </div>
-                        <div>
-                            <Label htmlFor="courseTestScoreOther" className="text-white">Your Score</Label>
-                            <Input id="courseTestScoreOther" value={courseTestScore} onChange={(e) => setCourseTestScore(e.target.value)} className="bg-white/80 text-black w-full" />
-                        </div>
-                    </div>
-                )}
-            </div>
-        )}
-        {courseTestGiven === 'yet_to_appear' && (
-            <div>
-                <Label className="text-white">Expected Test Date</Label>
-                {renderDateDropdowns(courseTestDay, setCourseTestDay, courseTestMonth, setCourseTestMonth, courseTestYear, setCourseTestYear, futureYearsTest)}
-            </div>
-        )}
-      </div>
-    )
-  );
-
-  const renderSaveButton = () => (
-    isGraduationComplete() && isPostGraduationComplete() && isLanguageTestComplete() && isCourseTestComplete() && (
-      <div className="mt-8 flex justify-center">
-        <Button onClick={handleSaveAndContinue} size="lg" className="gradient-border-button">
-          Save & Continue to Review
-        </Button>
       </div>
     )
   );
@@ -560,82 +690,68 @@ export default function AcademicKYCPage() {
         }}
       >
         <div className="absolute inset-0 bg-[hsl(var(--background)/0.10)] rounded-2xl z-0"></div>
+
         <div className="relative z-10">
           <div className="flex justify-between items-center py-4">
             <Logo />
-            <nav>
-              <ul className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
-                {navMenuItems.map((item) => (
-                  <li key={item}>
-                    <button
-                      onClick={() => setActiveNavItem(item)}
-                      className="text-white hover:opacity-75 transition-opacity focus:outline-none flex items-center text-xs sm:text-sm"
-                      aria-current={activeNavItem === item ? "page" : undefined}
-                    >
-                      <span
-                        className={`inline-block w-2 h-2 rounded-full mr-1.5 sm:mr-2 shrink-0 ${
-                          activeNavItem === item
-                            ? 'progress-dot-active'
-                            : 'bg-gray-400/60'
-                        }`}
-                        aria-hidden="true"
-                      ></span>
-                      {item}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
             <div className="flex items-center space-x-2 md:space-x-4">
               <Button variant="default" size="sm">Login</Button>
               <Link href="/loan-application/mobile" passHref>
-
+                <Button variant="outline" size="sm" className="text-white border-white/50 hover:bg-white/10">
+                  Get Started
+                </Button>
               </Link>
             </div>
           </div>
+
           <LoanProgressBar steps={loanAppSteps} hasOfferLetter={localStorage.getItem('hasOfferLetterStatus') === 'true'} />
-           <div className="flex items-center mb-6 mt-4"> 
-            <Button variant="outline" size="sm" onClick={() => router.push('/loan-application/review-personal-kyc')} className="bg-white/20 hover:bg-white/30 text-white">
+          
+          <div className="flex items-center mb-6 mt-4"> 
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => router.push('/loan-application/review-personal-kyc')} 
+              className="bg-white/20 hover:bg-white/30 text-white"
+            >
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
           </div>
 
-          <div className="py-8">
-            <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-2xl mx-auto">
-              <div className="flex flex-col items-center text-center mb-6">
-                <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
-                    <div className="flex-shrink-0 mb-3 md:mb-0">
-                        <Image
-                        src="/images/aveka.png"
-                        alt="Aveka, GlobCred's Smart AI"
-                        width={50}
-                        height={50}
-                        className="rounded-full border-2 border-white shadow-md"
-                        data-ai-hint="robot avatar"
-                        />
-                    </div>
-                    <div
-                        className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow
-                                    transform transition-all duration-500 ease-out w-full
-                                    ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
-                    >
-                        <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
-                        <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
-                        <p className="text-base text-white">{avekaMessage}</p>
-                    </div>
+        <div className="py-8">
+          <div className="bg-[hsl(var(--card)/0.25)] backdrop-blur-sm shadow-xl border-0 text-white rounded-xl p-6 md:p-8 max-w-2xl mx-auto">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-4 w-full">
+                <div className="flex-shrink-0 mb-3 md:mb-0">
+                  <Image
+                    src="/images/aveka.png"
+                    alt="Aveka, GlobCred's Smart AI"
+                    width={50}
+                    height={50}
+                    className="rounded-full border-2 border-white shadow-md"
+                    data-ai-hint="robot avatar"
+                  />
+                </div>
+                <div
+                  className={`bg-[hsl(var(--card)/0.35)] backdrop-blur-xs p-4 rounded-lg shadow-sm text-left md:flex-grow
+                            transform transition-all duration-500 ease-out w-full
+                            ${avekaMessageVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+                >
+                  <p className="font-semibold text-lg mb-1 text-white">Aveka</p>
+                  <p className="text-sm text-gray-200 mb-2 italic">GlobCred's Smart AI Assistant</p>
+                  <p className="text-base text-white">{avekaMessage}</p>
                 </div>
               </div>
-              
-              {showGraduation && renderGraduationDetails()}
-              {showPostGraduation && renderPostGraduationDetails()}
-              {showLanguageTest && renderLanguageTestDetails()}
-              {showCourseTest && renderCourseTestDetails()}
-              {renderSaveButton()}
-
             </div>
+            
+            {showGraduation && renderGraduationDetails()}
+            {showPostGraduation && renderPostGraduationDetails()}
+            {renderLanguageTestDetails()}
+            {showCourseTest && renderCourseTestDetails()}
+            {renderSaveButton()}
           </div>
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
+  </div>
   );
 }
