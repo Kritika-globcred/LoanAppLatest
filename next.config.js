@@ -138,7 +138,7 @@ module.exports = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "connect-src 'self' ws: wss: https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://live-mt-server.wati.io"
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://securetoken.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https: http: https://raw.githubusercontent.com https://placehold.co https://globcred.org https://firebasestorage.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' ws: wss: https://*.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://live-mt-server.wati.io; frame-src 'self' https://*.firebaseapp.com https://*.google.com; worker-src 'self' blob:; form-action 'self'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
           }
         ]
       }
